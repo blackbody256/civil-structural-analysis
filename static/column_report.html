@@ -3,26 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Column Report · EC2 Element Checker</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314213d'/%3E%3Crect x='11' y='4' width='10' height='24' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <title>Column Report · EC2 Checker</title>
+  <script>(function(){var p="system";try{p=localStorage.getItem("ec2.theme")||"system"}catch(e){}var d=p==="dark"||(p!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e6479'/%3E%3Crect x='12' y='6' width='8' height='20' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/report.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">
-      <span class="brand-mark">EC2</span>
-      <span class="brand-name">Element Checker<small>Eurocode 2 · concrete structures</small></span>
-    </a>
-    <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="/">Elements</a><span class="sep">/</span><a href="/column">Column</a><span class="sep">/</span><span>Report</span>
-    </nav>
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">EC2 Checker</span></a>
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Elements</a><span class="sep">/</span><a href="/column">Column</a><span class="sep">/</span><span>Report</span></nav>
     <span class="spacer"></span>
-    <a class="ref-link" href="/reference/guide.pdf#page=37" target="_blank" rel="noopener">Guide · Ch 5 Columns</a>
+    <a class="link" href="/reference/guide.pdf#page=37" target="_blank" rel="noopener">Guide, chapter 5</a>
+    <span id="theme-slot"></span>
   </header>
 
   <main class="page" id="report">
-    <div class="empty">Loading the results…</div>
+    <p class="empty">Loading the results…</p>
   </main>
+
+  <div id="export-menu" class="menu" popover role="menu">
+    <button type="button" role="menuitem" id="export-pdf">Download PDF report<span class="sub">Summary, drawings and the full calculations</span></button>
+    <button type="button" role="menuitem" id="export-print">Print this page</button>
+    <hr>
+    <button type="button" role="menuitem" id="export-json">Download inputs (JSON)<span class="sub">Open it later from Examples and files</span></button>
+  </div>
 
   <script type="module" src="/static/js/column-report.js"></script>
 </body>

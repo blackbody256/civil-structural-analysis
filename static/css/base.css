@@ -177,7 +177,8 @@ h3 { font-size: 16px; font-weight: 600; margin: 0; }
   text-align: left; text-decoration: none; cursor: pointer;
 }
 .menu button:hover, .menu a:hover { background: var(--surface-2); color: var(--text); }
-.menu .sub { display: block; color: var(--muted); font-size: 12.5px; }
+.menu button:has(.sub) { flex-wrap: wrap; row-gap: 0; }
+.menu .sub { flex-basis: 100%; color: var(--muted); font-size: 12.5px; }
 .menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
 .menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent); }
 .theme-button { gap: 6px; }
