@@ -1,9 +1,7 @@
 // Shared helpers for every page.
 import "./theme.js";
 
-export const STATUS_LABEL = { pass: "PASS", fail: "FAIL", warn: "WARN", info: "INFO", na: "N/A" };
 export const STATUS_TEXT = { pass: "Pass", fail: "Fail", warn: "Warning", info: "Info", na: "Not applicable" };
-export const STATUS_ICON = { pass: "✓", fail: "✕", warn: "!", info: "i", na: "–" };
 const svgIcon = (body) => `<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 export const STATUS_SVG = {
   pass: svgIcon('<path d="M2.6 6.3 5 8.6l4.5-5"/>'),
@@ -98,10 +96,6 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-export function escapeHtml(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 export function fmt(x, nd = 1) {
   if (x === null || x === undefined || Number.isNaN(x)) return "—";
   return Number(x).toFixed(nd);
@@ -115,26 +109,9 @@ export function worst(statuses) {
   return statuses.reduce((w, s) => (SEVERITY[s] > SEVERITY[w] ? s : w), "na");
 }
 
-export function chip(status) {
-  return el("span", { class: `chip ${status}` }, STATUS_LABEL[status]);
-}
-
-export function utilBar(u) {
-  if (u === null || u === undefined || !Number.isFinite(u)) return el("span", { class: "muted" });
-  const cls = u > 1 ? "fail" : u > 0.95 ? "warn" : "";
-  const span = el("span", { class: cls });
-  span.style.width = `${Math.min(u, 1) * 100}%`;
-  return el("div", { class: "util" }, el("div", { class: "bar" }, span), el("span", { class: "val" }, fmt(u, 2)));
-}
-
 /** Status with a coloured dot, e.g. "● Fail". */
 export function statusDot(status, text = STATUS_TEXT[status]) {
   return el("span", { class: `status ${status}` }, text);
-}
-
-/** Pill-shaped status label for places that need more emphasis. */
-export function tag(status, text = STATUS_TEXT[status]) {
-  return el("span", { class: `tag ${status}` }, text);
 }
 
 /** Utilisation meter: a track filled up to min(u, 1) and the value. */

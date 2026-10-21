@@ -194,12 +194,6 @@ h3 { font-size: 16px; font-weight: 600; margin: 0; }
 .status.warn { color: var(--warn); }
 .status.info { color: var(--info); }
 .status.na { color: var(--na); }
-.tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
-.tag.pass { color: var(--pass); background: var(--pass-soft); }
-.tag.fail { color: var(--fail); background: var(--fail-soft); }
-.tag.warn { color: var(--warn); background: var(--warn-soft); }
-.tag.info { color: var(--info); background: var(--info-soft); }
-.tag.na { color: var(--na); background: var(--na-soft); }
 
 .meter { display: flex; align-items: center; gap: 10px; }
 .meter .track { position: relative; flex: 1; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
