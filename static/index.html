@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EC2 Element Checker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314213d'/%3E%3Crect x='11' y='4' width='10' height='24' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Ccircle cx='14' cy='8' r='1.5' fill='%23fff'/%3E%3Ccircle cx='18' cy='8' r='1.5' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark">EC2</span>
+      <span class="brand-name">Element Checker<small>Eurocode 2 · concrete structures</small></span>
+    </a>
+    <nav class="crumbs" aria-label="Breadcrumb"><span>Elements</span></nav>
+    <span class="spacer"></span>
+    <a class="ref-link" href="/reference/guide.pdf" target="_blank" rel="noopener">Open the guide (PDF)</a>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Step 1 of 3 · Choose element</div>
+        <h1 class="title">Which structural element are you checking?</h1>
+        <p class="lede">Each check follows the design procedure in <em>How to Design Concrete Structures using
+          Eurocode 2</em> (The Concrete Centre, 2006) with UK National Annex values. Enter the design you want
+          to verify; the tool runs the guide's tests in order and shows which ones pass.</p>
+      </div>
+      <div class="hero-stamp">
+        <strong>Runs locally</strong>
+        No login, no data leaves this computer.<br>
+        BS EN 1992-1-1 · BS EN 1992-1-2 · BS 8500
+      </div>
+    </section>
+
+    <section class="element-grid" id="elements" aria-live="polite">
+      <div class="empty">Loading elements…</div>
+    </section>
+
+    <p class="notice">This tool supports learning and preliminary checking. Results must be verified by a qualified
+      structural engineer before construction.</p>
+  </main>
+
+  <script type="module" src="/static/js/landing.js"></script>
+</body>
+</html>
