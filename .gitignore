@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+
+# The guide is a copyrighted publication (The Concrete Centre). Keep your copy next to
+# app.py so the reference links work, but do not commit it.
+How-to-design-concrete-structures-using-Eurocode-2.pdf
