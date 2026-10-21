@@ -3,273 +3,291 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Column Inputs · EC2 Element Checker</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314213d'/%3E%3Crect x='11' y='4' width='10' height='24' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <title>Column · EC2 Checker</title>
+  <script>(function(){var p="system";try{p=localStorage.getItem("ec2.theme")||"system"}catch(e){}var d=p==="dark"||(p!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e6479'/%3E%3Crect x='12' y='6' width='8' height='20' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/form.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">
-      <span class="brand-mark">EC2</span>
-      <span class="brand-name">Element Checker<small>Eurocode 2 · concrete structures</small></span>
-    </a>
-    <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="/">Elements</a><span class="sep">/</span><span>Column</span>
-    </nav>
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">EC2 Checker</span></a>
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Elements</a><span class="sep">/</span><span>Column</span></nav>
     <span class="spacer"></span>
-    <a class="ref-link" href="/reference/guide.pdf#page=37" target="_blank" rel="noopener">Guide · Ch 5 Columns</a>
+    <a class="link" href="/reference/guide.pdf#page=37" target="_blank" rel="noopener">Guide, chapter 5</a>
+    <span id="theme-slot"></span>
   </header>
 
-  <main class="page">
-    <div class="eyebrow">Step 2 of 3 · Fundamental inputs</div>
-    <h1 class="title">Column (pillar): design to verify</h1>
-    <p class="lede">Enter the column as designed. Actions are ULS design values from your frame analysis
-      (Ch 5, Fig 2: N<sub>Ed</sub>, M<sub>top</sub>, M<sub>bottom</sub>). The section on the right is drawn to scale
-      as you type.</p>
+  <main class="page wide">
+    <div class="page-head">
+      <h1>Column</h1>
+      <p class="lede">Enter the column as designed. Loads are ULS design values from your frame analysis: the axial
+        load N<sub>Ed</sub> and the end moments about each axis.</p>
+    </div>
 
-    <form id="column-form" class="form-layout" novalidate autocomplete="off" style="margin-top:22px">
-      <div class="form-stack">
+    <form id="column-form" class="form-layout" novalidate autocomplete="off">
+      <div class="form-main">
+        <div class="form-tools">
+          <span>Click a section to edit it.</span>
+          <span class="spacer"></span>
+          <button type="button" class="btn quiet small" id="expand-all">Expand all</button>
+          <button type="button" class="btn quiet small" id="collapse-all">Collapse all</button>
+        </div>
 
-        <section class="sheet">
-          <div class="sheet-head"><span class="idx">00</span><h3>Project</h3><span class="hint">Shown on the report title block</span></div>
-          <div class="sheet-body fields">
-            <div class="field"><label for="p-name">Project</label>
-              <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="e.g. Campus block A"></div></div>
-            <div class="field"><label for="p-ref">Element ref</label>
-              <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="e.g. C1 ground floor"></div></div>
-            <div class="field"><label for="p-eng">Engineer</label>
-              <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
-            <div class="field"><label for="p-date">Date</label>
-              <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
-          </div>
-        </section>
-
-        <section class="sheet">
-          <div class="sheet-head"><span class="idx">01</span><h3>Materials</h3><span class="hint">Ch 2, Tables 4 &amp; 5</span></div>
-          <div class="sheet-body">
+        <details class="section" data-section="project">
+          <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
             <div class="fields">
-              <div class="field"><label for="m-concrete">Concrete strength class</label>
+              <div class="field"><label for="p-name">Project</label>
+                <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="Campus block A"></div></div>
+              <div class="field"><label for="p-ref">Element reference</label>
+                <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="C1 ground floor"></div></div>
+              <div class="field"><label for="p-eng">Engineer</label>
+                <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
+              <div class="field"><label for="p-date">Date</label>
+                <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" data-section="materials" open>
+          <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="m-concrete">Concrete class</label>
                 <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
                 <span class="help" id="concrete-help"></span></div>
               <div class="field"><label for="m-fyk">Rebar yield strength f<sub>yk</sub></label>
                 <div class="control"><input id="m-fyk" name="materials.fyk" type="number" step="10" min="200" max="700" required><span class="unit">MPa</span></div>
-                <span class="help">B500 = 500 MPa; EC2 covers 400–600</span></div>
+                <span class="help">B500 is 500 MPa. Eurocode 2 covers 400–600.</span></div>
               <div class="field"><label for="m-duct">Ductility class</label>
                 <div class="control"><select id="m-duct" name="materials.ductility">
-                  <option value="A">A (k ≥ 1.05, εuk ≥ 2.5 %)</option>
-                  <option value="B">B (k ≥ 1.08, εuk ≥ 5.0 %)</option>
-                  <option value="C">C (k ≥ 1.15, εuk ≥ 7.5 %)</option></select></div></div>
-              <div class="field"><label for="m-dg">Max aggregate size d<sub>g</sub></label>
+                  <option value="A">A (normal)</option><option value="B">B (high)</option><option value="C">C (very high)</option></select></div></div>
+              <div class="field"><label for="m-dg">Largest aggregate d<sub>g</sub></label>
                 <div class="control"><input id="m-dg" name="materials.dg" type="number" step="1" min="5" max="63" required><span class="unit">mm</span></div></div>
             </div>
-            <details class="advanced">
-              <summary>National Annex parameters (UK values from the guide)</summary>
+            <details class="more">
+              <summary>More options: National Annex factors</summary>
               <div class="fields">
                 <div class="field"><label for="m-gc">γ<sub>c</sub> concrete</label>
                   <div class="control"><input id="m-gc" name="materials.gamma_c" type="number" step="0.05" min="1" max="2"></div></div>
                 <div class="field"><label for="m-gs">γ<sub>s</sub> reinforcement</label>
                   <div class="control"><input id="m-gs" name="materials.gamma_s" type="number" step="0.05" min="1" max="1.5"></div></div>
                 <div class="field"><label for="m-acc">α<sub>cc</sub></label>
-                  <div class="control"><input id="m-acc" name="materials.alpha_cc" type="number" step="0.05" min="0.8" max="1"></div></div>
+                  <div class="control"><input id="m-acc" name="materials.alpha_cc" type="number" step="0.05" min="0.8" max="1"></div>
+                  <span class="help">UK values: 1.5, 1.15, 0.85</span></div>
               </div>
             </details>
           </div>
-        </section>
+        </details>
 
-        <section class="sheet">
-          <div class="sheet-head"><span class="idx">02</span><h3>Geometry</h3><span class="hint">Rectangular section</span></div>
-          <div class="sheet-body fields">
-            <div class="field"><label for="g-b">Width b</label>
-              <div class="control"><input id="g-b" name="geometry.b" type="number" step="5" min="100" max="3000" required><span class="unit">mm</span></div>
-              <span class="help">Depth for bending about z–z</span></div>
-            <div class="field"><label for="g-h">Depth h</label>
-              <div class="control"><input id="g-h" name="geometry.h" type="number" step="5" min="100" max="3000" required><span class="unit">mm</span></div>
-              <span class="help">Depth for bending about y–y</span></div>
-            <div class="field"><label for="g-l">Clear height l</label>
-              <div class="control"><input id="g-l" name="geometry.l" type="number" step="0.05" min="0.5" max="30" required><span class="unit">m</span></div>
-              <span class="help">Between end restraints</span></div>
-          </div>
-        </section>
-
-        <section class="sheet">
-          <div class="sheet-head"><span class="idx">03</span><h3>Reinforcement &amp; cover</h3><span class="hint">Ch 5 rules for spacing; Ch 10</span></div>
-          <div class="sheet-body">
-            <div class="subhead">Longitudinal bars</div>
+        <details class="section" data-section="geometry">
+          <summary><span class="s-title">Geometry</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
             <div class="fields">
-              <div class="field"><label for="r-dia">Bar diameter φ</label>
-                <div class="control"><select id="r-dia" name="reinforcement.bar_dia" data-options="bars"></select><span class="unit">mm</span></div></div>
-              <div class="field"><label for="r-nb">Bars per b-face</label>
-                <div class="control"><input id="r-nb" name="reinforcement.n_b" type="number" step="1" min="2" max="20" required><span class="unit">no.</span></div>
-                <span class="help">Including both corner bars</span></div>
-              <div class="field"><label for="r-nh">Bars per h-face</label>
-                <div class="control"><input id="r-nh" name="reinforcement.n_h" type="number" step="1" min="2" max="20" required><span class="unit">no.</span></div>
-                <span class="help">Including both corner bars</span></div>
+              <div class="field"><label for="g-b">Width b</label>
+                <div class="control"><input id="g-b" name="geometry.b" type="number" step="5" min="100" max="3000" required><span class="unit">mm</span></div>
+                <span class="help">Depth for bending about z–z</span></div>
+              <div class="field"><label for="g-h">Depth h</label>
+                <div class="control"><input id="g-h" name="geometry.h" type="number" step="5" min="100" max="3000" required><span class="unit">mm</span></div>
+                <span class="help">Depth for bending about y–y</span></div>
+              <div class="field"><label for="g-l">Clear height l</label>
+                <div class="control"><input id="g-l" name="geometry.l" type="number" step="0.05" min="0.5" max="30" required><span class="unit">m</span></div>
+                <span class="help">Between the end restraints</span></div>
             </div>
-            <div class="subhead">Links (transverse reinforcement)</div>
+          </div>
+        </details>
+
+        <details class="section" data-section="reinforcement">
+          <summary><span class="s-title">Reinforcement</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
             <div class="fields">
-              <div class="field"><label for="r-link">Link diameter</label>
-                <div class="control"><select id="r-link" name="reinforcement.link_dia" data-options="links"></select><span class="unit">mm</span></div></div>
-              <div class="field"><label for="r-s">Spacing near beams/slabs</label>
+              <div class="field"><label for="r-dia">Main bars</label>
+                <div class="control"><select id="r-dia" name="reinforcement.bar_dia" data-options="bars"></select></div></div>
+              <div class="field"><label for="r-nb">Bars on each b face</label>
+                <div class="control"><input id="r-nb" name="reinforcement.n_b" type="number" step="1" min="2" max="20" required></div>
+                <span class="help">Counting both corner bars</span></div>
+              <div class="field"><label for="r-nh">Bars on each h face</label>
+                <div class="control"><input id="r-nh" name="reinforcement.n_h" type="number" step="1" min="2" max="20" required></div>
+                <span class="help">Counting both corner bars</span></div>
+              <div class="field"><label for="r-link">Links</label>
+                <div class="control"><select id="r-link" name="reinforcement.link_dia" data-options="links"></select></div></div>
+              <div class="field"><label for="r-s">Link spacing</label>
                 <div class="control"><input id="r-s" name="reinforcement.link_spacing" type="number" step="5" min="25" max="1000" required><span class="unit">mm</span></div>
-                <span class="help">Within the larger column dimension</span></div>
-              <div class="field"><label for="r-s2">Spacing elsewhere</label>
-                <div class="control"><input id="r-s2" name="reinforcement.link_spacing_mid" type="number" step="5" min="25" max="1000" placeholder="optional"><span class="unit">mm</span></div></div>
-              <label class="check-field"><input type="checkbox" name="reinforcement.cross_ties"> Cross-ties hold every intermediate bar</label>
+                <span class="help">Near beams and slabs</span></div>
+              <div class="field"><label for="r-cover">Nominal cover c<sub>nom</sub></label>
+                <div class="control"><input id="r-cover" name="reinforcement.cover" type="number" step="5" min="0" max="150" required><span class="unit">mm</span></div>
+                <span class="help">To the links</span></div>
             </div>
-            <div class="subhead">Cover</div>
-            <div class="fields">
-              <div class="field"><label for="r-cover">Nominal cover c<sub>nom</sub> (to links)</label>
-                <div class="control"><input id="r-cover" name="reinforcement.cover" type="number" step="5" min="0" max="150" required><span class="unit">mm</span></div></div>
-              <div class="field"><label for="r-dc">Allowance Δc<sub>dev</sub></label>
-                <div class="control"><select id="r-dc" name="reinforcement.delta_c_dev">
-                  <option value="10">10 mm (normal)</option><option value="5">5 mm (QA system)</option><option value="0">0 mm (precast QA)</option></select></div></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="sheet">
-          <div class="sheet-head"><span class="idx">04</span><h3>Restraint &amp; effective length</h3><span class="hint">Ch 5, Fig 5, Table 4</span></div>
-          <div class="sheet-body">
-            <div class="fields">
-              <div class="field"><span class="label">Frame</span>
-                <div class="segmented" role="radiogroup" aria-label="Frame">
-                  <label><input type="radio" name="restraint.braced" value="true" checked> Braced</label>
-                  <label><input type="radio" name="restraint.braced" value="false"> Unbraced</label>
-                </div>
-                <span class="help">Braced: lateral loads carried by walls/cores</span></div>
-              <label class="check-field"><input type="checkbox" id="same-axes" checked> Same restraint about both axes</label>
-            </div>
-            <div id="restraint-axes" style="margin-top:12px"></div>
-            <details class="helper" id="k-helper">
-              <summary>Calculate k from the beams at one end (PD 6687)</summary>
+            <details class="more">
+              <summary>More options: links elsewhere, cross-ties, Δc<sub>dev</sub></summary>
               <div class="fields">
-                <div class="field"><label for="kh-axis">Axis</label><div class="control"><select id="kh-axis"><option value="y">y–y</option><option value="z">z–z</option></select></div></div>
-                <div class="field"><label for="kh-end">End</label><div class="control"><select id="kh-end"><option value="k_top">Top</option><option value="k_bottom">Bottom</option></select></div></div>
-                <div class="field"><label for="kh-b1">Beam 1 b × h</label><div class="control"><input id="kh-b1" type="number" placeholder="b" min="0"><input id="kh-h1" type="number" placeholder="h" min="0"><span class="unit">mm</span></div></div>
-                <div class="field"><label for="kh-l1">Beam 1 span</label><div class="control"><input id="kh-l1" type="number" min="0" step="0.1"><span class="unit">m</span></div></div>
-                <div class="field"><label for="kh-b2">Beam 2 b × h</label><div class="control"><input id="kh-b2" type="number" placeholder="b" min="0"><input id="kh-h2" type="number" placeholder="h" min="0"><span class="unit">mm</span></div></div>
-                <div class="field"><label for="kh-l2">Beam 2 span</label><div class="control"><input id="kh-l2" type="number" min="0" step="0.1"><span class="unit">m</span></div></div>
+                <div class="field"><label for="r-s2">Link spacing elsewhere</label>
+                  <div class="control"><input id="r-s2" name="reinforcement.link_spacing_mid" type="number" step="5" min="25" max="1000" placeholder="same"><span class="unit">mm</span></div></div>
+                <div class="field"><label for="r-dc">Allowance Δc<sub>dev</sub></label>
+                  <div class="control"><select id="r-dc" name="reinforcement.delta_c_dev">
+                    <option value="10">10 mm (normal)</option><option value="5">5 mm (with QA)</option><option value="0">0 mm (precast QA)</option></select></div></div>
+                <label class="check"><input type="checkbox" name="reinforcement.cross_ties"> Cross-ties hold every intermediate bar</label>
               </div>
-              <div class="actions" style="margin-top:10px"><button type="button" class="btn small" id="kh-run">Calculate k</button><button type="button" class="btn small" id="kh-use" disabled>Use value</button></div>
-              <div class="helper-out" id="kh-out">k = (EI<sub>c</sub>/l<sub>c</sub>) / Σ(2EI<sub>b</sub>/l<sub>b</sub>) ≥ 0.1, using the column above.</div>
             </details>
           </div>
-        </section>
+        </details>
 
-        <section class="sheet">
-          <div class="sheet-head"><span class="idx">05</span><h3>Design actions (ULS)</h3><span class="hint">Ch 1 combinations; Ch 5 design moments</span></div>
-          <div class="sheet-body">
+        <details class="section" data-section="restraint">
+          <summary><span class="s-title">Restraint</span><span class="s-sum" data-sum="restraint"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="x-braced">Frame</label>
+                <div class="control"><select id="x-braced" name="restraint.braced">
+                  <option value="true">Braced</option><option value="false">Unbraced (sway frame)</option></select></div>
+                <span class="help">Braced: walls or cores resist sway</span></div>
+              <label class="check" style="align-self:end;padding-bottom:9px"><input type="checkbox" id="same-axes" checked> Same end conditions about both axes</label>
+            </div>
+            <div id="restraint-axes"></div>
+          </div>
+        </details>
+
+        <details class="section" data-section="actions">
+          <summary><span class="s-title">Loads</span><span class="s-sum" data-sum="actions"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
             <div class="fields">
               <div class="field"><label for="a-ned">Axial load N<sub>Ed</sub></label>
-                <div class="control"><input id="a-ned" name="actions.NEd" type="number" step="10" min="0.001" max="1000000" required><span class="unit">kN</span></div></div>
-              <details class="helper" id="comb-helper">
-                <summary>Calculate N<sub>Ed</sub> from characteristic loads G<sub>k</sub> and Q<sub>k</sub></summary>
-                <div class="fields">
-                  <div class="field"><label for="c-gk">G<sub>k</sub> permanent</label><div class="control"><input id="c-gk" type="number" min="0" step="10"><span class="unit">kN</span></div></div>
-                  <div class="field"><label for="c-qk">Q<sub>k</sub> imposed</label><div class="control"><input id="c-qk" type="number" min="0" step="10"><span class="unit">kN</span></div></div>
-                  <div class="field"><label for="c-cat">Imposed load category</label><div class="control"><select id="c-cat" data-options="psi"></select></div></div>
-                  <div class="field"><label for="c-exp">Combination</label><div class="control"><select id="c-exp">
-                    <option value="6.10ab">Less favourable of Exp (6.10a)/(6.10b)</option><option value="6.10">Exp (6.10): 1.35G + 1.5Q</option></select></div></div>
-                </div>
-                <div class="actions" style="margin-top:10px"><button type="button" class="btn small" id="c-run">Calculate</button><button type="button" class="btn small" id="c-use" disabled>Use value</button></div>
-                <div class="helper-out" id="c-out"></div>
-              </details>
+                <div class="control"><input id="a-ned" name="actions.NEd" type="number" step="10" min="0.001" max="1000000" required><span class="unit">kN</span></div>
+                <button type="button" class="inline-link" popovertarget="pop-combination">Calculate from G<sub>k</sub> and Q<sub>k</sub>…</button></div>
             </div>
-            <div class="subhead">End moments from analysis</div>
-            <table class="axis-table">
-              <thead><tr><th>Axis</th><th>M<sub>top</sub> [kNm]</th><th>M<sub>bottom</sub> [kNm]</th><th>Curvature</th></tr></thead>
+            <table class="moments">
+              <thead><tr><th>Axis</th><th>M<sub>top</sub> (kNm)</th><th>M<sub>bottom</sub> (kNm)</th><th>Curvature</th></tr></thead>
               <tbody>
                 <tr><td>y–y</td>
-                  <td><div class="control"><input name="actions.My_top" type="number" step="1" aria-label="My top"></div></td>
-                  <td><div class="control"><input name="actions.My_bottom" type="number" step="1" aria-label="My bottom"></div></td>
-                  <td><div class="control"><select name="actions.My_curvature" aria-label="Curvature about y"><option value="single">Single (tension same face)</option><option value="double">Double (opposite faces)</option></select></div></td></tr>
+                  <td><div class="control"><input name="actions.My_top" type="number" step="1" aria-label="Moment about y at the top"></div></td>
+                  <td><div class="control"><input name="actions.My_bottom" type="number" step="1" aria-label="Moment about y at the bottom"></div></td>
+                  <td><div class="control"><select name="actions.My_curvature" aria-label="Curvature about y"><option value="single">Single</option><option value="double">Double</option></select></div></td></tr>
                 <tr><td>z–z</td>
-                  <td><div class="control"><input name="actions.Mz_top" type="number" step="1" aria-label="Mz top"></div></td>
-                  <td><div class="control"><input name="actions.Mz_bottom" type="number" step="1" aria-label="Mz bottom"></div></td>
-                  <td><div class="control"><select name="actions.Mz_curvature" aria-label="Curvature about z"><option value="single">Single (tension same face)</option><option value="double">Double (opposite faces)</option></select></div></td></tr>
+                  <td><div class="control"><input name="actions.Mz_top" type="number" step="1" aria-label="Moment about z at the top"></div></td>
+                  <td><div class="control"><input name="actions.Mz_bottom" type="number" step="1" aria-label="Moment about z at the bottom"></div></td>
+                  <td><div class="control"><select name="actions.Mz_curvature" aria-label="Curvature about z"><option value="single">Single</option><option value="double">Double</option></select></div></td></tr>
               </tbody>
             </table>
-            <div class="subhead">Creep &amp; slenderness limit</div>
-            <div class="fields">
-              <div class="field"><label for="a-phi">Effective creep ratio φ<sub>ef</sub></label>
-                <div class="control"><input id="a-phi" name="actions.phi_ef" type="number" step="0.05" min="0" max="6" required></div>
-                <span class="help">φ(∞,t<sub>0</sub>)·M<sub>0Eqp</sub>/M<sub>0Ed</sub></span></div>
-              <div class="field"><label for="a-llm">λ<sub>lim</sub> factors A and B</label>
-                <div class="control"><select id="a-llm" name="actions.lambda_lim_method">
-                  <option value="simplified">Defaults A = 0.7, B = 1.1 (Fig 2)</option>
-                  <option value="refined">From φef and ω</option></select></div></div>
-              <details class="helper" id="creep-helper">
-                <summary>Estimate φ<sub>ef</sub> (EC2 Annex B, the Fig 3.1 nomogram)</summary>
-                <div class="fields">
-                  <div class="field"><label for="cr-rh">Relative humidity</label><div class="control"><input id="cr-rh" type="number" min="20" max="100" value="50"><span class="unit">%</span></div><span class="help">50 inside, 80 outside</span></div>
-                  <div class="field"><label for="cr-t0">Age at loading t<sub>0</sub></label><div class="control"><input id="cr-t0" type="number" min="1" max="3650" value="28"><span class="unit">days</span></div></div>
-                  <div class="field"><label for="cr-cem">Cement class</label><div class="control"><select id="cr-cem"><option value="R">R (assume if unknown)</option><option value="N">N</option><option value="S">S</option></select></div></div>
-                  <div class="field"><label for="cr-ratio">M<sub>0Eqp</sub>/M<sub>0Ed</sub></label><div class="control"><input id="cr-ratio" type="number" min="0" max="1" step="0.05" value="0.7"></div></div>
-                </div>
-                <div class="actions" style="margin-top:10px"><button type="button" class="btn small" id="cr-run">Estimate</button><button type="button" class="btn small" id="cr-use" disabled>Use value</button></div>
-                <div class="helper-out" id="cr-out"></div>
-              </details>
-            </div>
+            <p class="help" style="margin:0;color:var(--muted);font-size:12.5px">Single curvature: both end moments put tension on the same face.</p>
+            <details class="more">
+              <summary>More options: creep and slenderness limit</summary>
+              <div class="fields">
+                <div class="field"><label for="a-phi">Effective creep ratio φ<sub>ef</sub></label>
+                  <div class="control"><input id="a-phi" name="actions.phi_ef" type="number" step="0.05" min="0" max="6" required></div>
+                  <button type="button" class="inline-link" popovertarget="pop-creep">Estimate φ<sub>ef</sub>…</button></div>
+                <div class="field"><label for="a-llm">Factors A and B in λ<sub>lim</sub></label>
+                  <div class="control"><select id="a-llm" name="actions.lambda_lim_method">
+                    <option value="simplified">Defaults, A = 0.7 and B = 1.1</option>
+                    <option value="refined">From φef and ω</option></select></div></div>
+              </div>
+            </details>
           </div>
-        </section>
+        </details>
 
-        <section class="sheet">
-          <div class="sheet-head"><span class="idx">06</span><h3>Durability &amp; fire</h3><span class="hint">Ch 2, Table 8 · Ch 5, Table 2</span></div>
-          <div class="sheet-body">
-            <div class="fields cols-2">
-              <div class="field"><label for="d-exp">Exposure condition</label>
+        <details class="section" data-section="durability">
+          <summary><span class="s-title">Durability and fire</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field" style="grid-column: span 2"><label for="d-exp">Exposure</label>
                 <div class="control"><select id="d-exp" name="durability.exposure" data-options="exposure"></select></div>
                 <span class="help" id="exposure-help"></span></div>
-              <div class="field"><label for="d-cem">Cement / combination</label>
+              <div class="field"><label for="d-cem">Cement type</label>
                 <div class="control"><select id="d-cem" name="durability.cement_group"></select></div></div>
-            </div>
-            <div class="subhead">Fire resistance</div>
-            <div class="fields">
-              <div class="field"><label for="d-fire">Period</label>
+              <div class="field"><label for="d-fire">Fire resistance</label>
                 <div class="control"><select id="d-fire" name="durability.fire_period" data-options="fire"></select></div></div>
-              <div class="field"><label for="d-fexp">Exposed to fire on</label>
-                <div class="control"><select id="d-fexp" name="durability.fire_exposure"><option value="multi">More than one side</option><option value="one">One side</option></select></div></div>
-              <div class="field"><label for="d-mu">Load ratio μ<sub>fi</sub></label>
-                <div class="control"><select id="d-mu" name="durability.mu_fi"><option value="0.7">0.7 (conservative)</option><option value="0.5">0.5</option></select></div></div>
-              <div class="field"><label for="d-floor">Storey</label>
-                <div class="control"><select id="d-floor" name="durability.floor"><option value="intermediate">Intermediate floor (l0,fi = 0.5 l)</option><option value="top">Top floor (l0,fi = 0.7 l)</option></select></div></div>
             </div>
+            <details class="more" id="fire-more">
+              <summary>More options: fire exposure</summary>
+              <div class="fields">
+                <div class="field"><label for="d-fexp">Exposed to fire on</label>
+                  <div class="control"><select id="d-fexp" name="durability.fire_exposure"><option value="multi">More than one side</option><option value="one">One side</option></select></div></div>
+                <div class="field"><label for="d-mu">Load ratio μ<sub>fi</sub></label>
+                  <div class="control"><select id="d-mu" name="durability.mu_fi"><option value="0.7">0.7 (conservative)</option><option value="0.5">0.5</option></select></div></div>
+                <div class="field"><label for="d-floor">Storey</label>
+                  <div class="control"><select id="d-floor" name="durability.floor"><option value="intermediate">Intermediate floor</option><option value="top">Top floor</option></select></div></div>
+              </div>
+            </details>
           </div>
-        </section>
+        </details>
 
-        <div class="form-actions">
-          <button type="button" class="btn small" id="ex-pass">Load passing example</button>
-          <button type="button" class="btn small" id="ex-fail">Load failing example</button>
-          <button type="button" class="btn small ghost" id="import">Import JSON</button>
-          <input type="file" id="import-file" accept="application/json,.json" hidden>
-          <button type="button" class="btn small ghost" id="reset">Reset</button>
+        <div class="form-bar">
+          <button type="button" class="btn small" id="files-button" popovertarget="files-menu">Examples and files <span class="caret"></span></button>
           <span class="spacer"></span>
           <span class="form-message" id="form-message" role="alert"></span>
-          <button type="submit" class="btn primary">Run checks →</button>
+          <button type="submit" class="btn primary">Run checks</button>
         </div>
       </div>
 
       <aside class="preview" aria-label="Live drawings">
-        <section class="sheet">
-          <div class="sheet-head"><h3>Cross-section</h3><span class="hint">to scale</span></div>
-          <div class="sheet-body" id="preview-section" style="padding:6px"></div>
-          <div class="stat-row">
-            <div class="stat"><div class="k">A<sub>s,prov</sub></div><div class="v" id="st-as">—</div></div>
-            <div class="stat"><div class="k">ρ = A<sub>s</sub>/A<sub>c</sub></div><div class="v" id="st-rho">—</div></div>
-            <div class="stat"><div class="k">Clear gap</div><div class="v" id="st-gap">—</div></div>
+        <section class="panel">
+          <div class="panel-head"><h3>Cross-section</h3><span class="hint">to scale</span></div>
+          <div class="panel-body" id="preview-section"></div>
+          <div class="stats">
+            <div><div class="k">A<sub>s,prov</sub></div><div class="v" id="st-as">—</div></div>
+            <div><div class="k">ρ</div><div class="v" id="st-rho">—</div></div>
+            <div><div class="k">Clear gap</div><div class="v" id="st-gap">—</div></div>
           </div>
         </section>
-        <section class="sheet">
-          <div class="sheet-head"><h3>Elevation</h3>
-            <div class="tabs" role="tablist" aria-label="Axis">
-              <button type="button" role="tab" aria-selected="true" data-axis="y">y–y</button>
-              <button type="button" role="tab" aria-selected="false" data-axis="z">z–z</button>
+        <section class="panel">
+          <div class="panel-head"><h3>Elevation</h3>
+            <div class="switch" role="group" aria-label="Axis">
+              <button type="button" data-axis="y" aria-pressed="true">y–y</button>
+              <button type="button" data-axis="z" aria-pressed="false">z–z</button>
             </div></div>
-          <div class="sheet-body" id="preview-elevation" style="padding:6px"></div>
+          <div class="panel-body" id="preview-elevation"></div>
         </section>
       </aside>
     </form>
   </main>
+
+  <div id="files-menu" class="menu" popover role="menu">
+    <button type="button" role="menuitem" data-example="pass">Passing example<span class="sub">350 × 350, C32/40, 8H20. All checks pass</span></button>
+    <button type="button" role="menuitem" data-example="fail">Failing example<span class="sub">250 × 400, C25/30, 6H25. Seven checks fail</span></button>
+    <hr>
+    <button type="button" role="menuitem" id="import">Open inputs file (JSON)…</button>
+    <button type="button" role="menuitem" id="reset">Reset to the passing example</button>
+  </div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+
+  <div id="pop-combination" class="pop" popover>
+    <h4>N<sub>Ed</sub> from characteristic loads</h4>
+    <p>Chapter 1, Expressions (6.10), (6.10a) and (6.10b) with UK ψ factors.</p>
+    <div class="fields">
+      <div class="field"><label for="c-gk">G<sub>k</sub> permanent</label><div class="control"><input id="c-gk" type="number" min="0" step="10"><span class="unit">kN</span></div></div>
+      <div class="field"><label for="c-qk">Q<sub>k</sub> imposed</label><div class="control"><input id="c-qk" type="number" min="0" step="10"><span class="unit">kN</span></div></div>
+      <div class="field" style="grid-column: 1 / -1"><label for="c-cat">Imposed load category</label><div class="control"><select id="c-cat" data-options="psi"></select></div></div>
+      <div class="field" style="grid-column: 1 / -1"><label for="c-exp">Combination</label><div class="control"><select id="c-exp">
+        <option value="6.10ab">Less favourable of (6.10a) and (6.10b)</option><option value="6.10">(6.10): 1.35 Gk + 1.5 Qk</option></select></div></div>
+    </div>
+    <div class="actions"><button type="button" class="btn small" id="c-run">Calculate</button><button type="button" class="btn small primary" id="c-use" disabled>Use this value</button></div>
+    <div class="out" id="c-out"></div>
+  </div>
+
+  <div id="pop-creep" class="pop" popover>
+    <h4>Effective creep ratio φ<sub>ef</sub></h4>
+    <p>φ(∞, t<sub>0</sub>) from Eurocode 2 Annex B (the nomogram in Figure 3.1), times M<sub>0Eqp</sub>/M<sub>0Ed</sub>.</p>
+    <div class="fields">
+      <div class="field"><label for="cr-rh">Relative humidity</label><div class="control"><input id="cr-rh" type="number" min="20" max="100" value="50"><span class="unit">%</span></div></div>
+      <div class="field"><label for="cr-t0">Age at loading</label><div class="control"><input id="cr-t0" type="number" min="1" max="3650" value="28"><span class="unit">days</span></div></div>
+      <div class="field"><label for="cr-cem">Cement class</label><div class="control"><select id="cr-cem"><option value="R">R (if unknown)</option><option value="N">N</option><option value="S">S</option></select></div></div>
+      <div class="field"><label for="cr-ratio">M<sub>0Eqp</sub>/M<sub>0Ed</sub></label><div class="control"><input id="cr-ratio" type="number" min="0" max="1" step="0.05" value="0.7"></div></div>
+    </div>
+    <div class="actions"><button type="button" class="btn small" id="cr-run">Estimate</button><button type="button" class="btn small primary" id="cr-use" disabled>Use this value</button></div>
+    <div class="out" id="cr-out"></div>
+  </div>
+
+  <div id="pop-stiffness" class="pop" popover>
+    <h4>End stiffness k from the beams</h4>
+    <p>k = (EI<sub>c</sub>/l<sub>c</sub>) / Σ(2EI<sub>b</sub>/l<sub>b</sub>) ≥ 0.1 (PD 6687), using the column above.</p>
+    <div class="fields">
+      <div class="field"><label for="kh-b1">Beam 1, b × h</label><div class="control"><input id="kh-b1" type="number" placeholder="b" min="0"><input id="kh-h1" type="number" placeholder="h" min="0"><span class="unit">mm</span></div></div>
+      <div class="field"><label for="kh-l1">Beam 1 span</label><div class="control"><input id="kh-l1" type="number" min="0" step="0.1"><span class="unit">m</span></div></div>
+      <div class="field"><label for="kh-b2">Beam 2, b × h</label><div class="control"><input id="kh-b2" type="number" placeholder="b" min="0"><input id="kh-h2" type="number" placeholder="h" min="0"><span class="unit">mm</span></div></div>
+      <div class="field"><label for="kh-l2">Beam 2 span</label><div class="control"><input id="kh-l2" type="number" min="0" step="0.1"><span class="unit">m</span></div></div>
+    </div>
+    <div class="actions"><button type="button" class="btn small" id="kh-run">Calculate</button><button type="button" class="btn small primary" id="kh-use" disabled>Use this value</button></div>
+    <div class="out" id="kh-out"></div>
+  </div>
 
   <script type="module" src="/static/js/column-form.js"></script>
 </body>

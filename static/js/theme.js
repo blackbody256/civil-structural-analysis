@@ -36,10 +36,15 @@ media.addEventListener("change", () => {
   if (themePreference() === "system") applyTheme("system");
 });
 
-/** Keep a [popover] attached under its invoker; align "start" or "end". */
+/**
+ * Keep a [popover] attached under its invoker; align "start" or "end".
+ * `invoker` is an element, or a function returning the element that opened it.
+ */
 export function anchorPopover(pop, invoker, align = "end") {
   const place = () => {
-    const r = invoker.getBoundingClientRect();
+    const target = typeof invoker === "function" ? invoker() : invoker;
+    if (!target) return;
+    const r = target.getBoundingClientRect();
     const w = pop.offsetWidth, h = pop.offsetHeight;
     let left = align === "end" ? r.right - w : r.left;
     left = Math.max(8, Math.min(left, window.innerWidth - w - 8));

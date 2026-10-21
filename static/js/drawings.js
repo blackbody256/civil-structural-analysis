@@ -242,7 +242,8 @@ export function drawElevation(target, data, opts = {}) {
   svg.append(symText(cx + 10, 22, ["N", sub("Ed"), data.NEd ? ` = ${Math.round(data.NEd)} kN` : ""], { "font-weight": 700 }));
 
   // clear height
-  const dx = cx + colW / 2 + (data.moments ? 18 : 70);
+  const stubs = data.top === "partial" || data.bottom === "partial";
+  const dx = cx + colW / 2 + (data.moments ? 18 : stubs ? 128 : 70);
   svg.append(dimV(top, bot, data.moments ? cx - colW / 2 - 24 : dx, `l = ${(data.l / 1000).toFixed(2)} m`));
 
   if (data.l0) {
