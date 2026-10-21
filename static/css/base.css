@@ -214,6 +214,8 @@ h3 { font-size: 16px; font-weight: 600; margin: 0; }
 svg text { font-family: var(--font-ui); }
 svg .num { font-family: var(--font-mono); }
 svg .part { transition: stroke .2s, fill .2s; }
+svg .part.is-fail { stroke: var(--fail) !important; }
+svg .bars.is-fail circle { fill: var(--fail) !important; }
 svg .part.is-hl { filter: drop-shadow(0 0 4px var(--accent)); }
 
 @media (max-width: 720px) {

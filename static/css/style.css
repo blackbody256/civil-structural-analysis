@@ -387,7 +387,7 @@ details.helper .fields { margin-top: 10px; }
 /* drawing parts linked to checks */
 svg .part { transition: stroke .2s, fill .2s, opacity .2s; }
 svg .part.is-fail { stroke: var(--fail) !important; }
-svg .bars.is-fail circle { fill: var(--fail); }
+svg .bars.is-fail circle { fill: var(--fail) !important; }
 svg .part.is-hl { filter: drop-shadow(0 0 3px rgba(31, 78, 140, .9)); }
 svg text { font-family: var(--font-ui); }
 

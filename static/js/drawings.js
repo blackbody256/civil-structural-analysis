@@ -1,16 +1,32 @@
 // SVG drawings: cross-section, elevation with moment diagram, N–M interaction chart.
 
 const NS = "http://www.w3.org/2000/svg";
-const INK = "#14213d";
-const MUTED = "#6b7385";
-const ACCENT = "#1f4e8c";
-const RULE = "#d8d2c3";
-const COLORS = { pass: "#1e7b47", fail: "#b42318", warn: "#a86b0c", info: "#2b6cb0", na: "#8a8f98" };
+// Colours come from the theme (see base.css); the fallbacks keep drawings readable elsewhere.
+const INK = "var(--draw-ink, #192329)";
+const MUTED = "var(--draw-muted, #6a747a)";
+const ACCENT = "var(--draw-accent, #1e6479)";
+const RULE = "var(--draw-rule, #e2ddd5)";
+const PAPER = "var(--surface, #fffdfa)";
+const STEEL = "var(--draw-steel, #192329)";
+const LOAD = "var(--draw-load, #b33830)";
+const CONCRETE = "var(--draw-concrete, #ece6db)";
+const GRAIN = "var(--draw-grain, #c8bfae)";
+const STUB = "var(--surface-3, #ebe6de)";
+const COLORS = {
+  pass: "var(--pass, #2b7440)", fail: "var(--fail, #b33830)", warn: "var(--warn, #8f5d0a)",
+  info: "var(--info, #48658b)", na: "var(--na, #767d82)",
+};
+const PAINT = new Set(["fill", "stroke"]);
 let uid = 0;
 
 export function s(tag, attrs = {}, ...children) {
   const node = document.createElementNS(NS, tag);
-  for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    // var() is reliable in style declarations, not in presentation attributes
+    if (PAINT.has(k) && String(v).startsWith("var(")) node.style.setProperty(k, v);
+    else node.setAttribute(k, v);
+  }
   for (const c of children.flat()) {
     if (c === null || c === undefined || c === false) continue;
     node.append(c instanceof Node ? c : document.createTextNode(String(c)));
@@ -86,11 +102,11 @@ function dimV(y1, y2, x, label, fromX) {
 
 function concretePattern(id) {
   return s("pattern", { id, width: 16, height: 16, patternUnits: "userSpaceOnUse" },
-    s("rect", { width: 16, height: 16, fill: "#e8e3d5" }),
-    s("circle", { cx: 3, cy: 4, r: 0.9, fill: "#b9b19e" }),
-    s("circle", { cx: 11, cy: 11, r: 0.7, fill: "#b9b19e" }),
-    s("circle", { cx: 13, cy: 3, r: 0.5, fill: "#c9c1ad" }),
-    s("path", { d: "M6 9 l1.6 2.6 h-3.2z", fill: "none", stroke: "#c4bca8", "stroke-width": 0.6 }));
+    s("rect", { width: 16, height: 16, fill: CONCRETE }),
+    s("circle", { cx: 3, cy: 4, r: 0.9, fill: GRAIN }),
+    s("circle", { cx: 11, cy: 11, r: 0.7, fill: GRAIN }),
+    s("circle", { cx: 13, cy: 3, r: 0.5, fill: GRAIN }),
+    s("path", { d: "M6 9 l1.6 2.6 h-3.2z", fill: "none", stroke: GRAIN, "stroke-width": 0.6 }));
 }
 
 /**
@@ -129,7 +145,7 @@ export function drawSection(target, sec, opts = {}) {
 
   const bars = s("g", { class: cls("bars"), "data-part": "bars" });
   for (const bar of sec.bars) {
-    bars.append(s("circle", { cx: X(bar.x), cy: Y(bar.y), r: Math.max((bar.dia / 2) * scale, 2.4), fill: INK }));
+    bars.append(s("circle", { cx: X(bar.x), cy: Y(bar.y), r: Math.max((bar.dia / 2) * scale, 2.4), fill: STEEL }));
   }
   svg.append(bars);
 
@@ -142,7 +158,7 @@ export function drawSection(target, sec, opts = {}) {
   svg.append(text(x0 - 26, cy + 4, "y", { fill: MUTED, "font-weight": 700 }));
   svg.append(text(cx - 4, y0 - 20, "z", { fill: MUTED, "font-weight": 700 }));
   // axial load into the page
-  svg.append(s("circle", { cx, cy, r: 7, fill: "#fff", stroke: INK, "stroke-width": 1.2 }));
+  svg.append(s("circle", { cx, cy, r: 7, fill: PAPER, stroke: INK, "stroke-width": 1.2 }));
   svg.append(s("path", { d: `M${cx - 4.5} ${cy - 4.5} L${cx + 4.5} ${cy + 4.5} M${cx + 4.5} ${cy - 4.5} L${cx - 4.5} ${cy + 4.5}`, stroke: INK, "stroke-width": 1.2 }));
 
   svg.append(dimH(x0, x0 + w, y0 + hh + 30, `b = ${sec.b}`, y0 + hh));
@@ -185,18 +201,18 @@ function endSymbol(kind, cx, y, colW, dir, label) {
   const g = s("g", {});
   if (kind === "pinned") {
     const tip = y, base = y + dir * 16;
-    g.append(s("path", { d: `M${cx} ${tip} L${cx - 11} ${base} L${cx + 11} ${base} Z`, fill: "#fff", stroke: INK, "stroke-width": 1.3 }));
+    g.append(s("path", { d: `M${cx} ${tip} L${cx - 11} ${base} L${cx + 11} ${base} Z`, fill: PAPER, stroke: INK, "stroke-width": 1.3 }));
     g.append(hatch(cx - 20, base, cx + 20, dir));
   } else if (kind === "fixed" || kind === "sway") {
     g.append(hatch(cx - colW / 2 - 16, y, cx + colW / 2 + 16, dir));
     if (kind === "sway") {
-      g.append(s("circle", { cx: cx - 10, cy: y + dir * 11, r: 3.5, fill: "#fff", stroke: INK }));
-      g.append(s("circle", { cx: cx + 10, cy: y + dir * 11, r: 3.5, fill: "#fff", stroke: INK }));
+      g.append(s("circle", { cx: cx - 10, cy: y + dir * 11, r: 3.5, fill: PAPER, stroke: INK }));
+      g.append(s("circle", { cx: cx + 10, cy: y + dir * 11, r: 3.5, fill: PAPER, stroke: INK }));
     }
   } else if (kind === "partial") {
     for (const side of [-1, 1]) {
       const x = side < 0 ? cx - colW / 2 - 54 : cx + colW / 2;
-      g.append(s("rect", { x, y: y - (dir < 0 ? 0 : 14), width: 54, height: 14, fill: "#d9d3c4", stroke: INK, "stroke-width": 1 }));
+      g.append(s("rect", { x, y: y - (dir < 0 ? 0 : 14), width: 54, height: 14, fill: STUB, stroke: INK, "stroke-width": 1 }));
     }
     if (label) g.append(text(cx + colW / 2 + 58, y + (dir < 0 ? 11 : -3), label, { "font-size": 11, fill: MUTED, class: "num" }));
   }
@@ -221,8 +237,8 @@ export function drawElevation(target, data, opts = {}) {
   svg.append(endSymbol(data.bottom, cx, bot, colW, 1, data.kBottom));
 
   // axial load
-  svg.append(s("line", { x1: cx, y1: 10, x2: cx, y2: top - (data.top === "pinned" ? 22 : 8), stroke: COLORS.fail, "stroke-width": 2 }));
-  svg.append(s("path", { d: `M${cx - 6} ${top - (data.top === "pinned" ? 32 : 18)} L${cx + 6} ${top - (data.top === "pinned" ? 32 : 18)} L${cx} ${top - (data.top === "pinned" ? 20 : 6)} Z`, fill: COLORS.fail }));
+  svg.append(s("line", { x1: cx, y1: 10, x2: cx, y2: top - (data.top === "pinned" ? 22 : 8), stroke: LOAD, "stroke-width": 2 }));
+  svg.append(s("path", { d: `M${cx - 6} ${top - (data.top === "pinned" ? 32 : 18)} L${cx + 6} ${top - (data.top === "pinned" ? 32 : 18)} L${cx} ${top - (data.top === "pinned" ? 20 : 6)} Z`, fill: LOAD }));
   svg.append(symText(cx + 10, 22, ["N", sub("Ed"), data.NEd ? ` = ${Math.round(data.NEd)} kN` : ""], { "font-weight": 700 }));
 
   // clear height
@@ -267,7 +283,7 @@ function drawMomentDiagram(svg, m, { x0, top, bot, width }) {
   const mid = (top + bot) / 2;
   svg.append(s("line", { x1: base, y1: top - 6, x2: base, y2: bot + 6, stroke: INK, "stroke-width": 1 }));
   svg.append(s("path", { d: `M${base} ${bot} L${Xm(firstBot)} ${bot} L${Xm(firstTop)} ${top} L${base} ${top}`,
-    fill: "rgba(107,115,133,.08)", stroke: MUTED, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
+    fill: MUTED, "fill-opacity": 0.08, stroke: MUTED, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
   let d = `M${base} ${bot}`;
   const pts = [];
   for (let i = 0; i <= 24; i++) {
@@ -276,7 +292,7 @@ function drawMomentDiagram(svg, m, { x0, top, bot, width }) {
     pts.push([Xm(v), bot - t * (bot - top)]);
   }
   d += pts.map(([x, y]) => ` L${x} ${y}`).join("") + ` L${base} ${top} Z`;
-  svg.append(s("path", { d, fill: "rgba(31,78,140,.10)", stroke: ACCENT, "stroke-width": 2 }));
+  svg.append(s("path", { d, fill: ACCENT, "fill-opacity": 0.1, stroke: ACCENT, "stroke-width": 2 }));
   const label = (v, y, extra = {}) => text(Xm(v) + (v >= 0 ? 6 : -6), y, v.toFixed(1), {
     "text-anchor": v >= 0 ? "start" : "end", "font-size": 11.5, fill: ACCENT, "font-weight": 700, class: "num", ...extra });
   svg.append(label(topT, top + 4), label(midT, mid + 4), label(botT, bot + 4));
@@ -320,7 +336,7 @@ export function drawInteraction(target, d, opts = {}) {
   svg.append(symText(16, pt + ph / 2, ["N [kN]"], { "text-anchor": "middle", "font-size": 12, transform: `rotate(-90 16 ${pt + ph / 2})` }));
 
   const pts = d.curve.map(([m, n]) => `${X(m)},${Y(n)}`);
-  svg.append(s("polygon", { points: [`${X(0)},${Y(d.curve[0][1])}`, ...pts, `${X(0)},${Y(d.Nmax)}`].join(" "), fill: "rgba(31,78,140,.08)", stroke: "none" }));
+  svg.append(s("polygon", { points: [`${X(0)},${Y(d.curve[0][1])}`, ...pts, `${X(0)},${Y(d.Nmax)}`].join(" "), fill: ACCENT, "fill-opacity": 0.08, stroke: "none" }));
   svg.append(s("polyline", { points: pts.join(" "), fill: "none", stroke: ACCENT, "stroke-width": 2.2, "stroke-linejoin": "round" }));
 
   const colour = COLORS[opts.status === "pass" ? "pass" : "fail"];
@@ -330,17 +346,17 @@ export function drawInteraction(target, d, opts = {}) {
     svg.append(s("path", { d: `M${X(d.MRd)} ${yN - 6} l6 6 l-6 6 l-6 -6 Z`, fill: ACCENT }));
     svg.append(symText(X(d.MRd) + 9, yN - 8, ["M", sub("Rd"), ` = ${d.MRd.toFixed(1)}`], { "font-size": 11.5, fill: ACCENT, "font-weight": 700 }));
   }
-  svg.append(s("circle", { cx: X(d.M02), cy: yN, r: 4.5, fill: "#fff", stroke: MUTED, "stroke-width": 1.5 }));
-  svg.append(s("circle", { cx: X(d.MEd), cy: yN, r: 6.5, fill: colour, stroke: "#fff", "stroke-width": 2 }));
+  svg.append(s("circle", { cx: X(d.M02), cy: yN, r: 4.5, fill: PAPER, stroke: MUTED, "stroke-width": 1.5 }));
+  svg.append(s("circle", { cx: X(d.MEd), cy: yN, r: 6.5, fill: colour, stroke: PAPER, "stroke-width": 2 }));
   svg.append(symText(X(d.MEd) + 9, yN + 18, ["M", sub("Ed"), ` = ${d.MEd.toFixed(1)}`], { "font-size": 11.5, fill: colour, "font-weight": 700 }));
 
   const lg = s("g", { transform: `translate(${pl + pw - 170}, ${pt + 10})` });
-  lg.append(s("rect", { x: -8, y: -12, width: 172, height: 58, fill: "rgba(251,250,246,.92)", stroke: RULE }));
+  lg.append(s("rect", { x: -8, y: -12, width: 172, height: 58, rx: 6, fill: PAPER, "fill-opacity": 0.94, stroke: RULE }));
   lg.append(s("line", { x1: 0, y1: 0, x2: 18, y2: 0, stroke: ACCENT, "stroke-width": 2.2 }));
   lg.append(text(24, 4, "Capacity, As,prov", { "font-size": 11 }));
-  lg.append(s("circle", { cx: 9, cy: 17, r: 5, fill: colour, stroke: "#fff", "stroke-width": 1.5 }));
+  lg.append(s("circle", { cx: 9, cy: 17, r: 5, fill: colour, stroke: PAPER, "stroke-width": 1.5 }));
   lg.append(text(24, 21, "Design point (MEd, NEd)", { "font-size": 11 }));
-  lg.append(s("circle", { cx: 9, cy: 34, r: 4, fill: "#fff", stroke: MUTED, "stroke-width": 1.5 }));
+  lg.append(s("circle", { cx: 9, cy: 34, r: 4, fill: PAPER, stroke: MUTED, "stroke-width": 1.5 }));
   lg.append(text(24, 38, "First order (M02, NEd)", { "font-size": 11 }));
   svg.append(lg);
   target.replaceChildren(svg);
