@@ -1,0 +1,39 @@
+/* Landing page */
+
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: end; margin-bottom: 32px; }
+.intro .facts { color: var(--muted); font-size: 13.5px; text-align: right; line-height: 1.7; }
+
+.feature {
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden;
+}
+.feature .copy { padding: 30px 32px 28px; display: flex; flex-direction: column; gap: 14px; }
+.feature .kicker { color: var(--accent); font-weight: 600; font-size: 14px; }
+.feature h2 { margin: 0; font-size: 28px; letter-spacing: -0.4px; }
+.feature p { margin: 0; color: var(--text-2); max-width: 52ch; }
+.feature ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; font-size: 14px; color: var(--text-2); }
+.feature li { position: relative; padding-left: 16px; }
+.feature li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 7px; height: 1.5px; background: var(--accent); }
+.feature .go { margin-top: 6px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.feature .go .note { color: var(--muted); font-size: 13px; }
+.feature .art { background: var(--surface-2); border-left: 1px solid var(--line); display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; padding: 10px 8px; }
+.feature .art svg { width: 100%; height: auto; display: block; }
+
+.next { margin-top: 44px; }
+.next h2 { margin: 0 0 6px; font-size: 17px; }
+.next .lede { font-size: 14px; color: var(--muted); margin-bottom: 12px; }
+.next-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.next-list li { display: grid; grid-template-columns: 180px 70px minmax(0, 1fr); gap: 16px; padding: 12px 4px; border-bottom: 1px solid var(--line); font-size: 14px; align-items: baseline; }
+.next-list .name { font-weight: 600; color: var(--text); }
+.next-list .ch { color: var(--muted); font-family: var(--font-mono); font-size: 13px; }
+.next-list .what { color: var(--text-2); }
+
+@media (max-width: 900px) {
+  .intro { grid-template-columns: 1fr; }
+  .intro .facts { text-align: left; }
+  .feature { grid-template-columns: 1fr; }
+  .feature .art { border-left: 0; border-top: 1px solid var(--line); }
+  .feature ul { grid-template-columns: 1fr; }
+  .next-list li { grid-template-columns: 1fr auto; }
+  .next-list .what { grid-column: 1 / -1; }
+}
