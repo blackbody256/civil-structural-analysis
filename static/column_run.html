@@ -3,49 +3,47 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Running Checks · EC2 Element Checker</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314213d'/%3E%3Crect x='11' y='4' width='10' height='24' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <title>Running Checks · EC2 Checker</title>
+  <script>(function(){var p="system";try{p=localStorage.getItem("ec2.theme")||"system"}catch(e){}var d=p==="dark"||(p!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e6479'/%3E%3Crect x='12' y='6' width='8' height='20' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/run.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">
-      <span class="brand-mark">EC2</span>
-      <span class="brand-name">Element Checker<small>Eurocode 2 · concrete structures</small></span>
-    </a>
-    <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="/">Elements</a><span class="sep">/</span><a href="/column">Column</a><span class="sep">/</span><span>Running checks</span>
-    </nav>
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">EC2 Checker</span></a>
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Elements</a><span class="sep">/</span><a href="/column">Column</a><span class="sep">/</span><span>Checks</span></nav>
     <span class="spacer"></span>
+    <span id="theme-slot"></span>
   </header>
 
   <main class="page">
-    <div class="eyebrow">Step 3 of 3 · Testing against the guide</div>
-    <h1 class="title" id="run-title">Running the Chapter 5 procedure…</h1>
-    <p class="lede" id="run-lede">Each test is applied in the order of the guide's column design procedure (Table 1,
-      Figures 2 and 3).</p>
-    <div class="run-progress" aria-hidden="true"><span id="run-bar"></span></div>
-    <div class="run-counters" aria-live="polite">
-      <span><b id="n-done">0</b>/<span id="n-total">–</span> tests</span>
-      <span style="color:var(--pass)"><b id="n-pass">0</b> passed</span>
-      <span style="color:var(--fail)"><b id="n-fail">0</b> failed</span>
-      <span style="color:var(--warn)"><b id="n-warn">0</b> warnings</span>
-      <span style="color:var(--info)"><b id="n-info">0</b> info</span>
+    <div class="run-head">
+      <h1 id="run-title">Running the checks</h1>
+      <p class="lede" id="run-lede">In the order of the guide's column procedure: Chapter 5, Table 1 and Figures 2 and 3.</p>
+      <div class="run-progress" aria-hidden="true"><span id="run-bar"></span></div>
+      <div class="run-counters" aria-live="polite">
+        <span><b id="n-done">0</b> of <b id="n-total">–</b> tests</span>
+        <span class="pass"><b id="n-pass">0</b> pass</span>
+        <span class="fail"><b id="n-fail">0</b> fail</span>
+        <span class="warn"><b id="n-warn">0</b> warnings</span>
+        <span><b id="n-info">0</b> for information</span>
+      </div>
     </div>
 
-    <div class="run-layout" style="margin-top:18px">
-      <section class="sheet">
-        <ol class="run-list" id="run-list"><li class="empty">Sending the inputs to the calculation engine…</li></ol>
+    <div class="run-layout">
+      <section class="panel">
+        <ol class="run-list" id="run-list"><li class="empty" style="padding:20px">Sending the inputs to the calculation engine…</li></ol>
       </section>
-      <aside class="preview">
-        <section class="sheet">
-          <div class="sheet-head"><h3>Section under test</h3><span class="hint" id="run-hint"></span></div>
-          <div class="sheet-body" id="run-section" style="padding:6px"></div>
+      <aside class="run-side">
+        <section class="panel">
+          <div class="panel-head"><h3>Section under test</h3><span class="hint" id="run-hint"></span></div>
+          <div class="panel-body" id="run-section"></div>
         </section>
         <div class="stamp" id="stamp" aria-live="polite"></div>
         <div class="actions" style="justify-content:center">
-          <button class="btn small" id="skip" type="button">Skip animation</button>
-          <a class="btn small primary" id="open" href="/column/report" hidden>Open report →</a>
+          <button class="btn quiet small" id="skip" type="button">Skip animation</button>
+          <a class="btn primary" id="open" href="/column/report" hidden>Open the report</a>
         </div>
       </aside>
     </div>

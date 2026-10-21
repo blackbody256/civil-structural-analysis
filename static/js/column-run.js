@@ -1,4 +1,4 @@
-import { el, KEYS, postJSON, SEVERITY, STATUS_ICON, store, verdictText } from "./common.js";
+import { el, KEYS, postJSON, SEVERITY, STATUS_SVG, store, verdictText } from "./common.js";
 import { drawSection } from "./drawings.js";
 
 const list = document.getElementById("run-list");
@@ -19,10 +19,10 @@ function sectionStatus(checks) {
 function buildList(result) {
   const rows = [];
   const items = [];
-  result.groups.forEach((group, gi) => {
+  result.groups.forEach((group) => {
     const checks = result.checks.filter((c) => c.group === group);
     if (!checks.length) return;
-    rows.push(el("li", { class: "run-group" }, `${String(gi + 1).padStart(2, "0")} · ${group}`));
+    rows.push(el("li", { class: "run-group" }, group));
     for (const c of checks) {
       const icon = el("span", { class: "icon", "aria-hidden": "true" });
       const res = el("span", { class: "r" });
@@ -48,7 +48,7 @@ async function animate(result) {
     const status = item.check.status;
     item.row.classList.remove("active");
     item.row.classList.add("done", status);
-    item.icon.textContent = STATUS_ICON[status];
+    item.icon.innerHTML = STATUS_SVG[status];
     item.res.innerHTML = item.check.markup.result;
     counts[status] += 1;
     done.push(item.check);
@@ -64,10 +64,10 @@ async function animate(result) {
   const verdict = result.summary.verdict;
   const stamp = document.getElementById("stamp");
   stamp.className = `stamp ${verdict}`;
-  stamp.textContent = verdict === "fail" ? "Not adequate" : verdict === "warn" ? "Check warnings" : "Adequate";
+  stamp.textContent = verdict === "fail" ? "Not adequate" : verdict === "warn" ? "Adequate, with warnings" : "Adequate";
   requestAnimationFrame(() => stamp.classList.add("show"));
   document.getElementById("run-title").textContent = verdictText(result.summary);
-  document.getElementById("run-lede").textContent = "All tests have run. Opening the report: overall summary first, then the full calculations.";
+  document.getElementById("run-lede").textContent = "All tests have run. The report opens next: the summary first, then the full calculations.";
   document.getElementById("skip").hidden = true;
   document.getElementById("open").hidden = false;
   await new Promise((resolve) => setTimeout(resolve, reduceMotion ? 600 : 1800));

@@ -1,0 +1,50 @@
+/* Running-the-checks page */
+
+.run-head { display: grid; gap: 10px; margin-bottom: 22px; }
+.run-progress { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+.run-progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s linear; }
+.run-counters { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; color: var(--muted); }
+.run-counters b { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
+.run-counters .pass b { color: var(--pass); }
+.run-counters .fail b { color: var(--fail); }
+.run-counters .warn b { color: var(--warn); }
+
+.run-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start; }
+.run-list { list-style: none; margin: 0; padding: 6px 0; }
+.run-group { padding: 14px 20px 6px; font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.run-group:not(:first-child) { border-top: 1px solid var(--line); margin-top: 6px; }
+.run-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 7px 20px; opacity: .38; transition: opacity .2s; }
+.run-item.active { opacity: 1; }
+.run-item.done { opacity: 1; }
+.run-item .icon { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line-strong); font-size: 11px; font-weight: 700; color: var(--bg); }
+.run-item.active .icon { border-color: var(--accent); border-right-color: transparent; animation: spin .6s linear infinite; }
+.run-item.done .icon { border: 0; animation: pop .25s ease-out; }
+.run-item.done.pass .icon { background: var(--pass); }
+.run-item.done.fail .icon { background: var(--fail); }
+.run-item.done.warn .icon { background: var(--warn); }
+.run-item.done.info .icon { background: var(--info); }
+.run-item.done.na .icon { background: var(--na); }
+.run-item .t { font-size: 14.5px; }
+.run-item.done.fail .t { color: var(--fail); font-weight: 500; }
+.run-item .r { font-size: 13px; color: var(--muted); font-family: var(--font-mono); text-align: right; }
+.run-item .r sub { font-family: var(--font-ui); }
+
+.run-side { position: sticky; top: 76px; display: grid; gap: 16px; }
+.run-side .panel-body { padding: 8px; }
+.run-side svg { width: 100%; height: auto; display: block; }
+.stamp {
+  justify-self: center; padding: 8px 18px; border: 2px solid currentColor; border-radius: 6px;
+  font-size: 20px; font-weight: 600; letter-spacing: .2px;
+  transform: rotate(-4deg) scale(.7); opacity: 0; transition: transform .3s cubic-bezier(.2, 1.5, .4, 1), opacity .2s;
+}
+.stamp.show { transform: rotate(-4deg) scale(1); opacity: 1; }
+.stamp.pass { color: var(--pass); }
+.stamp.fail { color: var(--fail); }
+.stamp.warn { color: var(--warn); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { transform: scale(.4); } to { transform: scale(1); } }
+
+@media (max-width: 1000px) {
+  .run-layout { grid-template-columns: 1fr; }
+  .run-side { position: static; order: -1; }
+}

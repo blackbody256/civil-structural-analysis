@@ -4,6 +4,14 @@ import "./theme.js";
 export const STATUS_LABEL = { pass: "PASS", fail: "FAIL", warn: "WARN", info: "INFO", na: "N/A" };
 export const STATUS_TEXT = { pass: "Pass", fail: "Fail", warn: "Warning", info: "Info", na: "Not applicable" };
 export const STATUS_ICON = { pass: "✓", fail: "✕", warn: "!", info: "i", na: "–" };
+const svgIcon = (body) => `<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+export const STATUS_SVG = {
+  pass: svgIcon('<path d="M2.6 6.3 5 8.6l4.5-5"/>'),
+  fail: svgIcon('<path d="M3.4 3.4l5.2 5.2M8.6 3.4 3.4 8.6"/>'),
+  warn: svgIcon('<path d="M6 2.4v4.3"/><circle cx="6" cy="9.2" r=".6" fill="currentColor"/>'),
+  info: svgIcon('<circle cx="6" cy="3" r=".6" fill="currentColor"/><path d="M6 5.4v4.2"/>'),
+  na: svgIcon('<path d="M3.4 6h5.2"/>'),
+};
 export const SEVERITY = { fail: 4, warn: 3, pass: 2, info: 1, na: 0 };
 export const PDF_PAGE_OFFSET = 4;
 
