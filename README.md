@@ -6,6 +6,8 @@ UK National Annex values the guide uses. There is no login and nothing leaves yo
 
 * **Backend:** Python (Flask). The engineering lives in `ec2/`; the PDF report is built in `reports/`.
 * **Frontend:** plain HTML, CSS and JavaScript with hand-drawn SVG, so it works offline.
+* **Look:** a warm "Stone & Petrol" palette with light and dark themes (the menu at the top right follows
+  your system by default), set in IBM Plex Sans and IBM Plex Mono, bundled under the SIL Open Font License.
 
 ## Run it
 
@@ -21,13 +23,16 @@ Then open <http://127.0.0.1:5000>.
 
 1. **Choose element**: the landing page lists every element in the guide. **Column** is available now;
    wall, beam, slab, flat slab, pad foundation and retaining wall are planned.
-2. **Inputs**: materials (concrete class, rebar fyk and ductility class), geometry, bars and links, cover,
-   end restraint, ULS actions, exposure class and fire period. The cross-section and elevation are drawn
-   to scale as you type. Helpers calculate NEd from Gk/Qk, φef (creep) and k from beam sizes.
+2. **Inputs**: materials, geometry, reinforcement, restraint, loads, and durability and fire, each in a
+   collapsible section that shows a one-line summary when closed. Rarely used inputs sit under "More options".
+   The cross-section and elevation are drawn to scale as you type. Small pop-over calculators work out NEd
+   from Gk/Qk, φef (creep) and k from beam sizes. Examples, opening a saved inputs file and reset share
+   one menu.
 3. **Running checks**: an animated run through every test in the guide's order, with ✓/✕ per test.
-4. **Report**: an overall summary (verdict, group status, key utilisations, drawings, N–M interaction
-   charts, and the Fig 2/3 flowchart with the path taken), then the full calculation sheet. Every reference
-   opens the guide at the right page. **Download PDF report**, Print, and Export/Import inputs (JSON).
+4. **Report**: the verdict and the governing check first, a list of what needs attention and the
+   utilisations from highest down, then the drawings, N–M interaction charts and the Fig 2/3 design path,
+   then the full calculation sheet in collapsible groups. Every reference opens the guide at the right page.
+   The **Export** menu downloads the PDF report or the inputs (JSON), or prints the page.
 
 ## Column checks (Chapter 5)
 
@@ -63,7 +68,9 @@ ec2/                calculation engine (no web code)
   slenderness.py    effective length, slenderness, nominal curvature
   column.py         the column procedure → report data
 reports/column_pdf.py   downloadable PDF report (reportlab)
-static/             HTML pages, CSS theme, JS and the bundled DejaVu fonts
+static/             HTML pages, JS, and fonts (IBM Plex for the pages, DejaVu for the PDF)
+  css/base.css      theme tokens (light and dark) and shared components
+  css/landing.css · form.css · run.css · report.css   one stylesheet per page
 tests/              pytest suite
 ```
 
