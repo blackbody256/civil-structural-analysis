@@ -1,6 +1,8 @@
 // Shared helpers for every page.
+import "./theme.js";
 
 export const STATUS_LABEL = { pass: "PASS", fail: "FAIL", warn: "WARN", info: "INFO", na: "N/A" };
+export const STATUS_TEXT = { pass: "Pass", fail: "Fail", warn: "Warning", info: "Info", na: "Not applicable" };
 export const STATUS_ICON = { pass: "✓", fail: "✕", warn: "!", info: "i", na: "–" };
 export const SEVERITY = { fail: 4, warn: 3, pass: 2, info: 1, na: 0 };
 export const PDF_PAGE_OFFSET = 4;
@@ -115,6 +117,24 @@ export function utilBar(u) {
   const span = el("span", { class: cls });
   span.style.width = `${Math.min(u, 1) * 100}%`;
   return el("div", { class: "util" }, el("div", { class: "bar" }, span), el("span", { class: "val" }, fmt(u, 2)));
+}
+
+/** Status with a coloured dot, e.g. "● Fail". */
+export function statusDot(status, text = STATUS_TEXT[status]) {
+  return el("span", { class: `status ${status}` }, text);
+}
+
+/** Pill-shaped status label for places that need more emphasis. */
+export function tag(status, text = STATUS_TEXT[status]) {
+  return el("span", { class: `tag ${status}` }, text);
+}
+
+/** Utilisation meter: a track filled up to min(u, 1) and the value. */
+export function meter(u) {
+  if (u === null || u === undefined || !Number.isFinite(u)) return el("span");
+  const fill = el("span", { class: u > 1 ? "fail" : u > 0.95 ? "warn" : "" });
+  fill.style.width = `${Math.min(u, 1) * 100}%`;
+  return el("div", { class: "meter" }, el("div", { class: "track" }, fill), el("span", { class: "val" }, fmt(u, 2)));
 }
 
 export function verdictText(summary) {

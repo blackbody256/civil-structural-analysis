@@ -1,0 +1,230 @@
+/* EC2 Checker: Stone & Petrol theme. Tokens, light/dark modes and shared components. */
+
+@font-face { font-family: "IBM Plex Sans"; src: url("../fonts/plex/IBMPlexSans-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; src: url("../fonts/plex/IBMPlexSans-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; src: url("../fonts/plex/IBMPlexSans-SemiBold.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; src: url("../fonts/plex/IBMPlexSans-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("../fonts/plex/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("../fonts/plex/IBMPlexMono-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+/* DejaVu covers any symbol Plex lacks (glyph-by-glyph fallback) */
+@font-face { font-family: "EC2 Symbols"; src: url("../fonts/DejaVuSans.ttf") format("truetype"); }
+
+:root {
+  color-scheme: light;
+  --bg: #f9f6f2;
+  --surface: #fffdfa;
+  --surface-2: #f3efe9;
+  --surface-3: #ebe6de;
+  --line: #e2ddd5;
+  --line-strong: #cdc7bd;
+  --text: #192329;
+  --text-2: #36434a;
+  --muted: #5a656b;
+  --accent: #1e6479;
+  --accent-hover: #174f60;
+  --accent-soft: #e2eef1;
+  --on-accent: #ffffff;
+  --pass: #2b7440;
+  --pass-soft: #e4efe6;
+  --fail: #b33830;
+  --fail-soft: #f8e5e2;
+  --warn: #8f5d0a;
+  --warn-soft: #f6ecd9;
+  --info: #48658b;
+  --info-soft: #e6ecf3;
+  --na: #767d82;
+  --na-soft: #ece9e4;
+  --draw-ink: #192329;
+  --draw-muted: #6a747a;
+  --draw-accent: #1e6479;
+  --draw-rule: #e2ddd5;
+  --draw-concrete: #ece6db;
+  --draw-grain: #c8bfae;
+  --draw-steel: #192329;
+  --draw-load: #b33830;
+  --shadow-1: 0 1px 2px rgb(25 35 41 / 0.06);
+  --shadow-2: 0 1px 2px rgb(25 35 41 / 0.06), 0 10px 30px -12px rgb(25 35 41 / 0.28);
+  --ring: 0 0 0 3px rgb(30 100 121 / 0.28);
+  --font-ui: "IBM Plex Sans", "EC2 Symbols", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "EC2 Symbols", ui-monospace, monospace;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141b1e;
+  --surface: #1c2427;
+  --surface-2: #222b2f;
+  --surface-3: #2a3438;
+  --line: #2f383c;
+  --line-strong: #414b50;
+  --text: #eae7e2;
+  --text-2: #cdd1d3;
+  --muted: #9ea6ab;
+  --accent: #70b8c6;
+  --accent-hover: #8ccad6;
+  --accent-soft: #1e353b;
+  --on-accent: #0f1518;
+  --pass: #73c385;
+  --pass-soft: #1d3324;
+  --fail: #ec7c6f;
+  --fail-soft: #3b2321;
+  --warn: #e3b667;
+  --warn-soft: #382e1c;
+  --info: #90b1da;
+  --info-soft: #223040;
+  --na: #8d969b;
+  --na-soft: #283034;
+  --draw-ink: #e2dfda;
+  --draw-muted: #98a1a6;
+  --draw-accent: #70b8c6;
+  --draw-rule: #333c40;
+  --draw-concrete: #2b3337;
+  --draw-grain: #4a5457;
+  --draw-steel: #eae7e2;
+  --draw-load: #ec7c6f;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  --ring: 0 0 0 3px rgb(112 184 198 / 0.35);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="dark"] body { font-weight: 350; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { color: var(--accent-hover); }
+sub, sup { font-size: 72%; line-height: 0; }
+.num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 4px; }
+
+/* ------------------------------------------------------------ top bar */
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 20px;
+  height: 56px; padding: 0 28px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 600; }
+.brand:hover { color: var(--text); }
+.brand-mark { width: 22px; height: 22px; border-radius: 5px; background: var(--accent); position: relative; }
+.brand-mark::after { content: ""; position: absolute; left: 8px; top: 4px; width: 6px; height: 14px; border: 1.5px solid var(--on-accent); border-radius: 1px; }
+.brand-name { font-size: 15px; letter-spacing: -0.1px; }
+.crumbs { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+.crumbs a { color: var(--muted); text-decoration: none; }
+.crumbs a:hover { color: var(--text); }
+.crumbs .sep { opacity: .5; }
+.topbar .spacer { flex: 1; }
+.topbar .link { color: var(--text-2); font-size: 14px; text-decoration: none; }
+.topbar .link:hover { color: var(--accent); }
+
+.page { max-width: 1180px; margin: 0 auto; padding: 36px 28px 72px; }
+.page-head { margin-bottom: 28px; }
+.context { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+h1 { font-size: clamp(26px, 3.2vw, 34px); line-height: 1.15; font-weight: 600; letter-spacing: -0.4px; margin: 0 0 10px; }
+h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.2px; margin: 40px 0 14px; }
+h3 { font-size: 16px; font-weight: 600; margin: 0; }
+.lede { color: var(--text-2); max-width: 64ch; margin: 0; font-size: 16px; }
+
+/* ------------------------------------------------------------ panels */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.panel-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.panel-head .hint { margin-left: auto; color: var(--muted); font-size: 13px; }
+.panel-body { padding: 18px; }
+
+/* ------------------------------------------------------------ buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 38px; padding: 0 16px; border-radius: var(--radius);
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); color: var(--text); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--text-2); }
+.btn.quiet:hover { background: var(--surface-2); }
+.btn.small { height: 32px; padding: 0 12px; font-size: 13.5px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn .caret { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid currentColor; opacity: .7; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* ------------------------------------------------------------ menus and pop-overs */
+[popover].menu, [popover].pop {
+  margin: 0; inset: auto; position: fixed;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow-2); padding: 6px;
+}
+[popover].menu { min-width: 220px; }
+[popover].pop { width: min(420px, calc(100vw - 24px)); padding: 16px; }
+.menu button, .menu a {
+  display: flex; width: 100%; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; font-size: 14px;
+  text-align: left; text-decoration: none; cursor: pointer;
+}
+.menu button:hover, .menu a:hover { background: var(--surface-2); color: var(--text); }
+.menu .sub { display: block; color: var(--muted); font-size: 12.5px; }
+.menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
+.menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent); }
+.theme-button { gap: 6px; }
+.theme-button svg { flex: none; }
+.pop h4 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.pop p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+
+/* ------------------------------------------------------------ status */
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.status.pass { color: var(--pass); }
+.status.fail { color: var(--fail); }
+.status.warn { color: var(--warn); }
+.status.info { color: var(--info); }
+.status.na { color: var(--na); }
+.tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.tag.pass { color: var(--pass); background: var(--pass-soft); }
+.tag.fail { color: var(--fail); background: var(--fail-soft); }
+.tag.warn { color: var(--warn); background: var(--warn-soft); }
+.tag.info { color: var(--info); background: var(--info-soft); }
+.tag.na { color: var(--na); background: var(--na-soft); }
+
+.meter { display: flex; align-items: center; gap: 10px; }
+.meter .track { position: relative; flex: 1; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.meter .track span { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--pass); }
+.meter .track span.warn { background: var(--warn); }
+.meter .track span.fail { background: var(--fail); }
+.meter .val { font-family: var(--font-mono); font-size: 13px; min-width: 40px; text-align: right; }
+
+.notice { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 72ch; }
+.empty { padding: 48px 0; color: var(--muted); }
+
+/* ------------------------------------------------------------ drawings */
+svg text { font-family: var(--font-ui); }
+svg .num { font-family: var(--font-mono); }
+svg .part { transition: stroke .2s, fill .2s; }
+svg .part.is-hl { filter: drop-shadow(0 0 4px var(--accent)); }
+
+@media (max-width: 720px) {
+  .topbar { padding: 0 16px; gap: 12px; }
+  .crumbs, .topbar .link, .theme-label { display: none; }
+  .page { padding: 24px 16px 56px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+@media print {
+  .topbar, .no-print { display: none !important; }
+  body { background: #fff; }
+}
