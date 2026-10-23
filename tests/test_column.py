@@ -81,16 +81,30 @@ def test_unbraced_column_uses_exp_516_and_c_07(example):
 
 
 def test_detailing_failures(example):
-    example["reinforcement"].update(bar_dia=25, link_dia=6, link_spacing=300, n_b=6, n_h=6)
+    example["reinforcement"].update(bar_dia=25, link_dia=6, n_b=6, n_h=6)
     checks = by_id(check_column(example))
     assert checks["link_dia"]["status"] == "fail"       # 6 < 25/4
-    assert checks["link_spacing"]["status"] == "fail"   # > min(12φ, 0.6b, 240) = 180
     assert checks["bar_spacing"]["status"] == "fail"    # clear gap < max(φ, dg + 5, 20)
+
+
+@pytest.mark.parametrize("b, h, phi, s_max, near, far", [
+    (300, 300, 25, 180, 175, 300),   # 0.6·b governs: 1.67 × 180 = 300.6
+    (300, 300, 16, 180, 175, 300),   # 12φ = 192, 0.6·b = 180
+    (350, 350, 12, 144, 125, 225),   # 12φ governs: 1.67 × 144 = 240.5
+    (500, 500, 25, 240, 225, 400),   # 240 mm governs
+])
+def test_link_spacing_is_calculated(example, b, h, phi, s_max, near, far):
+    example["geometry"].update(b=b, h=h)
+    example["reinforcement"].update(bar_dia=phi, link_dia=8)
+    report = check_column(example)
+    links = report["derived"]["links"]
+    assert (links["s_max"], links["near"], links["far"]) == (pytest.approx(s_max), near, far)
+    assert by_id(report)["link_spacing"]["status"] == "info"
 
 
 def test_unrestrained_bars_need_cross_ties(example):
     example["geometry"].update(b=500, h=500)
-    example["reinforcement"].update(n_b=3, n_h=3, link_spacing=150)
+    example["reinforcement"].update(n_b=3, n_h=3)
     assert by_id(check_column(example))["bar_restraint"]["status"] == "fail"
     example["reinforcement"]["cross_ties"] = True
     assert by_id(check_column(example))["bar_restraint"]["status"] == "pass"

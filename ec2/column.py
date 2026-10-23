@@ -136,8 +136,6 @@ class ColumnInput:
     dg: float
     section: RectSection
     l: float
-    link_spacing: float
-    link_spacing_mid: float | None
     cross_ties: bool
     delta_c_dev: float
     braced: bool
@@ -174,8 +172,6 @@ def parse_input(data):
     n_b = r.number("reinforcement.n_b", lo=2, hi=20, integer=True)
     n_h = r.number("reinforcement.n_h", lo=2, hi=20, integer=True)
     link_dia = r.choice("reinforcement.link_dia", LINK_SIZES, default=8)
-    link_spacing = r.number("reinforcement.link_spacing", lo=25, hi=1000)
-    link_spacing_mid = r.number("reinforcement.link_spacing_mid", lo=25, hi=1000, optional=True)
     cross_ties = r.flag("reinforcement.cross_ties")
     cover = r.number("reinforcement.cover", lo=0, hi=150)
     delta_c_dev = r.number("reinforcement.delta_c_dev", lo=0, hi=20, default=10)
@@ -232,8 +228,6 @@ def parse_input(data):
         dg=dg,
         section=RectSection(b, h, cover, link_dia, bar_dia, n_b, n_h),
         l=length * 1000.0,
-        link_spacing=link_spacing,
-        link_spacing_mid=link_spacing_mid,
         cross_ties=cross_ties,
         delta_c_dev=delta_c_dev,
         braced=braced,
@@ -724,6 +718,18 @@ def _biaxial_check(inp, axes):
         note="Imperfections are applied only in the more unfavourable direction (EC2 5.8.9(2)).")
 
 
+def link_spacing(sec):
+    """Largest link spacing: min(12φ, 0.6·bmin, 240 mm), ×1.67 away from beams and slabs.
+
+    The spacings to provide are rounded down to a multiple of 25 mm. 'zone' is the distance
+    from a beam or slab (the larger column dimension) over which the closer spacing applies.
+    """
+    s_max = min(12 * sec.bar_dia, 0.6 * min(sec.b, sec.h), 240)
+    far_max = 1.67 * s_max
+    return {"s_max": s_max, "near": int(s_max // 25 * 25), "far_max": far_max, "far": int(far_max // 25 * 25),
+            "zone": max(sec.b, sec.h)}
+
+
 def _detailing_checks(inp):
     sec, conc, steel = inp.section, inp.concrete, inp.steel
     out = []
@@ -779,20 +785,15 @@ def _detailing_checks(inp):
         working=[f"φlink ≥ max(6, φ/4) = max(6, {phi}/4) = {link_min:g} mm; provided φ{link}"],
         refs=refs("ch5_steel_areas", "ch10_columns"), target="links"))
 
-    s_max = min(12 * phi, 0.6 * min(sec.b, sec.h), 240)
-    ok_end = inp.link_spacing <= s_max
-    lines = [f"scl,max = min(12φ, 0.6·bmin, 240) = min({12 * phi}, {0.6 * min(sec.b, sec.h):.0f}, 240) "
-             f"= {s_max:.0f} mm near beams and slabs",
-             f"Provided {inp.link_spacing:g} mm within a column width of beams/slabs"]
-    ok_mid = True
-    if inp.link_spacing_mid:
-        ok_mid = inp.link_spacing_mid <= 1.67 * s_max
-        lines.append(f"Elsewhere ≤ 1.67 × {s_max:.0f} = {1.67 * s_max:.0f} mm; provided {inp.link_spacing_mid:g} mm")
-    ok = ok_end and ok_mid
+    sp = link_spacing(sec)
     out.append(CheckResult(
-        "link_spacing", GROUPS[6], "Link spacing", PASS if ok else FAIL,
-        result=f"{inp.link_spacing:g} {_cmp(ok_end)} {s_max:.0f} mm", value=inp.link_spacing, limit=s_max,
-        unit="mm", utilisation=inp.link_spacing / s_max, working=lines,
+        "link_spacing", GROUPS[6], "Link spacing (calculated)", INFO,
+        result=f"H{link} @ {sp['near']} mm, {sp['far']} mm elsewhere", value=sp["near"], limit=sp["s_max"], unit="mm",
+        working=[f"s ≤ min(12φ, 0.6·bmin, 240) = min(12 × {phi}, 0.6 × {min(sec.b, sec.h):g}, 240) "
+                 f"= min({12 * phi}, {0.6 * min(sec.b, sec.h):.0f}, 240) = {sp['s_max']:.0f} mm",
+                 f"Provide H{link} links at {sp['near']} mm centres (rounded down to a multiple of 25 mm) "
+                 f"within {sp['zone']:g} mm, the larger column dimension, of each beam or slab",
+                 f"Elsewhere s ≤ 1.67 × {sp['s_max']:.0f} = {sp['far_max']:.0f} mm: provide {sp['far']} mm"],
         refs=refs("ch5_spacing", "ch10_columns", clauses=("9.5.3",)), target="links"))
 
     gap = sec.max_unrestrained_gap()
@@ -862,9 +863,8 @@ def _input_echo(inp):
         ("Max aggregate dg", f"{inp.dg:g} mm"),
         ("Section b × h", f"{sec.b:g} × {sec.h:g} mm"), ("Clear height l", f"{inp.l / 1000:g} m"),
         ("Main bars", f"{sec.n_bars}H{sec.bar_dia} ({sec.n_b} per b-face, {sec.n_h} per h-face)"),
-        ("Links", f"H{sec.link_dia} @ {inp.link_spacing:g} mm"
-                  + (f", {inp.link_spacing_mid:g} mm elsewhere" if inp.link_spacing_mid else "")
-                  + (", cross-ties to all bars" if inp.cross_ties else "")),
+        ("Links", f"H{sec.link_dia} @ {link_spacing(sec)['near']} mm, {link_spacing(sec)['far']} mm elsewhere "
+                  f"(calculated)" + (", cross-ties to all bars" if inp.cross_ties else "")),
         ("Nominal cover", f"{sec.cover:g} mm (Δcdev = {inp.delta_c_dev:g} mm)"),
         ("Frame", "Braced" if inp.braced else "Unbraced"),
         ("NEd", f"{kN(inp.n_ed)} kN"),
@@ -914,6 +914,7 @@ def check_column(data):
             "n_bars": sec.n_bars, "a": sec.axis_distance, "n": n, "omega": omega,
             "NEd": inp.n_ed / 1e3, "NRd_max": axes["y"].model.n_max() / 1e3, "braced": inp.braced,
             "l": inp.l, "axes": {axis: _axis_summary(inp, ax, as_req[axis]) for axis, ax in axes.items()},
+            "links": {"dia": sec.link_dia, **link_spacing(sec)},
         },
         "plots": {
             "section": {

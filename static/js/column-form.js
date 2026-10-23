@@ -7,8 +7,7 @@ export const EXAMPLES = {
     project: { name: "Campus teaching block", ref: "C2 ground floor", engineer: "", date: "" },
     materials: { concrete: "C32/40", fyk: 500, ductility: "B", dg: 20, gamma_c: 1.5, gamma_s: 1.15, alpha_cc: 0.85 },
     geometry: { b: 350, h: 350, l: 3.6 },
-    reinforcement: { bar_dia: 20, n_b: 3, n_h: 3, link_dia: 8, link_spacing: 200, link_spacing_mid: 300,
-      cross_ties: false, cover: 30, delta_c_dev: 10 },
+    reinforcement: { bar_dia: 20, n_b: 3, n_h: 3, link_dia: 8, cross_ties: false, cover: 30, delta_c_dev: 10 },
     restraint: { braced: true, y: { method: "k", k_top: 0.25, k_bottom: 0.1 }, z: { method: "k", k_top: 0.25, k_bottom: 0.1 } },
     actions: { NEd: 2100, My_top: 45, My_bottom: 25, My_curvature: "single", Mz_top: 20, Mz_bottom: 10,
       Mz_curvature: "single", phi_ef: 1.7, lambda_lim_method: "simplified" },
@@ -18,8 +17,7 @@ export const EXAMPLES = {
     project: { name: "Car park extension", ref: "C7 level 1", engineer: "", date: "" },
     materials: { concrete: "C25/30", fyk: 500, ductility: "B", dg: 20, gamma_c: 1.5, gamma_s: 1.15, alpha_cc: 0.85 },
     geometry: { b: 250, h: 400, l: 4.5 },
-    reinforcement: { bar_dia: 25, n_b: 2, n_h: 3, link_dia: 6, link_spacing: 250, link_spacing_mid: null,
-      cross_ties: false, cover: 25, delta_c_dev: 10 },
+    reinforcement: { bar_dia: 25, n_b: 2, n_h: 3, link_dia: 6, cross_ties: false, cover: 25, delta_c_dev: 10 },
     restraint: { braced: true, y: { method: "k", k_top: 0.6, k_bottom: 0.4 }, z: { method: "factor", case: "c", F: 0.7 } },
     actions: { NEd: 1650, My_top: 95, My_bottom: 60, My_curvature: "single", Mz_top: 30, Mz_bottom: 15,
       Mz_curvature: "single", phi_ef: 2.0, lambda_lim_method: "simplified" },
@@ -228,7 +226,7 @@ function summaries(d) {
     project: [d.project.name, d.project.ref].filter(Boolean).join(" · ") || "Optional",
     materials: `${d.materials.concrete} · fyk ${f(d.materials.fyk)} MPa · class ${d.materials.ductility} · dg ${f(d.materials.dg)} mm`,
     geometry: `${f(d.geometry.b)} × ${f(d.geometry.h)} mm · l = ${f(d.geometry.l)} m`,
-    reinforcement: `${nBars}H${re.bar_dia} · H${re.link_dia} @ ${f(re.link_spacing)} · cover ${f(re.cover)} mm`,
+    reinforcement: `${nBars}H${re.bar_dia} · H${re.link_dia} @ ${linkSpacing(d.geometry.b, d.geometry.h, re.bar_dia).near ?? "?"} · cover ${f(re.cover)} mm`,
     restraint: `${d.restraint.braced ? "Braced" : "Unbraced"} · ${sameAxes ? end(d.restraint.y)
       : `y: ${end(d.restraint.y)}; z: ${end(d.restraint.z)}`}`,
     actions: `NEd ${f(a.NEd)} kN · My ${f(a.My_top ?? 0)}/${f(a.My_bottom ?? 0)} · Mz ${f(a.Mz_top ?? 0)}/${f(a.Mz_bottom ?? 0)} kNm`,
@@ -239,13 +237,20 @@ function summaries(d) {
 
 // ------------------------------------------------------------------ preview
 
+/** Same rule as the server: s ≤ min(12φ, 0.6·bmin, 240), rounded down to 25 mm; ×1.67 elsewhere. */
+function linkSpacing(b, h, phi) {
+  if (!(b > 0 && h > 0 && phi > 0)) return { near: null, far: null };
+  const sMax = Math.min(12 * phi, 0.6 * Math.min(b, h), 240);
+  return { near: Math.floor(sMax / 25) * 25, far: Math.floor((1.67 * sMax) / 25) * 25 };
+}
+
 function values() {
   const v = (n) => Number(form.elements[n]?.value);
   return {
     b: v("geometry.b"), h: v("geometry.h"), l: v("geometry.l") * 1000, cover: v("reinforcement.cover"),
     link_dia: v("reinforcement.link_dia"), bar_dia: v("reinforcement.bar_dia"),
     n_b: Math.round(v("reinforcement.n_b")), n_h: Math.round(v("reinforcement.n_h")),
-    spacing: v("reinforcement.link_spacing"), NEd: v("actions.NEd"),
+    NEd: v("actions.NEd"),
   };
 }
 
@@ -260,7 +265,9 @@ function refresh() {
   }
   const v = values();
   const sec = sectionFromInputs(v);
-  drawSection($("preview-section"), sec, { linkLabel: `H${v.link_dia} @ ${Number.isFinite(v.spacing) ? v.spacing : "?"}` });
+  const sp = linkSpacing(v.b, v.h, v.bar_dia);
+  $("link-calc").textContent = sp.near ? `H${v.link_dia} @ ${sp.near} mm, ${sp.far} mm elsewhere` : "—";
+  drawSection($("preview-section"), sec, { linkLabel: `H${v.link_dia} @ ${sp.near ?? "?"}` });
   if (sec) {
     const as = sec.bars.length * Math.PI * sec.bar_dia ** 2 / 4;
     const gapB = (sec.b - 2 * sec.a) / (sec.n_b - 1) - sec.bar_dia;

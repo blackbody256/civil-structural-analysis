@@ -112,18 +112,16 @@
                 <span class="help">Counting both corner bars</span></div>
               <div class="field"><label for="r-link">Links</label>
                 <div class="control"><select id="r-link" name="reinforcement.link_dia" data-options="links"></select></div></div>
-              <div class="field"><label for="r-s">Link spacing</label>
-                <div class="control"><input id="r-s" name="reinforcement.link_spacing" type="number" step="5" min="25" max="1000" required><span class="unit">mm</span></div>
-                <span class="help">Near beams and slabs</span></div>
+              <div class="field"><span class="label">Link spacing (calculated)</span>
+                <div class="computed" id="link-calc">—</div>
+                <span class="help">s ≤ 12φ, 0.6 b<sub>min</sub> and 240 mm</span></div>
               <div class="field"><label for="r-cover">Nominal cover c<sub>nom</sub></label>
                 <div class="control"><input id="r-cover" name="reinforcement.cover" type="number" step="5" min="0" max="150" required><span class="unit">mm</span></div>
                 <span class="help">To the links</span></div>
             </div>
             <details class="more">
-              <summary>More options: links elsewhere, cross-ties, Δc<sub>dev</sub></summary>
+              <summary>More options: cross-ties, Δc<sub>dev</sub></summary>
               <div class="fields">
-                <div class="field"><label for="r-s2">Link spacing elsewhere</label>
-                  <div class="control"><input id="r-s2" name="reinforcement.link_spacing_mid" type="number" step="5" min="25" max="1000" placeholder="same"><span class="unit">mm</span></div></div>
                 <div class="field"><label for="r-dc">Allowance Δc<sub>dev</sub></label>
                   <div class="control"><select id="r-dc" name="reinforcement.delta_c_dev">
                     <option value="10">10 mm (normal)</option><option value="5">5 mm (with QA)</option><option value="0">0 mm (precast QA)</option></select></div></div>
@@ -242,7 +240,7 @@
 
   <div id="files-menu" class="menu" popover role="menu">
     <button type="button" role="menuitem" data-example="pass">Passing example<span class="sub">350 × 350, C32/40, 8H20. All checks pass</span></button>
-    <button type="button" role="menuitem" data-example="fail">Failing example<span class="sub">250 × 400, C25/30, 6H25. Seven checks fail</span></button>
+    <button type="button" role="menuitem" data-example="fail">Failing example<span class="sub">250 × 400, C25/30, 6H25. Six checks fail</span></button>
     <hr>
     <button type="button" role="menuitem" id="import">Open inputs file (JSON)…</button>
     <button type="button" role="menuitem" id="reset">Reset to the passing example</button>

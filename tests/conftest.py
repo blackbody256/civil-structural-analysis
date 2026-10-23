@@ -11,7 +11,7 @@ BASE = {
     "project": {"name": "Test", "ref": "C1"},
     "materials": {"concrete": "C30/37", "fyk": 500, "ductility": "B", "dg": 20},
     "geometry": {"b": 300, "h": 300, "l": 3.5},
-    "reinforcement": {"bar_dia": 16, "n_b": 3, "n_h": 3, "link_dia": 8, "link_spacing": 175,
+    "reinforcement": {"bar_dia": 16, "n_b": 3, "n_h": 3, "link_dia": 8,
                       "cross_ties": False, "cover": 30, "delta_c_dev": 10},
     "restraint": {"braced": True, "y": {"method": "k", "k_top": 0.2, "k_bottom": 0.2},
                   "z": {"method": "k", "k_top": 0.2, "k_bottom": 0.2}},

@@ -173,7 +173,7 @@ function figures(state) {
   };
   queueMicrotask(() => {
     drawSection(sectionBox, result.plots.section, {
-      status: targetStatus(result.checks), linkLabel: `H${input.reinforcement.link_dia} @ ${input.reinforcement.link_spacing}`,
+      status: targetStatus(result.checks), linkLabel: `H${result.derived.links.dia} @ ${result.derived.links.near}`,
     });
     drawElev("y");
     drawInteraction(nmY, result.plots.interaction.y, { axis: "y", status: by.bending_y.status });
