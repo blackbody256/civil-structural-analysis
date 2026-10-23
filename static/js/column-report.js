@@ -1,4 +1,4 @@
-import { downloadBlob, el, fmt, guideHref, KEYS, meter, SEVERITY, statusDot, store, worst } from "./common.js";
+import { downloadBlob, el, fmt, KEYS, meter, SEVERITY, statusDot, store, worst } from "./common.js";
 import { drawElevation, drawInteraction, drawSection, endKinds } from "./drawings.js";
 import { anchorPopover } from "./theme.js";
 
@@ -181,8 +181,8 @@ function figures(state) {
   });
   return el("div", { class: "figures" },
     figure("Cross-section", sectionBox, "To scale. Parts outlined in red failed a check; point at a row below to find its part."),
-    figure("Elevation and design moments", elevationBox, "Ch 5, Fig 4: first-order moments dashed, with second-order effects solid.", switcher(drawElev)),
-    figure("N–M interaction about y–y", nmY, "The design point must lie inside the capacity curve (Figs 7–9)."),
+    figure("Elevation and design moments", elevationBox, "First-order moments dashed, with second-order effects solid.", switcher(drawElev)),
+    figure("N–M interaction about y–y", nmY, "The design point must lie inside the capacity curve."),
     figure("N–M interaction about z–z", nmZ, null));
 }
 
@@ -201,7 +201,7 @@ function flow(result, axis) {
   return el("div", { class: "flow" },
     node("Actions on the column", `N<sub>Ed</sub> = ${fmt(result.derived.NEd, 0)} kN · M<sub>top</sub> = ${fmt(ax.M_top)} · M<sub>bottom</sub> = ${fmt(ax.M_bottom)} kNm`),
     arrow(),
-    node("Effective length (Fig 5, Table 4)", `l<sub>0</sub> = ${fmt(ax.F, 3)} × ${fmt(result.derived.l / 1000, 2)} m = ${fmt(ax.l0 / 1000, 2)} m`),
+    node("Effective length", `l<sub>0</sub> = ${fmt(ax.F, 3)} × ${fmt(result.derived.l / 1000, 2)} m = ${fmt(ax.l0 / 1000, 2)} m`),
     arrow(),
     node("First-order moments", `e<sub>i</sub> = ${fmt(ax.e_i)} mm · M<sub>01</sub> = ${fmt(ax.M01)} · M<sub>02</sub> = ${fmt(ax.M02)} kNm`),
     arrow(),
@@ -212,12 +212,12 @@ function flow(result, axis) {
     el("div", { class: "flow-branch" },
       el("div", { class: `col ${slender ? "off" : "on"}` }, el("span", { class: "tag-line" }, "No: not slender"),
         node("Design moment", `M<sub>Ed</sub> = M<sub>02</sub> = ${fmt(ax.M02)} kNm`, slender ? "off" : "on")),
-      el("div", { class: `col ${slender ? "on" : "off"}` }, el("span", { class: "tag-line" }, "Yes: nominal curvature, Fig 3"),
+      el("div", { class: `col ${slender ? "on" : "off"}` }, el("span", { class: "tag-line" }, "Yes: nominal curvature method"),
         node("Second-order moment", slender
           ? `K<sub>r</sub> = ${fmt(ax.Kr, 3)}, K<sub>φ</sub> = ${fmt(ax.Kphi, 3)}<br>e<sub>2</sub> = ${fmt(ax.e2)} mm, M<sub>2</sub> = ${fmt(ax.M2)} kNm<br>M<sub>Ed</sub> = ${fmt(ax.MEd)} kNm`
           : "not needed", slender ? "on" : "off"))),
     arrow(),
-    node("Resistance (Figs 7–9)", `${bend.markup.result}<br>A<sub>s,req</sub> = ${ax.As_req === null ? "not achievable" : `${fmt(ax.As_req, 0)} mm²`} · A<sub>s,prov</sub> = ${fmt(result.derived.As, 0)} mm²`, bend.status),
+    node("Resistance", `${bend.markup.result}<br>A<sub>s,req</sub> = ${ax.As_req === null ? "not achievable" : `${fmt(ax.As_req, 0)} mm²`} · A<sub>s,prov</sub> = ${fmt(result.derived.As, 0)} mm²`, bend.status),
     arrow(),
     node("Spacing and quantity of reinforcement", detailing === "fail" ? "Some detailing rules fail" : "All detailing rules pass", detailing === "fail" ? "fail" : "pass"));
 }
@@ -233,7 +233,7 @@ function designPath(result) {
   const box = el("div");
   const draw = (axis) => box.replaceChildren(flow(result, axis));
   draw("y");
-  return block("Design path through Figures 2 and 3", { open: true },
+  return block("Design path", { open: true },
     el("div", { style: "display:flex;margin-bottom:10px" }, switcher(draw)), box);
 }
 
@@ -242,12 +242,6 @@ function designPath(result) {
 function highlight(target, on) {
   if (!target) return;
   document.querySelectorAll(`#fig-section [data-part="${target}"]`).forEach((n) => n.classList.toggle("is-hl", on));
-}
-
-function refCell(refs) {
-  return el("td", { class: "ref" }, refs.map((r) => r.page
-    ? el("a", { href: guideHref(r.page), target: "_blank", rel: "noopener" }, r.label, " ", el("span", { class: "pg" }, `p.${r.page}`))
-    : el("div", { class: "pg" }, r.label)));
 }
 
 function calcGroups(result) {
@@ -261,7 +255,6 @@ function calcGroups(result) {
       n("na") && `${n("na")} not applicable`].filter(Boolean).join(" · ");
     const rows = items.map((c) => {
       const row = el("tr", { id: `check-${c.id}` },
-        refCell(c.refs),
         el("td", {}, el("div", { class: "ct" }, c.title),
           ...c.markup.working.map((w) => el("div", { class: "wl", html: w })),
           c.note ? el("div", { class: "note", html: c.markup.note }) : null),
@@ -274,7 +267,7 @@ function calcGroups(result) {
     return block(group, { open: status === "fail" || status === "warn", id: `group-${gi}`, count, right: statusDot(status) },
       el("div", { class: "calc-wrap", style: "margin:-16px -18px" },
         el("table", { class: "calc" },
-          el("thead", {}, el("tr", {}, el("th", {}, "Reference"), el("th", {}, "Calculation"), el("th", {}, "Result"))),
+          el("thead", {}, el("tr", {}, el("th", {}, "Calculation"), el("th", {}, "Result"))),
           el("tbody", {}, rows))));
   }).filter(Boolean);
 }
@@ -296,12 +289,12 @@ function render(state) {
     designPath(result),
     el("div", { class: "section-tools" }, el("h2", {}, "Full calculations"), expand, collapse),
     el("p", { class: "lede", style: "font-size:14px;margin:6px 0 4px" },
-      "Every test with its working and result. Groups that need attention are open; references open the guide at that page."),
+      "Every test with its working and result. Groups that need attention are open."),
     ...groups,
     el("h2", {}, "Inputs and assumptions"),
-    block("Inputs", {}, el("table", { class: "kv" }, el("tbody", {},
+    block("Inputs", {}, el("table", { class: "kv doc" }, el("tbody", {},
       result.inputs.map((i) => el("tr", {}, el("td", {}, i.label), el("td", { class: "num" }, i.value)))))),
-    block("Assumptions", {}, el("ul", { class: "assumptions" }, result.assumptions.map((a) => el("li", {}, a)))),
+    block("Assumptions", {}, el("ul", { class: "assumptions doc" }, result.assumptions.map((a) => el("li", {}, a)))),
     el("p", { class: "notice" }, "For learning and preliminary checking. A qualified structural engineer must verify the inputs and results."));
   setupExport(state);
 }

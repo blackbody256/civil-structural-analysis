@@ -30,15 +30,14 @@ GROUPS = (
 )
 
 ASSUMPTIONS = [
-    "Procedure of Chapter 5 (Table 1, Figures 2 and 3) of 'How to Design Concrete Structures "
-    "using Eurocode 2' (The Concrete Centre, 2006), with UK National Annex values.",
-    "Resistance by strain compatibility with the rectangular stress block of Fig 7 and the strain "
-    "limits of Fig 8; bars are modelled at their actual positions; concrete displaced by bars is "
-    "not deducted.",
+    "Design to BS EN 1992-1-1 with UK National Annex values.",
+    "Resistance by strain compatibility with a rectangular stress block of depth 0.8x at fcd; "
+    "εcu = 0.0035 with the neutral axis in the section and 0.00175 at mid-depth otherwise; bars are "
+    "modelled at their actual positions; concrete displaced by bars is not deducted.",
     "First-order moments include the geometric imperfection ei = max(l0/400, h/30, 20 mm).",
-    "Second-order effects by the nominal curvature method (Fig 3) when λ ≥ λlim.",
-    "Durability covers from Table 8 assume a 50-year working life and 20 mm maximum aggregate.",
-    "Fire resistance by the tabulated method A (Table 2), valid for braced columns only.",
+    "Second-order effects by the nominal curvature method when λ ≥ λlim.",
+    "Durability covers follow BS 8500 for a 50-year working life and 20 mm maximum aggregate.",
+    "Fire resistance by the tabulated method A of BS EN 1992-1-2, valid for braced columns only.",
 ]
 
 
@@ -395,14 +394,14 @@ def _scope_checks(inp):
     steel_ok = 400 <= steel.fyk <= 600
     k_req, eps_req = DUCTILITY_CLASSES[steel.ductility]
     scope = CheckResult(
-        "scope", GROUPS[0], "Within the scope of the guide", PASS if steel_ok else FAIL,
+        "scope", GROUPS[0], "Materials within scope", PASS if steel_ok else FAIL,
         result=f"{conc.name}, fyk = {steel.fyk:g} MPa",
         working=[
             f"Concrete {conc.name}: fck = {conc.fck:g} MPa ≤ 50 MPa (classes up to C50/60)",
             f"fcd = αcc·fck/γc = {conc.alpha_cc:g} × {conc.fck:g} / {conc.gamma_c:g} = {conc.fcd:.2f} MPa",
             f"Reinforcement fyk = {steel.fyk:g} MPa; EC2 covers 400 ≤ fyk ≤ 600 MPa",
             f"fyd = fyk/γs = {steel.fyk:g} / {steel.gamma_s:g} = {steel.fyd:.1f} MPa",
-            f"Ductility class {steel.ductility}: k {k_req}, εuk {eps_req} % (Table 5)",
+            f"Ductility class {steel.ductility}: k {k_req}, εuk {eps_req} %",
         ],
         refs=refs("ch3_scope", "ch1_scope_steel", "ch2_concrete", "ch2_steel"),
         note="" if steel_ok else "Eurocode 2 gives no rules for plain or mild-steel bars; "
@@ -440,14 +439,13 @@ def _cover_checks(inp):
             mix += f" ({spec['notes']})"
         notes = [row.get("note", "")]
         if not ok and res["bs8500_below"]:
-            notes.append(f"Table 8 refers to BS 8500 for {res['bs8500_below'][-1]} + Δcdev; a smaller cover "
-                         f"with a higher class may be possible there.")
+            notes.append(f"BS 8500 may allow {res['bs8500_below'][-1]} + Δcdev with a higher concrete class.")
         dur = CheckResult(
             "cover_durability", GROUPS[1], "Cover for durability", PASS if ok else FAIL,
             result=f"{sec.cover:g} {'≥' if ok else '<'} {required:g} mm", value=sec.cover, limit=required,
             unit="mm", utilisation=required / sec.cover if sec.cover else math.inf,
             working=head + [
-                f"Table 8: {conc.name} needs a nominal cover of {res['cover']} + Δcdev "
+                f"{conc.name} needs a nominal cover of {res['cover']} + Δcdev for this exposure "
                 f"(minimum class {spec['class']} at that cover)",
                 f"cnom,req = {res['cover']} + {dc:g} = {required:g} mm; provided cnom = {sec.cover:g} mm",
                 f"Specify concrete with {mix}",
@@ -458,7 +456,7 @@ def _cover_checks(inp):
         dur = CheckResult(
             "cover_durability", GROUPS[1], "Cover for durability", FAIL,
             result=f"{conc.name} below minimum {spec['class']}",
-            working=head + [f"Table 8 needs at least {spec['class']} for this exposure "
+            working=head + [f"This exposure needs at least {spec['class']} "
                             f"(with {res['cover']} + Δcdev cover); {conc.name} is not recommended."],
             refs=refs("ch2_table8"), note="Increase the concrete strength class.", target="cover")
 
@@ -496,15 +494,15 @@ def _fire_checks(inp):
     sec = inp.section
     if inp.fire_period == "none":
         na = "No fire resistance period specified."
-        return [CheckResult("fire_table", GROUPS[2], "Fire resistance (Table 2)", NA, result="Not required",
+        return [CheckResult("fire_table", GROUPS[2], "Fire resistance", NA, result="Not required",
                             note=na, refs=refs("ch5_table2"), target="cover"),
-                CheckResult("fire_validity", GROUPS[2], "Table 2 conditions", NA, result="Not required",
+                CheckResult("fire_validity", GROUPS[2], "Conditions for the fire table", NA, result="Not required",
                             note=na, refs=refs("ch5_table2"))]
     if not inp.braced:
-        na = "Table 2 covers braced columns only; see the Handbook to EN 1992-1-2 for unbraced columns."
-        return [CheckResult("fire_table", GROUPS[2], "Fire resistance (Table 2)", NA, result="Not applicable",
+        na = "The tabulated fire method covers braced columns only."
+        return [CheckResult("fire_table", GROUPS[2], "Fire resistance", NA, result="Not applicable",
                             note=na, refs=refs("ch5_table2", "ch5_unbraced"), target="cover"),
-                CheckResult("fire_validity", GROUPS[2], "Table 2 conditions", NA, result="Not applicable",
+                CheckResult("fire_validity", GROUPS[2], "Conditions for the fire table", NA, result="Not applicable",
                             note=na, refs=refs("ch5_table2"))]
 
     b_min, a = min(sec.b, sec.h), sec.axis_distance
@@ -522,7 +520,7 @@ def _fire_checks(inp):
         extra += f", {o['note']}" if o["note"] else ""
         lines.append(f"Option bmin/a = {o['b_min']}/{o['a']}{extra}: {'satisfied' if o['ok'] else 'not satisfied'}")
     table = CheckResult(
-        "fire_table", GROUPS[2], f"Fire resistance {inp.fire_period} (Table 2)", PASS if ok else FAIL,
+        "fire_table", GROUPS[2], f"Fire resistance {inp.fire_period}", PASS if ok else FAIL,
         result=f"{b_min:.0f}/{a:.0f} vs {gov['b_min']}/{gov['a']} mm",
         utilisation=max(gov["b_min"] / b_min, gov["a"] / a), working=lines,
         refs=refs("ch5_table2"), target="cover",
@@ -541,27 +539,27 @@ def _fire_checks(inp):
     conditions.append((f"As/Ac = {100 * rho:.2f} % ≤ 4 %", rho <= 0.04))
     valid = all(ok for _, ok in conditions)
     validity = CheckResult(
-        "fire_validity", GROUPS[2], "Table 2 conditions", PASS if valid else WARN,
-        result="Conditions met" if valid else "Outside Table 2 limits",
+        "fire_validity", GROUPS[2], "Conditions for the fire table", PASS if valid else WARN,
+        result="Conditions met" if valid else "Outside the table limits",
         working=[f"{text}: {'yes' if ok else 'no'}" for text, ok in conditions],
         refs=refs("ch5_table2"),
-        note="" if valid else "Table 2 (method A) is not valid here; use method B or BS EN 1992-1-2 Annex C.")
+        note="" if valid else "The tabulated method is not valid here; use method B or BS EN 1992-1-2 Annex C.")
     return [table, validity]
 
 
 def _effective_length_lines(inp, ax):
     r = inp.restraint[ax.name]
     if r.method == "factor":
-        source = f"Fig 5 case {r.case}: {sl.FIG5_CASES[r.case][0]}" if r.case else "entered directly"
+        source = sl.FIG5_CASES[r.case][0].lower() if r.case else "entered directly"
         lines = [f"Effective length factor F = {ax.F:.2f} ({source})"]
     elif inp.braced:
         lines = [f"Braced; end stiffness k1 (top) = {_k_text(r.k_top)}, k2 (bottom) = {_k_text(r.k_bottom)}",
                  f"F = 0.5·√[(1 + k1/(0.45 + k1))·(1 + k2/(0.45 + k2))] = {ax.F:.3f} "
-                 f"(Exp 5.15; Table 4 gives {ax.F_table:.2f})"]
+                 f"(braced)"]
     else:
         lines = [f"Unbraced; end stiffness k1 (top) = {_k_text(r.k_top)}, k2 (bottom) = {_k_text(r.k_bottom)}",
                  f"F = max{{√(1 + 10·k1·k2/(k1 + k2)); (1 + k1/(1 + k1))·(1 + k2/(1 + k2))}} = {ax.F:.3f} "
-                 f"(Exp 5.16)"]
+                 f"(unbraced)"]
     lines.append(f"l0 = F·l = {ax.F:.3f} × {inp.l:.0f} = {ax.l0:.0f} mm")
     return lines
 
@@ -573,7 +571,7 @@ def _slenderness_checks(inp, axes, n):
         c_line = (f"rm = M01/M02 = {kNm(ax.m01)} / {kNm(ax.m02)} = {ax.rm:.3f}; C = 1.7 − rm = {ax.C:.3f}"
                   if inp.braced else "Unbraced column: C = 0.7")
         ab = "default values" if inp.lambda_lim_method == "simplified" else "from φef and ω"
-        verdict = ("slender: second-order effects are added (Fig 3)" if ax.slender
+        verdict = ("slender: second-order effects are added" if ax.slender
                    else "not slender: second-order effects ignored, MEd = M02")
         out.append(CheckResult(
             f"slenderness_{ax.name}", GROUPS[3], f"Slenderness about {AXIS_NAME[ax.name]}", INFO,
@@ -644,7 +642,7 @@ def _resistance_checks(inp, axes, n):
         result=f"{kN(inp.n_ed)} {_cmp(ok_n)} {kN(n_max)} kN", value=inp.n_ed / 1e3, limit=n_max / 1e3,
         unit="kN", utilisation=inp.n_ed / n_max,
         working=[
-            f"Pure compression at εc = 0.00175: σs = min(Es × 0.00175, fyd) = {sigma:.0f} MPa (Fig 8a)",
+            f"Pure compression at εc = 0.00175: σs = min(Es × 0.00175, fyd) = {sigma:.0f} MPa",
             f"NRd,max = fcd·Ac + σs·As = {conc.fcd:.2f} × {sec.Ac:.0f} + {sigma:.0f} × {sec.As:.0f} = {kN(n_max)} kN",
             f"NEd = {kN(inp.n_ed)} kN {_cmp(ok_n)} NRd,max",
         ],
@@ -657,7 +655,7 @@ def _resistance_checks(inp, axes, n):
         req = required_steel(inp, ax, n)
         as_req[ax.name] = req
         d2 = sec.axis_distance
-        chart = (f"Fig 9 coordinates: N/(bhfck) = {inp.n_ed / (sec.Ac * conc.fck):.3f}, "
+        chart = (f"Normalised: N/(bhfck) = {inp.n_ed / (sec.Ac * conc.fck):.3f}, "
                  f"M/(bh·{sym}·fck) = {ax.m_ed / (sec.Ac * ax.depth * conc.fck):.3f}, "
                  f"d2/{sym} = {d2 / ax.depth:.2f}, As·fyk/(bhfck) = {sec.As * steel.fyk / (sec.Ac * conc.fck):.3f}")
         req_text = ("no steel needed for strength" if req == 0 else
@@ -679,7 +677,7 @@ def _resistance_checks(inp, axes, n):
                 f"({sec.n_bars}H{sec.bar_dia})",
                 f"Neutral axis solved for N = NEd = {kN(inp.n_ed)} kN, giving MRd = {kNm(ax.m_rd)} kNm",
                 f"MEd = {kNm(ax.m_ed)} kNm {_cmp(ok)} MRd = {kNm(ax.m_rd)} kNm",
-                f"As,req = {req_text}; As,prov = {sec.As:.0f} mm² (same layout, Kr iterated as in Fig 3)",
+                f"As,req = {req_text}; As,prov = {sec.As:.0f} mm² (same bar layout, Kr iterated)",
                 chart,
             ],
             refs=refs("ch5_fig7_8", "ch5_resistance", "ch5_fig9", clauses=("6.1",)), target="section"))
@@ -690,7 +688,7 @@ def _resistance_checks(inp, axes, n):
 
 def _biaxial_check(inp, axes):
     sec, conc, steel = inp.section, inp.concrete, inp.steel
-    title = "Biaxial bending, Exp (5.39)"
+    title = "Biaxial bending"
     has = {a: max(inp.moments[a].m_top, inp.moments[a].m_bottom) > 0 for a in AXES}
     if not all(has.values()):
         return CheckResult(
@@ -707,9 +705,9 @@ def _biaxial_check(inp, axes):
     a = sl.biaxial_exponent(ratio)
     my0, mz0 = _moment_without_imperfection(inp, ay), _moment_without_imperfection(inp, az)
     cases = [("y–y", ay.m_ed, mz0), ("z–z", my0, az.m_ed)]
-    lines = ["Exp (5.39): (MEdz/MRdz)^a + (MEdy/MRdy)^a ≤ 1.0",
+    lines = ["(MEdz/MRdz)^a + (MEdy/MRdy)^a ≤ 1.0",
              f"NRd = Ac·fcd + As·fyd = {sec.Ac:.0f} × {conc.fcd:.2f} + {sec.As:.0f} × {steel.fyd:.1f} = {kN(n_rd)} kN",
-             f"NEd/NRd = {ratio:.3f}, so a = {a:.2f} (Table 5, interpolated)"]
+             f"NEd/NRd = {ratio:.3f}, so a = {a:.2f} (interpolated)"]
     values = []
     for where, my, mz in cases:
         v = (mz / az.m_rd) ** a + (my / ay.m_rd) ** a
@@ -830,7 +828,7 @@ def _detailing_checks(inp):
         out.append(CheckResult(
             "lap", GROUPS[6], "Compression lap length", INFO, result=f"{lap} mm ({mult}φ)",
             value=lap, unit="mm",
-            working=[f"Table 13, {conc.name}, bars in compression, 100 % lapped in one location, good bond: "
+            working=[f"{conc.name}, bars in compression, 100 % lapped in one location, good bond: "
                      f"{mult}φ = {mult} × {phi} = {mult * phi} mm, use {lap} mm"],
             refs=refs("ch10_table13"), target="bars"))
     return out
