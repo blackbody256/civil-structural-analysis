@@ -1,6 +1,6 @@
-"""Column check following Chapter 5 of the guide (Table 1, Figures 2 and 3).
+"""Column check: braced or unbraced rectangular columns to BS EN 1992-1-1.
 
-check_column(data) validates a request, runs every check in the order of the guide's
+check_column(data) validates a request, runs every check in the order of the column
 design procedure and returns a JSON-ready report. Internally lengths are in mm,
 forces in N and moments in N·mm; the report uses kN, kNm and mm.
 """
@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from . import durability, fire, tables
 from . import slenderness as sl
 from .geometry import RectSection
+from .inputs import Reader, ValidationError
 from .interaction import EPS_C3, SectionModel
 from .materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, LINK_SIZES, Concrete, Reinforcement
 from .references import refs
@@ -41,69 +42,10 @@ ASSUMPTIONS = [
 ]
 
 
-class ValidationError(Exception):
-    def __init__(self, errors):
-        super().__init__("Invalid column input")
-        self.errors = errors
-
-
 # ---------------------------------------------------------------- input parsing
 
-class _Reader:
-    """Reads nested request values, collecting a message per invalid field."""
-
-    def __init__(self, data):
-        self.data = data if isinstance(data, dict) else {}
-        self.errors = {}
-
-    def raw(self, path):
-        node = self.data
-        for key in path.split("."):
-            if not isinstance(node, dict) or key not in node:
-                return None
-            node = node[key]
-        return node
-
-    def number(self, path, lo=None, hi=None, default=None, integer=False, optional=False):
-        raw = self.raw(path)
-        if raw is None or raw == "":
-            if default is None and not optional:
-                self.errors[path] = "Required."
-            return default
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            self.errors[path] = "Must be a number."
-            return default
-        if not math.isfinite(value):
-            self.errors[path] = "Must be a finite number."
-            return default
-        if integer:
-            if value != int(value):
-                self.errors[path] = "Must be a whole number."
-            value = int(value)
-        if lo is not None and value < lo:
-            self.errors[path] = f"Must be at least {lo:g}."
-        elif hi is not None and value > hi:
-            self.errors[path] = f"Must be at most {hi:g}."
-        return value
-
-    def choice(self, path, options, default=None):
-        raw = self.raw(path)
-        if (raw is None or raw == "") and default is not None:
-            return default
-        if raw not in options:
-            self.errors[path] = "Choose one of: " + ", ".join(str(o) for o in options) + "."
-            return default if default is not None else next(iter(options))
-        return raw
-
-    def flag(self, path, default=False):
-        raw = self.raw(path)
-        return default if raw is None else bool(raw)
-
-    def text(self, path, limit=120):
-        raw = self.raw(path)
-        return str(raw)[:limit] if raw is not None else ""
+class _Reader(Reader):
+    """The shared reader plus end stiffness values, which may be the word 'pinned'."""
 
     def stiffness(self, path):
         raw = self.raw(path)

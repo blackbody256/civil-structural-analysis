@@ -10,10 +10,13 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
 from ec2 import actions, creep, durability, fire, tables
 from ec2 import slenderness as sl
-from ec2.column import ValidationError, check_column
+from ec2.beam import check_beam
+from ec2.column import check_column
+from ec2.inputs import ValidationError
 from ec2.elements import ELEMENTS
 from ec2.materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, LINK_SIZES, Concrete
 from ec2.references import GUIDE, PDF_PAGE_OFFSET
+from reports.beam_pdf import build_beam_pdf
 from reports.column_pdf import build_column_pdf
 
 ROOT = Path(__file__).resolve().parent
@@ -22,12 +25,17 @@ GUIDE_PDF = ROOT / "How-to-design-concrete-structures-using-Eurocode-2.pdf"
 
 app = Flask(__name__, static_folder=str(STATIC), static_url_path="/static")
 
-PAGES = {
-    "/": "index.html",
-    "/column": "column.html",
-    "/column/run": "column_run.html",
-    "/column/report": "column_report.html",
+# element: (check function, PDF builder)
+ELEMENT_HANDLERS = {
+    "column": (check_column, build_column_pdf),
+    "beam": (check_beam, build_beam_pdf),
 }
+
+PAGES = {"/": "index.html"}
+for _element in ELEMENT_HANDLERS:
+    PAGES[f"/{_element}"] = f"{_element}.html"
+    PAGES[f"/{_element}/run"] = "run.html"
+    PAGES[f"/{_element}/report"] = "report.html"
 
 
 def _page(name):
@@ -35,7 +43,7 @@ def _page(name):
 
 
 for route, filename in PAGES.items():
-    app.add_url_rule(route, f"page_{filename}", _page(filename))
+    app.add_url_rule(route, "page" + (route.replace("/", "_") if route != "/" else "_home"), _page(filename))
 
 
 @app.get("/reference/guide.pdf")
@@ -61,6 +69,9 @@ def api_meta():
         "exposure": [{"id": r["id"], "classes": r["classes"], "example": r["example"],
                       "groups": list(r["groups"]), "note": r.get("note", "")}
                      for r in durability.rows_for("vertical")],
+        "exposure_all": [{"id": r["id"], "classes": r["classes"], "example": r["example"],
+                          "groups": list(r["groups"]), "note": r.get("note", "")}
+                         for r in durability.EXPOSURE_ROWS],
         "fire_periods": fire.FIRE_PERIODS,
         "fig5_cases": [{"id": k, "label": v[0], "F": v[1]} for k, v in sl.FIG5_CASES.items()],
         "psi_categories": actions.categories(),
@@ -79,25 +90,31 @@ def _payload():
     return data
 
 
-@app.post("/api/column/check")
-def api_column_check():
+def _handlers(element):
+    if element not in ELEMENT_HANDLERS:
+        abort(404)
+    return ELEMENT_HANDLERS[element]
+
+
+@app.post("/api/<element>/check")
+def api_check(element):
+    check, _ = _handlers(element)
     try:
-        return jsonify(check_column(_payload()))
+        return jsonify(check(_payload()))
     except ValidationError as exc:
         return jsonify({"errors": exc.errors}), 400
 
 
-@app.post("/api/column/report.pdf")
-def api_column_pdf():
-    data = _payload()
+@app.post("/api/<element>/report.pdf")
+def api_pdf(element):
+    check, build = _handlers(element)
     try:
-        report = check_column(data)
+        report = check(_payload())
     except ValidationError as exc:
         return jsonify({"errors": exc.errors}), 400
-    pdf = build_column_pdf(report)
-    ref = re.sub(r"[^A-Za-z0-9_-]+", "-", report["project"].get("ref") or "column").strip("-") or "column"
-    return send_file(io.BytesIO(pdf), mimetype="application/pdf", as_attachment=True,
-                     download_name=f"EC2-column-check-{ref}.pdf")
+    ref = re.sub(r"[^A-Za-z0-9_-]+", "-", report["project"].get("ref") or element).strip("-") or element
+    return send_file(io.BytesIO(build(report)), mimetype="application/pdf", as_attachment=True,
+                     download_name=f"EC2-{element}-check-{ref}.pdf")
 
 
 def _num(data, key, default=None):

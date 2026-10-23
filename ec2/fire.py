@@ -43,3 +43,22 @@ def check_column_fire(period, exposure, mu_fi, b_min, a, n_bars):
     governing = passing[0] if passing else min(
         evaluated, key=lambda o: max(o["b_min"] / b_min, o["a"] / a))
     return bool(passing), governing, evaluated
+
+
+# Beams: Chapter 4, Table 2 (bmin/a pairs in mm). Columns A–D for simply supported beams,
+# E–H for continuous beams. Meeting any one pair is sufficient.
+BEAM_TABLE = {
+    "R60": {"simple": [(120, 40), (160, 35), (200, 30), (300, 25)], "continuous": [(120, 25), (200, 12)]},
+    "R90": {"simple": [(150, 55), (200, 45), (300, 40), (400, 35)], "continuous": [(150, 35), (250, 25)]},
+    "R120": {"simple": [(200, 65), (240, 60), (300, 55), (500, 50)],
+             "continuous": [(200, 45), (300, 35), (450, 35), (500, 30)]},
+    "R240": {"simple": [(280, 90), (350, 80), (500, 75), (700, 70)],
+             "continuous": [(280, 75), (500, 60), (650, 60), (700, 50)]},
+}
+
+
+def check_beam_fire(period, support, b_min, a):
+    evaluated = [{"b_min": bm, "a": am, "ok": b_min >= bm and a >= am} for bm, am in BEAM_TABLE[period][support]]
+    passing = [o for o in evaluated if o["ok"]]
+    governing = passing[0] if passing else min(evaluated, key=lambda o: max(o["b_min"] / b_min, o["a"] / a))
+    return bool(passing), governing, evaluated

@@ -103,3 +103,45 @@ def compression_lap(class_name, percent_lapped=100):
         return None
     column = 2 if percent_lapped > 50 else 1
     return int(COMPRESSION_BOND[LAP_CLASSES.index(class_name), column])
+
+
+# ---------------------------------------------------------------- beams and slabs
+
+# Ch 4, Table 3 (p.27): moment and shear coefficients for beams of 3 or more similar spans
+# with Qk ≤ Gk. Moments are coefficient × (load on the span) × span, with G and Q the total
+# ULS permanent and variable loads on the span; shears are coefficient × (G + Q).
+BEAM_SPAN_MOMENT = {"end": (0.090, 0.100), "interior": (0.066, 0.086)}        # (on G, on Q)
+BEAM_SUPPORT_MOMENT = {"end": 0.094, "interior": 0.075}                      # × (G + Q)·l, hogging
+BEAM_SUPPORT_SHEAR = {"end": 0.63, "interior": 0.55}                         # × (G + Q)
+
+# Ch 4, Table 4 (p.27): K' against the redistribution ratio δ; K' = 0.60δ − 0.18δ² − 0.21
+KPRIME_DELTA = np.array([1.00, 0.90, 0.85, 0.80, 0.75, 0.70])
+KPRIME = np.array([0.208, 0.182, 0.168, 0.153, 0.137, 0.120])
+KPRIME_UK_LIMIT = 0.168          # often recommended in the UK to ensure a ductile failure
+
+# Ch 4, Table 7 (p.28): strut capacity vRd,max (MPa) at cot θ = 2.5 and cot θ = 1.0
+STRUT_FCK = np.array([20, 25, 28, 30, 32, 35, 40, 45, 50])
+STRUT_COT25 = np.array([2.54, 3.10, 3.43, 3.64, 3.84, 4.15, 4.63, 5.08, 5.51])
+STRUT_COT10 = np.array([3.68, 4.50, 4.97, 5.28, 5.58, 6.02, 6.72, 7.38, 8.00])
+
+# Ch 4, Table 9 (p.31): minimum shear reinforcement ratio ρw,min × 10³ (fyk = 500 MPa)
+RHO_W_MIN = np.array([0.72, 0.80, 0.85, 0.88, 0.91, 0.95, 1.01, 1.07, 1.13])
+
+# Ch 2, Table 11 (p.15): maximum bar size or spacing to limit crack width
+CRACK_STRESS = np.array([160, 200, 240, 280, 320, 360])
+CRACK_LIMITS = {   # wmax: (max bar size, max bar spacing) in mm
+    0.4: (np.array([40, 32, 20, 16, 12, 10]), np.array([300, 300, 250, 200, 150, 100])),
+    0.3: (np.array([32, 25, 16, 12, 10, 8]), np.array([300, 250, 200, 150, 100, 50])),
+}
+
+
+def crack_limits(sigma_s, w_max):
+    """Largest bar size and spacing for a steel stress, interpolated in Table 11.
+
+    Returns (None, None) above 360 MPa, where the table gives no limit.
+    """
+    if sigma_s > CRACK_STRESS[-1]:
+        return None, None
+    sizes, spacings = CRACK_LIMITS[w_max]
+    stress = max(float(sigma_s), float(CRACK_STRESS[0]))
+    return float(np.interp(stress, CRACK_STRESS, sizes)), float(np.interp(stress, CRACK_STRESS, spacings))
