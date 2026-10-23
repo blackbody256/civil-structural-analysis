@@ -376,3 +376,169 @@ export function endKinds(r) {
   const lab = (k) => (k === "pinned" || k === null ? null : Number(k) <= 0.1 ? null : `k = ${Number(k).toFixed(2)}`);
   return { top: kind(r.k_top), bottom: kind(r.k_bottom), kTop: lab(r.k_top), kBottom: lab(r.k_bottom) };
 }
+
+// ------------------------------------------------------------------ beams
+
+/** Outline of a beam section in mm (origin at the bottom of the web centre line, y up). */
+function beamOutline(sec, flangeHalf) {
+  const { b, h } = sec;
+  if (sec.shape !== "flanged") return [[-b / 2, 0], [b / 2, 0], [b / 2, h], [-b / 2, h]];
+  const hf = sec.hf;
+  if (sec.flange === "T") {
+    return [[-b / 2, 0], [b / 2, 0], [b / 2, h - hf], [flangeHalf, h - hf], [flangeHalf, h], [-flangeHalf, h],
+      [-flangeHalf, h - hf], [-b / 2, h - hf]];
+  }
+  return [[-b / 2, 0], [b / 2, 0], [b / 2, h - hf], [b / 2 + 2 * flangeHalf - b, h - hf],
+    [b / 2 + 2 * flangeHalf - b, h], [-b / 2, h]];
+}
+
+/**
+ * Beam cross-section to scale. Wide flanges are drawn cut short with break marks;
+ * the dimension still gives the full effective width.
+ */
+export function drawBeamSection(target, sec, opts = {}) {
+  const W = opts.width || 420;
+  const H = opts.height || 360;
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Beam cross-section" });
+  if (!sec || !(sec.b > 0 && sec.h > 0)) {
+    svg.append(text(W / 2, H / 2, "Section dimensions incomplete", { "text-anchor": "middle", fill: MUTED }));
+    target.replaceChildren(svg);
+    return svg;
+  }
+  const id = `conc${++uid}`;
+  svg.append(s("defs", {}, concretePattern(id)));
+  const flanged = sec.shape === "flanged" && sec.hf > 0 && sec.beff > sec.b;
+  const fullHalf = flanged ? (sec.flange === "T" ? sec.beff / 2 : (sec.beff + sec.b) / 4) : sec.b / 2;
+  const half = flanged ? Math.min(fullHalf, sec.b * 1.6) : sec.b / 2;
+  const cut = flanged && half < fullHalf;
+  const pts = beamOutline(sec, half);
+  const xs = pts.map((p) => p[0]);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const padL = 64, padR = 84, padT = flanged ? 54 : 40, padB = 58;
+  const scale = Math.min((W - padL - padR) / (xMax - xMin), (H - padT - padB) / sec.h);
+  const x0 = padL + (W - padL - padR - (xMax - xMin) * scale) / 2 - xMin * scale;
+  const yBase = H - padB;
+  const X = (x) => x0 + x * scale;
+  const Y = (y) => yBase - y * scale;
+  const status = opts.status || {};
+  const cls = (part) => `part ${part}${status[part] === "fail" ? " is-fail" : ""}`;
+
+  svg.append(s("polygon", { points: pts.map(([x, y]) => `${X(x)},${Y(y)}`).join(" "), fill: `url(#${id})`,
+    stroke: INK, "stroke-width": 1.8, "stroke-linejoin": "round", class: cls("section"), "data-part": "section" }));
+  if (cut) {
+    for (const side of sec.flange === "T" ? [-1, 1] : [1]) {
+      const xe = side < 0 ? X(xMin) : X(xMax);
+      const yt = Y(sec.h), yb = Y(sec.h - sec.hf);
+      const m = (yt + yb) / 2;
+      svg.append(s("path", { d: `M${xe} ${yt - 6} L${xe} ${m - 4} L${xe - 5 * side} ${m} L${xe + 5 * side} ${m + 3} L${xe} ${m + 7} L${xe} ${yb + 6}`,
+        fill: "none", stroke: PAPER, "stroke-width": 5 }));
+      svg.append(s("path", { d: `M${xe} ${yt - 6} L${xe} ${m - 4} L${xe - 5 * side} ${m} L${xe + 5 * side} ${m + 3} L${xe} ${m + 7} L${xe} ${yb + 6}`,
+        fill: "none", stroke: INK, "stroke-width": 1 }));
+    }
+  }
+
+  const c = sec.cover + sec.link_dia / 2;
+  const r = Math.max(2.5 * sec.link_dia * scale, 4);
+  svg.append(s("rect", { x: X(-sec.b / 2 + c), y: Y(sec.h - c), width: (sec.b - 2 * c) * scale, height: (sec.h - 2 * c) * scale,
+    rx: r, ry: r, fill: "none", stroke: ACCENT, "stroke-width": Math.max(sec.link_dia * scale, 1.6),
+    class: cls("links"), "data-part": "links" }));
+  const legs = Number(sec.legs) || 2;
+  const inner = s("g", { class: cls("links"), "data-part": "links" });
+  for (let i = 1; i < legs - 1; i++) {
+    const x = -sec.b / 2 + c + ((sec.b - 2 * c) * i) / (legs - 1);
+    inner.append(s("line", { x1: X(x), y1: Y(sec.h - c), x2: X(x), y2: Y(c), stroke: ACCENT, "stroke-width": Math.max(sec.link_dia * scale, 1.4) }));
+  }
+  svg.append(inner);
+  const bars = s("g", { class: cls("bars"), "data-part": "bars" });
+  for (const bar of sec.bars || []) {
+    bars.append(s("circle", { cx: X(bar.x), cy: Y(bar.y), r: Math.max((bar.dia / 2) * scale, 2.4), fill: STEEL }));
+  }
+  svg.append(bars);
+
+  svg.append(dimH(X(-sec.b / 2), X(sec.b / 2), yBase + 30, `${flanged ? "bw" : "b"} = ${sec.b}`, yBase));
+  svg.append(dimV(Y(sec.h), yBase, X(xMin) - 30, `h = ${sec.h}`, X(xMin)));
+  if (flanged) {
+    svg.append(dimH(X(xMin), X(xMax), Y(sec.h) - 24, `beff = ${Math.round(sec.beff)}${cut ? " (cut)" : ""}`, Y(sec.h)));
+    svg.append(text(X(xMax) + 6, Y(sec.h - sec.hf / 2) + 4, `hf = ${sec.hf}`, { "font-size": 11, fill: MUTED }));
+  }
+  const tension = (sec.bars || []).filter((b) => b.kind === "tension");
+  const comp = (sec.bars || []).filter((b) => b.kind === "compression");
+  const label = (list, y, extra) => {
+    if (!list.length) return;
+    const xr = X(sec.b / 2) + 14;
+    svg.append(s("line", { x1: X(list[list.length - 1].x) + 3, y1: Y(list[list.length - 1].y), x2: xr, y2: y, stroke: MUTED, "stroke-width": 0.7 }));
+    svg.append(text(xr + 2, y + 4, `${list.length}H${list[0].dia}${extra}`, { "font-weight": 700, class: "num", "font-size": 11.5 }));
+  };
+  const top = sec.tension_face === "top";
+  label(tension, top ? Y(sec.h) + 26 : yBase - 18, " tension");
+  label(comp, top ? yBase - 18 : Y(sec.h) + 26, "");
+  svg.append(text(X(sec.b / 2) + 16, Y(sec.h / 2) + 4, opts.linkLabel || `H${sec.link_dia} links`, { fill: ACCENT, "font-weight": 700, "font-size": 11.5 }));
+  const coverColour = status.cover === "fail" ? COLORS.fail : MUTED;
+  svg.append(symText(X(-sec.b / 2), yBase + 52, ["c", sub("nom"), ` = ${sec.cover} mm`], { fill: coverColour, "font-size": 11 }));
+  target.replaceChildren(svg);
+  return svg;
+}
+
+/** Beam elevation: supports, loading, bending moment and shear along the span. */
+export function drawBeamElevation(target, e, opts = {}) {
+  const W = opts.width || 560;
+  const H = opts.height || (e.M ? 390 : 200);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Beam elevation" });
+  const left = 46, right = W - 40;
+  const X = (x) => left + (x / e.l) * (right - left);
+  const beamY = 78;
+  svg.append(s("rect", { x: left, y: beamY - 7, width: right - left, height: 14, fill: CONCRETE, stroke: INK, "stroke-width": 1.4 }));
+  if (e.system === "cantilever") {
+    svg.append(s("line", { x1: left, y1: beamY - 30, x2: left, y2: beamY + 30, stroke: INK, "stroke-width": 2.4 }));
+    for (let y = beamY - 28; y < beamY + 30; y += 8) svg.append(s("line", { x1: left, y1: y, x2: left - 8, y2: y + 7, stroke: INK, "stroke-width": 0.9 }));
+  } else {
+    const pin = (x, roller) => {
+      svg.append(s("path", { d: `M${x} ${beamY + 7} l-9 14 h18 z`, fill: PAPER, stroke: INK, "stroke-width": 1.3 }));
+      if (roller) {
+        svg.append(s("circle", { cx: x - 5, cy: beamY + 25, r: 3, fill: PAPER, stroke: INK }));
+        svg.append(s("circle", { cx: x + 5, cy: beamY + 25, r: 3, fill: PAPER, stroke: INK }));
+      }
+    };
+    pin(left, false);
+    pin(right, e.system === "simple");
+    if (e.system === "interior" || e.system === "end") {
+      const dashed = { stroke: MUTED, "stroke-width": 1.2, "stroke-dasharray": "5 4" };
+      if (e.system === "interior") svg.append(s("line", { x1: left - 34, y1: beamY, x2: left, y2: beamY, ...dashed }));
+      svg.append(s("line", { x1: right, y1: beamY, x2: right + 34, y2: beamY, ...dashed }));
+    }
+  }
+  if (e.w) {
+    const top = beamY - 38;
+    svg.append(s("line", { x1: left, y1: top, x2: right, y2: top, stroke: LOAD, "stroke-width": 1.4 }));
+    for (let i = 0; i <= 12; i++) {
+      const x = left + ((right - left) * i) / 12;
+      svg.append(s("line", { x1: x, y1: top, x2: x, y2: beamY - 12, stroke: LOAD, "stroke-width": 1.1 }));
+      svg.append(s("path", { d: `M${x - 3.5} ${beamY - 17} L${x + 3.5} ${beamY - 17} L${x} ${beamY - 10} Z`, fill: LOAD }));
+    }
+    svg.append(text((left + right) / 2, top - 8, `w = ${e.w.toFixed(1)} kN/m`, { "text-anchor": "middle", "font-weight": 700, "font-size": 12 }));
+  }
+  svg.append(dimH(left, right, beamY + 44, `l = ${e.l.toFixed(2)} m`));
+  if (!e.M) {
+    target.replaceChildren(svg);
+    return svg;
+  }
+  const diagram = (values, base, depth, colour, name, unit) => {
+    const peak = Math.max(...values.map(Math.abs)) || 1;
+    const pts = e.x.map((x, i) => `${X(x)},${base + (values[i] / peak) * depth}`);
+    svg.append(s("polygon", { points: [`${left},${base}`, ...pts, `${right},${base}`].join(" "), fill: colour, "fill-opacity": 0.12, stroke: colour, "stroke-width": 1.8 }));
+    svg.append(s("line", { x1: left, y1: base, x2: right, y2: base, stroke: MUTED, "stroke-width": 0.8 }));
+    svg.append(text(left - 8, base + 4, name, { "text-anchor": "end", "font-size": 12, fill: MUTED, "font-weight": 700 }));
+    svg.append(text(right + 6, base - 4, unit, { "font-size": 10.5, fill: MUTED }));
+  };
+  // sagging moments are drawn below the axis, on the tension side
+  diagram(e.M, 196, 52, ACCENT, "M", "kNm");
+  diagram(e.V.map((v) => -v), 322, 36, MUTED, "V", "kN");
+  const xd = X(e.x_design);
+  svg.append(s("line", { x1: xd, y1: beamY + 10, x2: xd, y2: H - 12, stroke: LOAD, "stroke-width": 1.2, "stroke-dasharray": "4 3" }));
+  const anchor = xd > (left + right) / 2 ? "end" : "start";
+  const dx = anchor === "end" ? -6 : 6;
+  svg.append(symText(xd + dx, 196 + (e.MEd >= 0 ? 72 : -60), ["M", sub("Ed"), ` = ${e.MEd.toFixed(1)} kNm`], { "text-anchor": anchor, "font-weight": 700, fill: ACCENT, "font-size": 12 }));
+  svg.append(symText(xd + dx, H - 14, ["V", sub("Ed"), ` = ${e.VEd.toFixed(1)} kN`], { "text-anchor": anchor, "font-size": 12 }));
+  target.replaceChildren(svg);
+  return svg;
+}

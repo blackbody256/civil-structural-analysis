@@ -1,26 +1,21 @@
-import { downloadBlob, el, fmt, KEYS, meter, SEVERITY, statusDot, store, worst } from "./common.js";
-import { drawElevation, drawInteraction, drawSection, endKinds } from "./drawings.js";
+// Report page for any element: summary first, then the full calculations.
+import {
+  currentElement, downloadBlob, el, ELEMENT_TITLES, fmt, keysFor, meter, statusDot, store, worst,
+} from "./common.js";
+import { block, plural } from "./report-parts.js";
 import { anchorPopover } from "./theme.js";
 
+const element = currentElement();
+const TITLE = ELEMENT_TITLES[element];
 const root = document.getElementById("report");
 const RATED = new Set(["pass", "fail", "warn"]);
-
-function targetStatus(checks) {
-  const status = {};
-  for (const c of checks) {
-    if (c.target && (SEVERITY[c.status] ?? 0) > (SEVERITY[status[c.target]] ?? 0)) status[c.target] = c.status;
-  }
-  return status;
-}
-
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Open the collapsed group holding a check, scroll to it and mark it briefly. */
 function reveal(id) {
   const row = document.getElementById(id);
   if (!row) return;
-  const block = row.closest("details");
-  if (block) block.open = true;
+  const details = row.closest("details");
+  if (details) details.open = true;
   row.scrollIntoView({ behavior: "smooth", block: "center" });
   row.classList.add("target");
   setTimeout(() => row.classList.remove("target"), 2200);
@@ -46,26 +41,26 @@ function header(state) {
   }
   const exportBtn = el("button", { type: "button", class: "btn", popovertarget: "export-menu" }, "Export ", el("span", { class: "caret" }));
   return el("div", { class: "report-head" },
-    el("p", { class: "context" }, ["Column", p.ref, p.name].filter(Boolean).join(" · ")),
+    el("p", { class: "context" }, [TITLE, p.ref, p.name].filter(Boolean).join(" · ")),
     el("div", {}, title,
       el("p", { class: "meta" }, [p.engineer, p.date || new Date().toISOString().slice(0, 10),
         "BS EN 1992-1-1 with the UK National Annex"].filter(Boolean).join(" · "))),
-    el("div", { class: "actions" }, exportBtn, el("a", { class: "btn", href: "/column" }, "Edit inputs")));
+    el("div", { class: "actions" }, exportBtn, el("a", { class: "btn", href: `/${element}` }, "Edit inputs")));
 }
 
 function setupExport(state) {
   const menu = document.getElementById("export-menu");
   anchorPopover(menu, () => document.querySelector('[popovertarget="export-menu"]'), "end");
-  const ref = (state.result.project.ref || "column").replace(/[^A-Za-z0-9_-]+/g, "-");
+  const ref = (state.result.project.ref || element).replace(/[^A-Za-z0-9_-]+/g, "-");
   const pdfItem = document.getElementById("export-pdf");
   pdfItem.addEventListener("click", async () => {
     pdfItem.disabled = true;
     try {
-      const res = await fetch("/api/column/report.pdf", {
+      const res = await fetch(`/api/${element}/report.pdf`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state.input),
       });
       if (!res.ok) throw new Error(String(res.status));
-      const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || "EC2-column-check.pdf";
+      const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || `EC2-${element}-check.pdf`;
       downloadBlob(await res.blob(), name);
       menu.hidePopover();
     } catch {
@@ -82,7 +77,7 @@ function setupExport(state) {
     closed.forEach((d) => { d.open = false; });
   });
   document.getElementById("export-json").addEventListener("click", () => {
-    downloadBlob(new Blob([JSON.stringify(state.input, null, 2)], { type: "application/json" }), `EC2-column-${ref}.json`);
+    downloadBlob(new Blob([JSON.stringify(state.input, null, 2)], { type: "application/json" }), `EC2-${element}-${ref}.json`);
     menu.hidePopover();
   });
 }
@@ -128,113 +123,12 @@ function strip(result) {
       href: `#group-${i}`,
       onclick: (e) => {
         e.preventDefault();
-        const block = document.getElementById(`group-${i}`);
-        block.open = true;
-        block.scrollIntoView({ behavior: "smooth", block: "start" });
+        const details = document.getElementById(`group-${i}`);
+        details.open = true;
+        details.scrollIntoView({ behavior: "smooth", block: "start" });
       },
     }, g, el("span", { class: "dots" }, items.map((c) => el("i", { class: c.status, title: `${c.title}` }))));
   }));
-}
-
-// ------------------------------------------------------------------ drawings
-
-function switcher(onSelect) {
-  const wrap = el("div", { class: "switch", role: "group", "aria-label": "Axis" });
-  for (const axis of ["y", "z"]) {
-    const b = el("button", { type: "button", "aria-pressed": String(axis === "y") }, `${axis}–${axis}`);
-    b.addEventListener("click", () => {
-      wrap.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-      onSelect(axis);
-    });
-    wrap.append(b);
-  }
-  return wrap;
-}
-
-function figure(title, body, caption, extra) {
-  return el("figure", { class: "panel figure" },
-    el("div", { class: "panel-head" }, el("h3", {}, title), extra || null),
-    el("div", { class: "panel-body" }, body),
-    caption ? el("figcaption", {}, caption) : null);
-}
-
-function figures(state) {
-  const { result, input } = state;
-  const by = Object.fromEntries(result.checks.map((c) => [c.id, c]));
-  const sectionBox = el("div", { id: "fig-section" });
-  const elevationBox = el("div");
-  const nmY = el("div"), nmZ = el("div");
-  const drawElev = (axis) => {
-    const ax = result.derived.axes[axis];
-    drawElevation(elevationBox, {
-      l: result.derived.l, depth: ax.depth, NEd: result.derived.NEd, l0: ax.l0,
-      ...endKinds(input.restraint[axis]), moments: { ...ax, axis },
-    });
-  };
-  queueMicrotask(() => {
-    drawSection(sectionBox, result.plots.section, {
-      status: targetStatus(result.checks), linkLabel: `H${result.derived.links.dia} @ ${result.derived.links.near}`,
-    });
-    drawElev("y");
-    drawInteraction(nmY, result.plots.interaction.y, { axis: "y", status: by.bending_y.status });
-    drawInteraction(nmZ, result.plots.interaction.z, { axis: "z", status: by.bending_z.status });
-  });
-  return el("div", { class: "figures" },
-    figure("Cross-section", sectionBox, "To scale. Parts outlined in red failed a check; point at a row below to find its part."),
-    figure("Elevation and design moments", elevationBox, "First-order moments dashed, with second-order effects solid.", switcher(drawElev)),
-    figure("N–M interaction about y–y", nmY, "The design point must lie inside the capacity curve."),
-    figure("N–M interaction about z–z", nmZ, null));
-}
-
-// ------------------------------------------------------------------ design path (Fig 2 / Fig 3)
-
-const node = (label, value, cls = "on") =>
-  el("div", { class: `flow-node ${cls}` }, el("div", { class: "fl" }, label), el("div", { class: "fv", html: value }));
-const arrow = (on = true) => el("div", { class: `flow-arrow${on ? " on" : ""}` });
-
-function flow(result, axis) {
-  const ax = result.derived.axes[axis];
-  const by = Object.fromEntries(result.checks.map((c) => [c.id, c]));
-  const bend = by[`bending_${axis}`];
-  const detailing = worst(result.checks.filter((c) => c.group === "Detailing").map((c) => c.status));
-  const slender = ax.slender;
-  return el("div", { class: "flow" },
-    node("Actions on the column", `N<sub>Ed</sub> = ${fmt(result.derived.NEd, 0)} kN · M<sub>top</sub> = ${fmt(ax.M_top)} · M<sub>bottom</sub> = ${fmt(ax.M_bottom)} kNm`),
-    arrow(),
-    node("Effective length", `l<sub>0</sub> = ${fmt(ax.F, 3)} × ${fmt(result.derived.l / 1000, 2)} m = ${fmt(ax.l0 / 1000, 2)} m`),
-    arrow(),
-    node("First-order moments", `e<sub>i</sub> = ${fmt(ax.e_i)} mm · M<sub>01</sub> = ${fmt(ax.M01)} · M<sub>02</sub> = ${fmt(ax.M02)} kNm`),
-    arrow(),
-    node("Slenderness", `λ = ${fmt(ax.lam)} · λ<sub>lim</sub> = ${fmt(ax.lam_lim)}`),
-    arrow(),
-    el("div", { class: "flow-question", html: `Is λ ≥ λ<sub>lim</sub>? ${slender ? "Yes" : "No"}` }),
-    arrow(),
-    el("div", { class: "flow-branch" },
-      el("div", { class: `col ${slender ? "off" : "on"}` }, el("span", { class: "tag-line" }, "No: not slender"),
-        node("Design moment", `M<sub>Ed</sub> = M<sub>02</sub> = ${fmt(ax.M02)} kNm`, slender ? "off" : "on")),
-      el("div", { class: `col ${slender ? "on" : "off"}` }, el("span", { class: "tag-line" }, "Yes: nominal curvature method"),
-        node("Second-order moment", slender
-          ? `K<sub>r</sub> = ${fmt(ax.Kr, 3)}, K<sub>φ</sub> = ${fmt(ax.Kphi, 3)}<br>e<sub>2</sub> = ${fmt(ax.e2)} mm, M<sub>2</sub> = ${fmt(ax.M2)} kNm<br>M<sub>Ed</sub> = ${fmt(ax.MEd)} kNm`
-          : "not needed", slender ? "on" : "off"))),
-    arrow(),
-    node("Resistance", `${bend.markup.result}<br>A<sub>s,req</sub> = ${ax.As_req === null ? "not achievable" : `${fmt(ax.As_req, 0)} mm²`} · A<sub>s,prov</sub> = ${fmt(result.derived.As, 0)} mm²`, bend.status),
-    arrow(),
-    node("Spacing and quantity of reinforcement", detailing === "fail" ? "Some detailing rules fail" : "All detailing rules pass", detailing === "fail" ? "fail" : "pass"));
-}
-
-function block(title, { open = false, id = null, count = "", right = null } = {}, ...body) {
-  return el("details", { class: "block", open: open || null, id },
-    el("summary", {}, el("h3", {}, title), count ? el("span", { class: "count" }, count) : null,
-      el("span", { class: "right" }, right, el("span", { class: "chev", "aria-hidden": "true" }))),
-    el("div", { class: "block-body" }, ...body));
-}
-
-function designPath(result) {
-  const box = el("div");
-  const draw = (axis) => box.replaceChildren(flow(result, axis));
-  draw("y");
-  return block("Design path", { open: true },
-    el("div", { style: "display:flex;margin-bottom:10px" }, switcher(draw)), box);
 }
 
 // ------------------------------------------------------------------ full calculations
@@ -272,9 +166,12 @@ function calcGroups(result) {
   }).filter(Boolean);
 }
 
-function render(state) {
+function render(state, parts) {
   const { result } = state;
-  document.title = `${["Column", result.project.ref].filter(Boolean).join(" ")} · EC2 Checker`;
+  document.title = `${[TITLE, result.project.ref].filter(Boolean).join(" ")} · EC2 Checker`;
+  const crumb = document.getElementById("crumb-element");
+  crumb.textContent = TITLE;
+  crumb.href = `/${element}`;
   const expand = el("button", { type: "button", class: "btn quiet small" }, "Expand all");
   const collapse = el("button", { type: "button", class: "btn quiet small" }, "Collapse all");
   const groups = calcGroups(result);
@@ -285,8 +182,8 @@ function render(state) {
     el("div", { class: "summary" }, governing(result), utilisation(result)),
     strip(result),
     el("h2", {}, "Drawings"),
-    figures(state),
-    designPath(result),
+    parts.figures(state),
+    parts.designPath ? parts.designPath(result) : null,
     el("div", { class: "section-tools" }, el("h2", {}, "Full calculations"), expand, collapse),
     el("p", { class: "lede", style: "font-size:14px;margin:6px 0 4px" },
       "Every test with its working and result. Groups that need attention are open."),
@@ -299,10 +196,16 @@ function render(state) {
   setupExport(state);
 }
 
-const state = store.getSession(KEYS.result);
-if (!state?.result) {
-  root.replaceChildren(el("p", { class: "empty" }, "No results yet. ", el("a", { href: "/column" }, "Enter a column to check")));
-} else {
-  render(state);
+async function main() {
+  const state = store.getSession(keysFor(element).result);
+  if (!state?.result) {
+    root.replaceChildren(el("p", { class: "empty" }, "No results yet. ",
+      el("a", { href: `/${element}` }, `Enter a ${TITLE.toLowerCase()} to check`)));
+    return;
+  }
+  const parts = await import(`./report-${element}.js`);
+  render(state, parts);
   if (location.hash.startsWith("#check-")) reveal(location.hash.slice(1));
 }
+
+main();

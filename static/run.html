@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">EC2 Checker</span></a>
-    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Elements</a><span class="sep">/</span><a href="/column">Column</a><span class="sep">/</span><span>Checks</span></nav>
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Elements</a><span class="sep">/</span><a id="crumb-element" href="/">Element</a><span class="sep">/</span><span>Checks</span></nav>
     <span class="spacer"></span>
     <span id="theme-slot"></span>
   </header>
@@ -43,12 +43,12 @@
         <div class="stamp" id="stamp" aria-live="polite"></div>
         <div class="actions" style="justify-content:center">
           <button class="btn quiet small" id="skip" type="button">Skip animation</button>
-          <a class="btn primary" id="open" href="/column/report" hidden>Open the report</a>
+          <a class="btn primary" id="open" href="/" hidden>Open the report</a>
         </div>
       </aside>
     </div>
   </main>
 
-  <script type="module" src="/static/js/column-run.js"></script>
+  <script type="module" src="/static/js/run.js"></script>
 </body>
 </html>

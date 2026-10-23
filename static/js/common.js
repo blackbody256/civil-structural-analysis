@@ -13,11 +13,20 @@ export const STATUS_SVG = {
 export const SEVERITY = { fail: 4, warn: 3, pass: 2, info: 1, na: 0 };
 export const PDF_PAGE_OFFSET = 4;
 
-export const KEYS = {
-  input: "ec2.column.input",
-  result: "ec2.column.result",
-  errors: "ec2.column.errors",
-};
+export const ELEMENT_TITLES = { column: "Column", beam: "Beam" };
+
+/** The element a page belongs to, from its path: /beam, /beam/run, /beam/report. */
+export function currentElement() {
+  const first = window.location.pathname.split("/")[1];
+  return first in ELEMENT_TITLES ? first : "column";
+}
+
+/** Storage keys for one element's inputs, last result and validation errors. */
+export function keysFor(element) {
+  return { input: `ec2.${element}.input`, result: `ec2.${element}.result`, errors: `ec2.${element}.errors` };
+}
+
+export const KEYS = keysFor("column");
 
 function safeStorage(kind) {
   try {
