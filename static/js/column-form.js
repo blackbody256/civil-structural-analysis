@@ -9,8 +9,8 @@ export const EXAMPLES = {
     geometry: { b: 350, h: 350, l: 3.6 },
     reinforcement: { bar_dia: 20, n_b: 3, n_h: 3, link_dia: 8, cross_ties: false, cover: 30, delta_c_dev: 10 },
     restraint: { braced: true, y: { method: "k", k_top: 0.25, k_bottom: 0.1 }, z: { method: "k", k_top: 0.25, k_bottom: 0.1 } },
-    actions: { NEd: 2100, My_top: 45, My_bottom: 25, My_curvature: "single", Mz_top: 20, Mz_bottom: 10,
-      Mz_curvature: "single", phi_ef: 1.7, lambda_lim_method: "simplified" },
+    actions: { NEd: 2100, bending: "biaxial", My_top: 45, My_bottom: 25, My_curvature: "single", Mz_top: 20,
+      Mz_bottom: 10, Mz_curvature: "single", phi_ef: 1.7, lambda_lim_method: "simplified" },
     durability: { exposure: "XC1", cement_group: "All", fire_period: "R60", fire_exposure: "multi", mu_fi: 0.7, floor: "intermediate" },
   },
   fail: {
@@ -19,8 +19,8 @@ export const EXAMPLES = {
     geometry: { b: 250, h: 400, l: 4.5 },
     reinforcement: { bar_dia: 25, n_b: 2, n_h: 3, link_dia: 6, cross_ties: false, cover: 25, delta_c_dev: 10 },
     restraint: { braced: true, y: { method: "k", k_top: 0.6, k_bottom: 0.4 }, z: { method: "factor", case: "c", F: 0.7 } },
-    actions: { NEd: 1650, My_top: 95, My_bottom: 60, My_curvature: "single", Mz_top: 30, Mz_bottom: 15,
-      Mz_curvature: "single", phi_ef: 2.0, lambda_lim_method: "simplified" },
+    actions: { NEd: 1650, bending: "biaxial", My_top: 95, My_bottom: 60, My_curvature: "single", Mz_top: 30,
+      Mz_bottom: 15, Mz_curvature: "single", phi_ef: 2.0, lambda_lim_method: "simplified" },
     durability: { exposure: "XC3/4-XF1", cement_group: "All except IVB", fire_period: "R90", fire_exposure: "multi", mu_fi: 0.7, floor: "intermediate" },
   },
 };
@@ -144,6 +144,7 @@ function syncVisibility() {
   const conc = meta.concrete.find((c) => c.name === form.elements["materials.concrete"].value);
   if (conc) $("concrete-help").textContent = `fck ${conc.fck} MPa, fctm ${conc.fctm} MPa, Ecm ${conc.Ecm} GPa`;
   $("fire-more").hidden = form.elements["durability.fire_period"].value === "none";
+  $("row-z").hidden = form.elements["actions.bending"].value !== "biaxial";
 }
 
 // ------------------------------------------------------------------ serialise / fill
@@ -176,6 +177,9 @@ export function serialize() {
 }
 
 export function fill(data) {
+  if (data.actions && !data.actions.bending) {
+    data.actions.bending = Number(data.actions.Mz_top) || Number(data.actions.Mz_bottom) ? "biaxial" : "uniaxial";
+  }
   for (const input of form.querySelectorAll("[name]")) {
     const value = getPath(data, input.name);
     if (input.type === "checkbox") input.checked = Boolean(value);
@@ -229,7 +233,9 @@ function summaries(d) {
     reinforcement: `${nBars}H${re.bar_dia} · H${re.link_dia} @ ${linkSpacing(d.geometry.b, d.geometry.h, re.bar_dia).near ?? "?"} · cover ${f(re.cover)} mm`,
     restraint: `${d.restraint.braced ? "Braced" : "Unbraced"} · ${sameAxes ? end(d.restraint.y)
       : `y: ${end(d.restraint.y)}; z: ${end(d.restraint.z)}`}`,
-    actions: `NEd ${f(a.NEd)} kN · My ${f(a.My_top ?? 0)}/${f(a.My_bottom ?? 0)} · Mz ${f(a.Mz_top ?? 0)}/${f(a.Mz_bottom ?? 0)} kNm`,
+    actions: a.bending === "biaxial"
+      ? `NEd ${f(a.NEd)} kN · biaxial · My ${f(a.My_top ?? 0)}/${f(a.My_bottom ?? 0)} · Mz ${f(a.Mz_top ?? 0)}/${f(a.Mz_bottom ?? 0)} kNm`
+      : `NEd ${f(a.NEd)} kN · uniaxial · My ${f(a.My_top ?? 0)}/${f(a.My_bottom ?? 0)} kNm`,
     durability: `${(meta.exposure.find((r) => r.id === du.exposure) || {}).classes || du.exposure} · `
       + `${du.fire_period === "none" ? "no fire period" : `fire ${du.fire_period}`}`,
   };

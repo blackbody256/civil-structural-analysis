@@ -142,6 +142,7 @@ class ColumnInput:
     restraint: dict
     n_ed: float
     moments: dict
+    bending: str              # "uniaxial" (moments about y–y only) or "biaxial"
     phi_ef: float
     lambda_lim_method: str
     exposure: str
@@ -201,6 +202,15 @@ def parse_input(data):
             abs(r.number(f"{prefix}_bottom", lo=-1e6, hi=1e6, default=0.0)) * 1e6,
             r.choice(f"{prefix}_curvature", ("single", "double"), default="single"),
         )
+    has = {a: moments[a].m_top > 0 or moments[a].m_bottom > 0 for a in AXES}
+    bending = r.choice("actions.bending", ("uniaxial", "biaxial"), default="biaxial" if has["z"] else "uniaxial")
+    if bending == "uniaxial":
+        moments["z"] = AxisMoments(0.0, 0.0, "single")
+    else:
+        if not has["y"]:
+            r.errors["actions.My_top"] = "Biaxial bending needs a moment about y–y."
+        if not has["z"]:
+            r.errors["actions.Mz_top"] = "Enter a moment about z–z, or choose uniaxial bending."
     phi_ef = r.number("actions.phi_ef", lo=0, hi=6, default=1.7)
     lambda_lim_method = r.choice("actions.lambda_lim_method", ("simplified", "refined"), default="simplified")
 
@@ -236,6 +246,7 @@ def parse_input(data):
         moments=moments,
         phi_ef=phi_ef,
         lambda_lim_method=lambda_lim_method,
+        bending=bending,
         exposure=exposure,
         cement_group=cement_group,
         fire_period=fire_period,
@@ -592,8 +603,11 @@ def _moment_checks(inp, axes, n, omega):
         act = inp.moments[ax.name]
         sym = DIM_SYMBOL[ax.name]
         sign = "+" if act.curvature == "single" else "−"
+        applied = (f"Mtop = {kNm(act.m_top)} kNm, Mbottom = {kNm(act.m_bottom)} kNm ({act.curvature} curvature)"
+                   if inp.bending == "biaxial" or ax.name == "y"
+                   else "Uniaxial bending: no applied moment about z–z, only the imperfection")
         lines = [
-            f"Mtop = {kNm(act.m_top)} kNm, Mbottom = {kNm(act.m_bottom)} kNm ({act.curvature} curvature)",
+            applied,
             f"ei = max(l0/400, {sym}/30, 20) = max({ax.l0 / 400:.1f}, {ax.depth / 30:.1f}, 20) = {ax.e_i:.1f} mm",
             f"M02 = max|M| + ei·NEd = {kNm(max(act.m_top, act.m_bottom))} + {ax.e_i:.1f} × {kN(inp.n_ed)}/10³ "
             f"= {kNm(ax.m02)} kNm",
@@ -683,12 +697,11 @@ def _resistance_checks(inp, axes, n):
 def _biaxial_check(inp, axes):
     sec, conc, steel = inp.section, inp.concrete, inp.steel
     title = "Biaxial bending"
-    has = {a: max(inp.moments[a].m_top, inp.moments[a].m_bottom) > 0 for a in AXES}
-    if not all(has.values()):
+    if inp.bending == "uniaxial":
         return CheckResult(
-            "biaxial", GROUPS[5], title, NA, result="Moments about one axis only",
-            note="Applied moments act about one axis; the uniaxial checks (with imperfections taken in each "
-                 "direction in turn) cover the design.",
+            "biaxial", GROUPS[5], title, NA, result="Not required: uniaxial bending",
+            note="Moments act about y–y only; each axis is checked on its own, with the imperfection "
+                 "taken in each direction in turn.",
             refs=refs("ch5_biaxial"), target="section")
     ay, az = axes["y"], axes["z"]
     if ay.m_rd is None or az.m_rd is None or ay.m_rd <= 0 or az.m_rd <= 0:
@@ -869,7 +882,8 @@ def _input_echo(inp):
         ("Frame", "Braced" if inp.braced else "Unbraced"),
         ("NEd", f"{kN(inp.n_ed)} kN"),
     ]
-    for axis in AXES:
+    rows.append(("Bending", "Uniaxial, about y–y" if inp.bending == "uniaxial" else "Biaxial, about y–y and z–z"))
+    for axis in AXES if inp.bending == "biaxial" else ("y",):
         act = inp.moments[axis]
         rows.append((f"M{axis} top / bottom", f"{kNm(act.m_top)} / {kNm(act.m_bottom)} kNm ({act.curvature} curvature)"))
     rows += [
@@ -914,7 +928,7 @@ def check_column(data):
             "n_bars": sec.n_bars, "a": sec.axis_distance, "n": n, "omega": omega,
             "NEd": inp.n_ed / 1e3, "NRd_max": axes["y"].model.n_max() / 1e3, "braced": inp.braced,
             "l": inp.l, "axes": {axis: _axis_summary(inp, ax, as_req[axis]) for axis, ax in axes.items()},
-            "links": {"dia": sec.link_dia, **link_spacing(sec)},
+            "links": {"dia": sec.link_dia, **link_spacing(sec)}, "bending": inp.bending,
         },
         "plots": {
             "section": {

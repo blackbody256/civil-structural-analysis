@@ -153,6 +153,12 @@
                 <div class="control"><input id="a-ned" name="actions.NEd" type="number" step="10" min="0.001" max="1000000" required><span class="unit">kN</span></div>
                 <button type="button" class="inline-link" popovertarget="pop-combination">Calculate from G<sub>k</sub> and Q<sub>k</sub>…</button></div>
             </div>
+            <div class="fields">
+              <div class="field" style="grid-column: 1 / -1"><label for="a-bend">Bending</label>
+                <div class="control"><select id="a-bend" name="actions.bending">
+                  <option value="uniaxial">Uniaxial: moments about y–y only</option>
+                  <option value="biaxial">Biaxial: moments about y–y and z–z</option></select></div></div>
+            </div>
             <table class="moments">
               <thead><tr><th>Axis</th><th>M<sub>top</sub> (kNm)</th><th>M<sub>bottom</sub> (kNm)</th><th>Curvature</th></tr></thead>
               <tbody>
@@ -160,7 +166,7 @@
                   <td><div class="control"><input name="actions.My_top" type="number" step="1" aria-label="Moment about y at the top"></div></td>
                   <td><div class="control"><input name="actions.My_bottom" type="number" step="1" aria-label="Moment about y at the bottom"></div></td>
                   <td><div class="control"><select name="actions.My_curvature" aria-label="Curvature about y"><option value="single">Single</option><option value="double">Double</option></select></div></td></tr>
-                <tr><td>z–z</td>
+                <tr id="row-z"><td>z–z</td>
                   <td><div class="control"><input name="actions.Mz_top" type="number" step="1" aria-label="Moment about z at the top"></div></td>
                   <td><div class="control"><input name="actions.Mz_bottom" type="number" step="1" aria-label="Moment about z at the bottom"></div></td>
                   <td><div class="control"><select name="actions.Mz_curvature" aria-label="Curvature about z"><option value="single">Single</option><option value="double">Double</option></select></div></td></tr>

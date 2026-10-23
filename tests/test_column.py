@@ -136,3 +136,27 @@ def test_cover_must_fit_section(example):
     with pytest.raises(ValidationError) as err:
         check_column(example)
     assert "reinforcement.cover" in err.value.errors
+
+
+def test_uniaxial_bending_ignores_z_moments(example):
+    example["actions"].update(bending="uniaxial", Mz_top=40, Mz_bottom=20)
+    report = check_column(example)
+    z = report["derived"]["axes"]["z"]
+    assert (z["M_top"], z["M_bottom"]) == (0, 0)
+    assert z["M02"] == pytest.approx(20e-3 * 1500)          # imperfection only: ei·NEd
+    assert by_id(report)["biaxial"]["status"] == "na"
+
+
+def test_biaxial_bending_needs_moments_about_both_axes(example):
+    example["actions"].update(bending="biaxial", Mz_top=0, Mz_bottom=0)
+    with pytest.raises(ValidationError) as err:
+        check_column(example)
+    assert "actions.Mz_top" in err.value.errors
+    example["actions"].update(Mz_top=10, Mz_bottom=5)
+    assert by_id(check_column(example))["biaxial"]["status"] in {"pass", "fail"}
+
+
+def test_bending_defaults_from_the_moments(example):
+    assert check_column(example)["derived"]["bending"] == "uniaxial"
+    example["actions"].update(Mz_top=10)
+    assert check_column(example)["derived"]["bending"] == "biaxial"
