@@ -411,8 +411,10 @@ def _fire_checks(inp, geo):
                             note="No fire resistance period specified.", target="cover")]
     support = "continuous" if inp.system in ("end", "interior") else "simple"
     ok, gov, evaluated = fire.check_beam_fire(inp.fire_period, support, inp.b, geo.a_bottom)
-    lines = [f"{inp.fire_period}, {'continuous' if support == 'continuous' else 'simply supported'} beam "
-             f"exposed on three sides",
+    kind = {"continuous": "continuous beam", "simple": "simply supported beam"}[support]
+    if inp.system == "cantilever":
+        kind = "cantilever, taken as a simply supported beam"
+    lines = [f"{inp.fire_period}, {kind} exposed on three sides",
              f"Axis distance of the bottom bars a = {geo.a_bottom:.0f} mm; web width b = {inp.b:g} mm"]
     lines += [f"Option bmin/a = {o['b_min']}/{o['a']}: {'satisfied' if o['ok'] else 'not satisfied'}" for o in evaluated]
     return [CheckResult(
@@ -452,7 +454,7 @@ def _bending_checks(inp, geo, act, res):
             for i, (bi, part) in enumerate(geo.beff_parts, start=1):
                 lines.append(f"beff,{i} = min(0.2·b{i} + 0.1·l0, 0.2·l0, b{i}) = min({0.2 * bi + 0.1 * geo.l0:.0f}, "
                              f"{0.2 * geo.l0:.0f}, {bi:g}) = {part:.0f} mm")
-            lines.append(f"beff = bw + Σbeff,i = {geo.beff:.0f} mm")
+            lines.append(f"beff = bw + Σ beff,i = {geo.beff:.0f} mm")
     delta_note = " (δ = 0.85: support moments include 15 % redistribution)" if act["delta"] < 1 else ""
     raw_kp = flexure.k_prime(act["delta"], uk_limit=False)
     kp_text = (f"{raw_kp:.3f}, limited to {res['kp']:.3f} for a ductile failure" if res["kp"] < raw_kp
@@ -662,7 +664,8 @@ def _deflection_checks(inp, geo, act, res):
     lines = [f"ρ = As,req/{'(beff·hf + bw·(d − hf))' if flange_comp else '(b·d)'} = {100 * rho:.3f} %, "
              f"ρ′ = {100 * rho_c:.3f} %, ρ0 = √fck/1000 = {100 * rho0:.3f} %",
              f"K = {K:g} ({SYSTEMS[inp.system].lower()})",
-             f"Basic l/d = {basic:.1f} (EC2 Expression {'7.16a' if rho <= rho0 else '7.16b'})"]
+             (f"ρ ≤ ρ0: basic l/d = K·[11 + 1.5√fck·ρ0/ρ + 3.2√fck·(ρ0/ρ − 1)^1.5] = {basic:.1f}" if rho <= rho0 else
+              f"ρ > ρ0: basic l/d = K·[11 + 1.5√fck·ρ0/(ρ − ρ′) + √fck·√(ρ′/ρ0)/12] = {basic:.1f}")]
     if flange_comp:
         lines.append(f"F1 = 1 − 0.1·(beff/bw − 1) ≥ 0.8 = {f1:.2f}")
     if f2 < 1:
