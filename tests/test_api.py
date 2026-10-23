@@ -9,7 +9,7 @@ def client():
     return app.test_client()
 
 
-@pytest.mark.parametrize("path", ["/", "/column", "/column/run", "/column/report"])
+@pytest.mark.parametrize("path", ["/", "/column", "/column/run", "/column/report", "/beam", "/beam/run", "/beam/report"])
 def test_pages(client, path):
     res = client.get(path)
     assert res.status_code == 200 and b"<!doctype html>" in res.data.lower()
@@ -17,7 +17,7 @@ def test_pages(client, path):
 
 def test_elements_and_meta(client):
     elements = client.get("/api/elements").get_json()
-    assert [e["id"] for e in elements if e["status"] == "active"] == ["column"]
+    assert [e["id"] for e in elements if e["status"] == "active"] == ["column", "beam"]
     meta = client.get("/api/meta").get_json()
     assert "C30/37" in [c["name"] for c in meta["concrete"]]
     assert len(meta["table4"]["F"]) == 11

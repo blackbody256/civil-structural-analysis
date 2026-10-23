@@ -37,3 +37,6 @@
   .next-list li { grid-template-columns: 1fr auto; }
   .next-list .what { grid-column: 1 / -1; }
 }
+.feature + .feature { margin-top: 18px; }
+.feature .art-beam { grid-template-columns: 1fr; gap: 4px; padding: 14px 18px; }
+.feature .art-beam svg:first-child { max-height: 250px; }

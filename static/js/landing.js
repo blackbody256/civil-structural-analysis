@@ -1,8 +1,22 @@
 import { el, getJSON } from "./common.js";
-import { drawElevation, drawSection, sectionFromInputs } from "./drawings.js";
+import {
+  beamSectionFromInputs, drawBeamElevation, drawBeamSection, drawElevation, drawSection, sectionFromInputs,
+} from "./drawings.js";
 
-// The passing example from the column form, drawn with the app's own drawing code.
-const SAMPLE = { b: 350, h: 350, cover: 30, link_dia: 8, bar_dia: 20, n_b: 3, n_h: 3 };
+// Each element's worked example, drawn with the app's own drawing code.
+const ART = {
+  column(section, elevation) {
+    const sample = { b: 350, h: 350, cover: 30, link_dia: 8, bar_dia: 20, n_b: 3, n_h: 3 };
+    drawSection(section, sectionFromInputs(sample), { linkLabel: "H8 @ 200" });
+    drawElevation(elevation, { l: 3600, depth: 350, NEd: 2100, top: "partial", bottom: "fixed", kTop: "k = 0.25" });
+  },
+  beam(section, elevation) {
+    const sample = { shape: "flanged", flange: "T", b: 300, h: 550, hf: 150, beff: 2030, cover: 30, link_dia: 8, legs: 2,
+      tension_n: 4, tension_dia: 25, compression_n: 2, compression_dia: 16 };
+    drawBeamSection(section, beamSectionFromInputs(sample), { linkLabel: "H8 @ 175" });
+    drawBeamElevation(elevation, { l: 7, system: "end", w: 57.5 });
+  },
+};
 
 function feature(item) {
   const sectionBox = el("div");
@@ -17,11 +31,8 @@ function feature(item) {
       el("div", { class: "go" },
         el("a", { class: "btn primary", href: item.url }, `Check a ${item.title.toLowerCase()}`),
         el("span", { class: "note" }, "Opens with a worked example you can edit"))),
-    el("div", { class: "art", "aria-hidden": "true" }, sectionBox, elevationBox));
-  queueMicrotask(() => {
-    drawSection(sectionBox, sectionFromInputs(SAMPLE), { linkLabel: "H8 @ 200" });
-    drawElevation(elevationBox, { l: 3600, depth: 350, NEd: 2100, top: "partial", bottom: "fixed", kTop: "k = 0.25" });
-  });
+    el("div", { class: `art art-${item.id}`, "aria-hidden": "true" }, sectionBox, elevationBox));
+  queueMicrotask(() => ART[item.id]?.(sectionBox, elevationBox));
   return card;
 }
 

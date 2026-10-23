@@ -51,6 +51,7 @@ function symText(x, y, parts, attrs = {}) {
 const sub = (str) => ({ sub: str });
 
 function spread(lo, hi, n) {
+  if (n === 1) return [(lo + hi) / 2];
   return Array.from({ length: n }, (_, i) => lo + ((hi - lo) * i) / (n - 1));
 }
 
@@ -393,6 +394,41 @@ function beamOutline(sec, flangeHalf) {
 }
 
 /**
+ * A beam section laid out as the server does it: tension bars in one or two layers on the
+ * tension face, compression bars on the other. Also returns As, d and the clear bar gap.
+ */
+export function beamSectionFromInputs({ shape, flange, b, h, hf, beff, cover, link_dia, legs, tension_n, tension_dia,
+  layers = 1, compression_n, compression_dia, dg = 20, location = "span" }) {
+  const ok = (x) => Number.isFinite(x) && x > 0;
+  if (!ok(b) || !ok(h) || !(cover >= 0) || !(tension_n >= 1) || !(compression_n >= 1)) return null;
+  const flanged = shape === "flanged" && ok(hf) && hf < h;
+  const face = cover + link_dia;
+  const nT = Math.round(tension_n), nC = Math.round(compression_n);
+  const perLayer = Math.ceil(nT / layers);
+  const second = nT - perLayer;
+  const a1 = face + tension_dia / 2;
+  const a2 = a1 + tension_dia + Math.max(tension_dia, dg + 5, 20);
+  const top = location === "support";
+  const y = (dist) => (top ? h - dist : dist);
+  const lo = -b / 2 + face + tension_dia / 2;
+  const clo = -b / 2 + face + compression_dia / 2;
+  const yc = top ? face + compression_dia / 2 : h - face - compression_dia / 2;
+  const bars = [
+    ...spread(lo, -lo, perLayer).map((x) => ({ x, y: y(a1), dia: tension_dia, kind: "tension" })),
+    ...(second ? spread(lo, -lo, second).map((x) => ({ x, y: y(a2), dia: tension_dia, kind: "tension" })) : []),
+    ...spread(clo, -clo, nC).map((x) => ({ x, y: yc, dia: compression_dia, kind: "compression" })),
+  ];
+  const width = b - 2 * face;
+  return {
+    shape: flanged ? "flanged" : "rectangular", flange, b, h, hf, beff: flanged ? Math.max(beff || b, b) : b, cover,
+    link_dia, legs, tension_face: top ? "top" : "bottom", bars,
+    As: (nT * Math.PI * tension_dia ** 2) / 4,
+    d: h - (perLayer * a1 + second * a2) / nT,
+    clear: perLayer > 1 ? (width - tension_dia) / (perLayer - 1) - tension_dia : width - tension_dia,
+  };
+}
+
+/**
  * Beam cross-section to scale. Wide flanges are drawn cut short with break marks;
  * the dimension still gives the full effective width.
  */
@@ -474,7 +510,7 @@ export function drawBeamSection(target, sec, opts = {}) {
   label(comp, top ? yBase - 18 : Y(sec.h) + 26, "");
   svg.append(text(X(sec.b / 2) + 16, Y(sec.h / 2) + 4, opts.linkLabel || `H${sec.link_dia} links`, { fill: ACCENT, "font-weight": 700, "font-size": 11.5 }));
   const coverColour = status.cover === "fail" ? COLORS.fail : MUTED;
-  svg.append(symText(X(-sec.b / 2), yBase + 52, ["c", sub("nom"), ` = ${sec.cover} mm`], { fill: coverColour, "font-size": 11 }));
+  svg.append(symText(X(sec.b / 2) + 16, yBase + 16, ["c", sub("nom"), ` = ${sec.cover} mm`], { fill: coverColour, "font-size": 11 }));
   target.replaceChildren(svg);
   return svg;
 }
@@ -538,7 +574,11 @@ export function drawBeamElevation(target, e, opts = {}) {
   const anchor = xd > (left + right) / 2 ? "end" : "start";
   const dx = anchor === "end" ? -6 : 6;
   svg.append(symText(xd + dx, 196 + (e.MEd >= 0 ? 72 : -60), ["M", sub("Ed"), ` = ${e.MEd.toFixed(1)} kNm`], { "text-anchor": anchor, "font-weight": 700, fill: ACCENT, "font-size": 12 }));
-  svg.append(symText(xd + dx, H - 14, ["V", sub("Ed"), ` = ${e.VEd.toFixed(1)} kN`], { "text-anchor": anchor, "font-size": 12 }));
+  // the design shear acts at the support where the shear is largest, not at the section checked
+  const iv = e.V.reduce((best, v, i) => (Math.abs(v) > Math.abs(e.V[best]) + 1e-9 ? i : best), 0);
+  const xv = X(e.x[iv]);
+  const vAnchor = xv > (left + right) / 2 ? "end" : "start";
+  svg.append(symText(xv + (vAnchor === "end" ? -6 : 6), H - 14, ["V", sub("Ed"), ` = ${e.VEd.toFixed(1)} kN`], { "text-anchor": vAnchor, "font-size": 12 }));
   target.replaceChildren(svg);
   return svg;
 }

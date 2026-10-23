@@ -144,3 +144,26 @@ def test_beam_api_and_pdf(beam):
     pdf = client.post("/api/beam/report.pdf", json=beam)
     assert pdf.mimetype == "application/pdf" and pdf.data.startswith(b"%PDF")
     assert client.post("/api/slab/check", json={}).status_code == 404
+
+
+def test_form_examples():
+    """The flanged and failing examples offered on the beam page."""
+    flanged = copy.deepcopy(BEAM)
+    flanged["section"] = {"shape": "flanged", "flange": "T", "b": 300, "h": 550, "hf": 150,
+                          "beff_method": "calculate", "b1": 1350, "b2": 1350}
+    flanged["span"] = {"l": 7.0, "system": "end", "location": "span"}
+    flanged["reinforcement"].update(tension_dia=25, compression_dia=16)
+    flanged["actions"].update(gk=25, qk=15)
+    report = check_beam(flanged)
+    assert report["derived"]["beff"] == pytest.approx(2030)
+    assert report["summary"]["counts"]["pass"] == 15 and report["summary"]["verdict"] == "pass"
+
+    cantilever = copy.deepcopy(BEAM)
+    cantilever["section"] = {"shape": "rectangular", "b": 250, "h": 450}
+    cantilever["materials"]["concrete"] = "C25/30"
+    cantilever["span"] = {"l": 3.0, "system": "cantilever", "location": "support"}
+    cantilever["reinforcement"].update(tension_n=3, link_dia=6, cover=25)
+    cantilever["actions"].update(gk=20, qk=15, category="C")
+    cantilever["durability"] = {"exposure": "XC3/4-XF1", "cement_group": "All except IVB", "fire_period": "R90"}
+    failed = {c["id"] for c in check_beam(cantilever)["checks"] if c["status"] == "fail"}
+    assert failed == {"cover_durability", "fire", "tension", "compression", "deflection", "cracking"}
