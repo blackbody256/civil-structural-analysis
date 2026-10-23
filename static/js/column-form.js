@@ -1,5 +1,6 @@
 import { el, getJSON, KEYS, postJSON, store } from "./common.js";
 import { drawElevation, drawSection, endKinds, sectionFromInputs } from "./drawings.js";
+import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { anchorPopover } from "./theme.js";
 
 export const EXAMPLES = {
@@ -40,23 +41,9 @@ const OPEN_KEY = "ec2.form.open";
 
 const form = document.getElementById("column-form");
 const $ = (id) => document.getElementById(id);
+const errors = formErrors(form, $("form-message"));
 let meta = null;
 let previewAxis = "y";
-
-// ------------------------------------------------------------------ nested values
-
-function setPath(obj, path, value) {
-  const keys = path.split(".");
-  let node = obj;
-  keys.slice(0, -1).forEach((k) => { node = node[k] ??= {}; });
-  node[keys[keys.length - 1]] = value;
-}
-
-function getPath(obj, path) {
-  return path.split(".").reduce((node, k) => (node == null ? undefined : node[k]), obj);
-}
-
-const option = (value, label) => el("option", { value }, label);
 
 // ------------------------------------------------------------------ building the form
 
@@ -289,51 +276,6 @@ function refresh() {
   });
 }
 
-// ------------------------------------------------------------------ sections open/closed
-
-function sections() {
-  return [...form.querySelectorAll("details.section")];
-}
-
-function rememberOpen() {
-  try {
-    localStorage.setItem(OPEN_KEY, JSON.stringify(sections().filter((s) => s.open).map((s) => s.dataset.section)));
-  } catch { /* not essential */ }
-}
-
-function restoreOpen() {
-  let open = null;
-  try { open = JSON.parse(localStorage.getItem(OPEN_KEY)); } catch { /* default below */ }
-  if (Array.isArray(open)) sections().forEach((s) => { s.open = open.includes(s.dataset.section); });
-}
-
-// ------------------------------------------------------------------ errors
-
-function clearErrors() {
-  form.querySelectorAll(".control.invalid").forEach((c) => c.classList.remove("invalid"));
-  form.querySelectorAll(".field .error").forEach((e) => e.remove());
-  $("form-message").textContent = "";
-}
-
-function showErrors(errors) {
-  clearErrors();
-  let first = null;
-  for (const [path, message] of Object.entries(errors || {})) {
-    const input = form.querySelector(`[name="${CSS.escape(path)}"]`);
-    if (!input) continue;
-    const section = input.closest("details.section");
-    if (section) section.open = true;
-    const more = input.closest("details.more");
-    if (more) more.open = true;
-    input.closest(".control")?.classList.add("invalid");
-    (input.closest(".field") || input.closest("td"))?.append(el("span", { class: "error" }, message));
-    first ??= input;
-  }
-  const n = Object.keys(errors || {}).length;
-  $("form-message").textContent = n ? `${n} input${n > 1 ? "s" : ""} to fix` : "";
-  first?.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
 // ------------------------------------------------------------------ helpers (pop-overs)
 
 function setupHelpers() {
@@ -408,50 +350,21 @@ function setupHelpers() {
   });
 }
 
-function setupFilesMenu() {
-  const menu = $("files-menu");
-  anchorPopover(menu, $("files-button"), "start");
-  for (const item of menu.querySelectorAll("[data-example]")) {
-    item.addEventListener("click", () => { clearErrors(); fill(EXAMPLES[item.dataset.example]); menu.hidePopover(); });
-  }
-  $("reset").addEventListener("click", () => {
-    clearErrors(); fill(EXAMPLES.pass); store.set(KEYS.input, null); menu.hidePopover();
-  });
-  const fileInput = $("import-file");
-  $("import").addEventListener("click", () => { menu.hidePopover(); fileInput.click(); });
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    try {
-      const data = JSON.parse(await file.text());
-      if (!data || typeof data !== "object" || !data.geometry) throw new Error("not an inputs file");
-      clearErrors();
-      fill(data);
-    } catch {
-      $("form-message").textContent = "That file is not an exported inputs file.";
-    }
-    fileInput.value = "";
-  });
-}
-
 // ------------------------------------------------------------------ init
 
 async function init() {
   meta = await getJSON("/api/meta");
   populate();
   buildRestraint();
-  restoreOpen();
-  fill(store.get(KEYS.input) || EXAMPLES.pass);
-  const errors = store.getSession(KEYS.errors);
-  if (errors) { showErrors(errors); store.setSession(KEYS.errors, null); }
+  setupSections(form, OPEN_KEY);
+  fill(store.get(KEYS.input) || structuredClone(EXAMPLES.pass));
+  const serverErrors = store.getSession(KEYS.errors);
+  if (serverErrors) { errors.show(serverErrors); store.setSession(KEYS.errors, null); }
 
   let timer = null;
   form.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(refresh, 90); });
   form.addEventListener("change", refresh);
   $("same-axes").addEventListener("change", refresh);
-  sections().forEach((s) => s.addEventListener("toggle", rememberOpen));
-  $("expand-all").addEventListener("click", () => { sections().forEach((s) => { s.open = true; }); });
-  $("collapse-all").addEventListener("click", () => { sections().forEach((s) => { s.open = false; }); });
   for (const button of document.querySelectorAll(".switch [data-axis]")) {
     button.addEventListener("click", () => {
       previewAxis = button.dataset.axis;
@@ -461,11 +374,13 @@ async function init() {
   }
   document.addEventListener("themechange", refresh);
   setupHelpers();
-  setupFilesMenu();
+  setupFilesMenu({
+    examples: EXAMPLES, fill, errors, inputKey: KEYS.input, message: $("form-message"), looksValid: (d) => Boolean(d.geometry),
+  });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    clearErrors();
+    errors.clear();
     store.set(KEYS.input, serialize());
     store.setSession(KEYS.result, null);
     window.location.href = "/column/run";
