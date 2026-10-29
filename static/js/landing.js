@@ -1,7 +1,5 @@
-import { el, getJSON } from "./common.js";
-import {
-  beamSectionFromInputs, drawBeamElevation, drawBeamSection, drawElevation, drawSection, sectionFromInputs,
-} from "./drawings.js";
+import { drawBeamModel } from "./beam-canvas.js";
+import { beamSectionFromInputs, drawBeamSection, drawElevation, drawSection, s, sectionFromInputs } from "./drawings.js";
 
 // Each element's worked example, drawn with the app's own drawing code.
 const ART = {
@@ -11,10 +9,14 @@ const ART = {
     drawElevation(elevation, { l: 3600, depth: 350, NEd: 2100, top: "partial", bottom: "fixed", kTop: "k = 0.25" });
   },
   beam(section, elevation) {
-    const sample = { shape: "flanged", flange: "T", b: 300, h: 550, hf: 150, beff: 2030, cover: 30, link_dia: 8, legs: 2,
-      tension_n: 4, tension_dia: 25, compression_n: 2, compression_dia: 16 };
-    drawBeamSection(section, beamSectionFromInputs(sample), { linkLabel: "H8 @ 175" });
-    drawBeamElevation(elevation, { l: 7, system: "end", w: 57.5 });
+    const sample = { shape: "rectangular", b: 400, h: 750, cover: 35, link_dia: 10, legs: 2,
+      bottom_n: 4, bottom_dia: 20, top_n: 4, top_dia: 25 };
+    drawBeamSection(section, beamSectionFromInputs(sample), { linkLabel: "H10 links" });
+    const svg = s("svg", { viewBox: "0 0 1000 250", role: "img", "aria-label": "Beam model" });
+    drawBeamModel(svg, { length: 20, supports: [{ x: 0, type: "fixed" }, { x: 10, type: "roller" }, { x: 20, type: "roller" }],
+      loads: [{ type: "linear", w1: 30, w2: 0, x1: 0, x2: 6 }, { type: "point", W: 200, x: 6 }, { type: "moment", M: 90, x: 10 },
+        { type: "point", W: 150, x: 15 }] });
+    elevation.replaceChildren(svg);
   },
 };
 

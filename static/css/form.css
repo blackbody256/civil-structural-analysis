@@ -130,3 +130,58 @@ details.more > .fields + .check { margin-top: 14px; }
 .btn-icon { border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); border-radius: var(--radius); width: 34px; height: 34px; cursor: pointer; display: grid; place-items: center; font-size: 16px; font-weight: 700; }
 .btn-icon:hover { color: var(--fail); border-color: var(--fail); background: var(--surface-2); }
 
+
+/* beam page: drawing canvas, tables and live analysis */
+.model-panel { overflow: hidden; }
+.canvas-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.canvas-tools button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2); font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 6px; cursor: pointer; }
+.canvas-tools button:hover:not(:disabled) { border-color: var(--muted); color: var(--text); }
+.canvas-tools button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
+.canvas-tools button:disabled { opacity: .45; cursor: default; }
+.canvas-tools .sep { width: 1px; height: 22px; background: var(--line-strong); margin: 0 4px; }
+.canvas-tools .spacer { flex: 1; }
+.canvas-host { padding: 6px 8px 0; outline: none; }
+.canvas-host:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.beam-canvas { width: 100%; height: auto; display: block; touch-action: none; user-select: none; }
+.beam-canvas .grab { cursor: grab; }
+.beam-canvas .handle { cursor: ew-resize; }
+.beam-canvas.placing, .beam-canvas.placing .grab { cursor: crosshair; }
+.beam-canvas .item.selected text { fill: var(--accent); }
+.live-head { display: flex; align-items: center; gap: 10px; padding: 8px 18px 0; border-top: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text-2); }
+.live-head .hint { margin-left: auto; font-weight: 400; color: var(--muted); }
+.live-diagrams { padding: 4px 8px 10px; }
+.live-diagrams svg { width: 100%; height: auto; display: block; }
+.empty-note { color: var(--muted); font-size: 13.5px; padding: 18px 10px; margin: 0; }
+
+.grid-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.grid-table th { text-align: left; font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6px 6px 0; white-space: nowrap; }
+.grid-table td { padding: 3px 6px 3px 0; vertical-align: middle; }
+.grid-table td.idx { font-family: var(--font-mono); color: var(--muted); width: 22px; }
+.grid-table .control { height: 34px; min-width: 70px; }
+.grid-table .control input { padding: 0 7px; }
+.grid-table .control select { padding: 0 6px; }
+.grid-table tr.is-selected td { background: var(--accent-soft); }
+.grid-table tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.grid-table .dash { color: var(--muted); padding-left: 8px; }
+.table-scroll { overflow-x: auto; }
+#loads-table { table-layout: fixed; min-width: 600px; }
+#loads-table th:nth-child(1) { width: 17%; } #loads-table th:nth-child(2) { width: 19%; }
+#loads-table th:nth-child(3) { width: 15%; } #loads-table th:nth-child(4) { width: 14%; }
+#loads-table th:nth-child(5) { width: 13%; } #loads-table th:nth-child(6) { width: 17%; }
+#loads-table th:nth-child(7) { width: 42px; }
+#loads-table .control { min-width: 0; }
+#supports-table, #segments-table { max-width: 560px; }
+.s-group > .inline-link, .field > .inline-link { align-self: flex-start; justify-self: start; border: 0; background: none; padding: 0;
+  color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
+.s-group > .inline-link:hover { text-decoration: underline; }
+.s-group { display: grid; gap: 12px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+.group-title { font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.group-title .muted { font-weight: 400; color: var(--muted); }
+.formula { margin: 0; font-family: var(--font-mono); font-size: 13px; color: var(--text-2); }
+.formula:empty { display: none; }
+.help-line { margin: 0; font-size: 12.5px; color: var(--muted); }
+.reactions { padding: 0 14px 12px; }
+.mini { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mini th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 4px 4px; border-bottom: 1px solid var(--line); }
+.mini td { padding: 5px 4px; font-family: var(--font-mono); border-bottom: 1px solid var(--line); }
+.mini td:first-child { font-family: var(--font-ui); }

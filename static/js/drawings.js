@@ -1,4 +1,4 @@
-// SVG drawings: cross-section, elevation with moment diagram, N–M interaction chart.
+// SVG drawings: column and beam cross-sections, column elevation, N–M interaction chart.
 
 const NS = "http://www.w3.org/2000/svg";
 // Colours come from the theme (see base.css); the fallbacks keep drawings readable elsewhere.
@@ -394,37 +394,37 @@ function beamOutline(sec, flangeHalf) {
 }
 
 /**
- * A beam section laid out as the server does it: tension bars in one or two layers on the
- * tension face, compression bars on the other. Also returns As, d and the clear bar gap.
+ * A beam section laid out as the server does it: bottom and top bars, each in one or two
+ * layers. Also returns the steel area, effective depth and clear bar gap of each face.
  */
-export function beamSectionFromInputs({ shape, flange, b, h, hf, beff, cover, link_dia, legs, tension_n, tension_dia,
-  layers = 1, compression_n, compression_dia, dg = 20, location = "span" }) {
+export function beamSectionFromInputs({ shape, flange, b, h, hf, beff, cover, link_dia, legs, bottom_n, bottom_dia,
+  bottom_layers = 1, top_n, top_dia, top_layers = 1, dg = 20 }) {
   const ok = (x) => Number.isFinite(x) && x > 0;
-  if (!ok(b) || !ok(h) || !(cover >= 0) || !(tension_n >= 1) || !(compression_n >= 1)) return null;
+  if (!ok(b) || !ok(h) || !(cover >= 0) || !(bottom_n >= 1) || !(top_n >= 1)) return null;
   const flanged = shape === "flanged" && ok(hf) && hf < h;
   const face = cover + link_dia;
-  const nT = Math.round(tension_n), nC = Math.round(compression_n);
-  const perLayer = Math.ceil(nT / layers);
-  const second = nT - perLayer;
-  const a1 = face + tension_dia / 2;
-  const a2 = a1 + tension_dia + Math.max(tension_dia, dg + 5, 20);
-  const top = location === "support";
-  const y = (dist) => (top ? h - dist : dist);
-  const lo = -b / 2 + face + tension_dia / 2;
-  const clo = -b / 2 + face + compression_dia / 2;
-  const yc = top ? face + compression_dia / 2 : h - face - compression_dia / 2;
-  const bars = [
-    ...spread(lo, -lo, perLayer).map((x) => ({ x, y: y(a1), dia: tension_dia, kind: "tension" })),
-    ...(second ? spread(lo, -lo, second).map((x) => ({ x, y: y(a2), dia: tension_dia, kind: "tension" })) : []),
-    ...spread(clo, -clo, nC).map((x) => ({ x, y: yc, dia: compression_dia, kind: "compression" })),
-  ];
   const width = b - 2 * face;
+  const bars = [];
+  const stats = {};
+  for (const [name, n, dia, layers, at] of [["bottom", bottom_n, bottom_dia, bottom_layers, (d) => d],
+    ["top", top_n, top_dia, top_layers, (d) => h - d]]) {
+    const count = Math.round(n);
+    const perLayer = Math.ceil(count / layers);
+    const second = count - perLayer;
+    const a1 = face + dia / 2;
+    const a2 = a1 + dia + Math.max(dia, dg + 5, 20);
+    const lo = -b / 2 + face + dia / 2;
+    bars.push(...spread(lo, -lo, perLayer).map((x) => ({ x, y: at(a1), dia, kind: name })));
+    if (second) bars.push(...spread(lo, -lo, second).map((x) => ({ x, y: at(a2), dia, kind: name })));
+    stats[name] = {
+      As: (count * Math.PI * dia ** 2) / 4,
+      d: h - (perLayer * a1 + second * a2) / count,
+      clear: perLayer > 1 ? (width - dia) / (perLayer - 1) - dia : width - dia,
+    };
+  }
   return {
     shape: flanged ? "flanged" : "rectangular", flange, b, h, hf, beff: flanged ? Math.max(beff || b, b) : b, cover,
-    link_dia, legs, tension_face: top ? "top" : "bottom", bars,
-    As: (nT * Math.PI * tension_dia ** 2) / 4,
-    d: h - (perLayer * a1 + second * a2) / nT,
-    clear: perLayer > 1 ? (width - tension_dia) / (perLayer - 1) - tension_dia : width - tension_dia,
+    link_dia, legs, bars, stats,
   };
 }
 
@@ -497,148 +497,17 @@ export function drawBeamSection(target, sec, opts = {}) {
     svg.append(dimH(X(xMin), X(xMax), Y(sec.h) - 24, `beff = ${Math.round(sec.beff)}${cut ? " (cut)" : ""}`, Y(sec.h)));
     svg.append(text(X(xMax) + 6, Y(sec.h - sec.hf / 2) + 4, `hf = ${sec.hf}`, { "font-size": 11, fill: MUTED }));
   }
-  const tension = (sec.bars || []).filter((b) => b.kind === "tension");
-  const comp = (sec.bars || []).filter((b) => b.kind === "compression");
   const label = (list, y, extra) => {
     if (!list.length) return;
     const xr = X(sec.b / 2) + 14;
     svg.append(s("line", { x1: X(list[list.length - 1].x) + 3, y1: Y(list[list.length - 1].y), x2: xr, y2: y, stroke: MUTED, "stroke-width": 0.7 }));
     svg.append(text(xr + 2, y + 4, `${list.length}H${list[0].dia}${extra}`, { "font-weight": 700, class: "num", "font-size": 11.5 }));
   };
-  const top = sec.tension_face === "top";
-  label(tension, top ? Y(sec.h) + 26 : yBase - 18, " tension");
-  label(comp, top ? yBase - 18 : Y(sec.h) + 26, "");
+  label((sec.bars || []).filter((b) => b.kind === "bottom"), yBase - 18, " bottom");
+  label((sec.bars || []).filter((b) => b.kind === "top"), Y(sec.h) + 26, " top");
   svg.append(text(X(sec.b / 2) + 16, Y(sec.h / 2) + 4, opts.linkLabel || `H${sec.link_dia} links`, { fill: ACCENT, "font-weight": 700, "font-size": 11.5 }));
   const coverColour = status.cover === "fail" ? COLORS.fail : MUTED;
   svg.append(symText(X(sec.b / 2) + 16, yBase + 16, ["c", sub("nom"), ` = ${sec.cover} mm`], { fill: coverColour, "font-size": 11 }));
-  target.replaceChildren(svg);
-  return svg;
-}
-
-/** Beam elevation: supports, loading, bending moment and shear along the span. */
-export function drawBeamElevation(target, e, opts = {}) {
-  const hasDelta = e.delta && e.delta.length > 0;
-  const W = opts.width || 560;
-  const H = opts.height || (hasDelta ? 470 : (e.M ? 390 : 200));
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Beam elevation" });
-  const left = 46, right = W - 40;
-  const X = (x) => left + (x / e.l) * (right - left);
-  const beamY = 78;
-  svg.append(s("rect", { x: left, y: beamY - 7, width: right - left, height: 14, fill: CONCRETE, stroke: INK, "stroke-width": 1.4 }));
-  if (e.supports && Array.isArray(e.supports) && e.supports.length > 0) {
-    for (const sp of e.supports) {
-      const sx = X(sp.x);
-      if (sp.fix_m === 1) {
-        const side = sp.x <= e.l / 2 ? -1 : 1;
-        svg.append(s("line", { x1: sx, y1: beamY - 26, x2: sx, y2: beamY + 26, stroke: INK, "stroke-width": 2.4 }));
-        for (let y = beamY - 24; y < beamY + 26; y += 7) {
-          svg.append(s("line", { x1: sx, y1: y, x2: sx + side * 8, y2: y + 6, stroke: INK, "stroke-width": 0.9 }));
-        }
-      } else if (sp.fix_v === 1) {
-        svg.append(s("path", { d: `M${sx} ${beamY + 7} l-9 14 h18 z`, fill: PAPER, stroke: INK, "stroke-width": 1.3 }));
-        svg.append(s("circle", { cx: sx - 4.5, cy: beamY + 25, r: 2.8, fill: PAPER, stroke: INK }));
-        svg.append(s("circle", { cx: sx + 4.5, cy: beamY + 25, r: 2.8, fill: PAPER, stroke: INK }));
-        svg.append(s("line", { x1: sx - 12, y1: beamY + 29, x2: sx + 12, y2: beamY + 29, stroke: INK, "stroke-width": 1.1 }));
-      }
-    }
-  } else if (e.system === "cantilever") {
-    svg.append(s("line", { x1: left, y1: beamY - 30, x2: left, y2: beamY + 30, stroke: INK, "stroke-width": 2.4 }));
-    for (let y = beamY - 28; y < beamY + 30; y += 8) svg.append(s("line", { x1: left, y1: y, x2: left - 8, y2: y + 7, stroke: INK, "stroke-width": 0.9 }));
-  } else {
-    const pin = (x, roller) => {
-      svg.append(s("path", { d: `M${x} ${beamY + 7} l-9 14 h18 z`, fill: PAPER, stroke: INK, "stroke-width": 1.3 }));
-      if (roller) {
-        svg.append(s("circle", { cx: x - 5, cy: beamY + 25, r: 3, fill: PAPER, stroke: INK }));
-        svg.append(s("circle", { cx: x + 5, cy: beamY + 25, r: 3, fill: PAPER, stroke: INK }));
-      }
-    };
-    pin(left, false);
-    pin(right, e.system === "simple");
-    if (e.system === "interior" || e.system === "end") {
-      const dashed = { stroke: MUTED, "stroke-width": 1.2, "stroke-dasharray": "5 4" };
-      if (e.system === "interior") svg.append(s("line", { x1: left - 34, y1: beamY, x2: left, y2: beamY, ...dashed }));
-      svg.append(s("line", { x1: right, y1: beamY, x2: right + 34, y2: beamY, ...dashed }));
-    }
-  }
-  if (e.loads && Array.isArray(e.loads) && e.loads.length > 0) {
-    const top = beamY - 38;
-    for (const ld of e.loads) {
-      if (ld.type === "point") {
-        const x = X(ld.x || 0);
-        svg.append(s("line", { x1: x, y1: top, x2: x, y2: beamY - 12, stroke: LOAD, "stroke-width": 2 }));
-        svg.append(s("path", { d: `M${x - 4.5} ${beamY - 18} L${x + 4.5} ${beamY - 18} L${x} ${beamY - 9} Z`, fill: LOAD }));
-        svg.append(text(x, top - 8, `${ld.W || 0} kN`, { "text-anchor": "middle", "font-weight": 700, "font-size": 11 }));
-      } else if (ld.type === "udl") {
-        const x1 = X(ld.l1 || 0), x2 = X(ld.l2 || e.l);
-        svg.append(s("line", { x1, y1: top + 10, x2, y2: top + 10, stroke: LOAD, "stroke-width": 1.4 }));
-        for (let i = 0; i <= 6; i++) {
-          const xi = x1 + ((x2 - x1) * i) / 6;
-          svg.append(s("line", { x1: xi, y1: top + 10, x2: xi, y2: beamY - 10, stroke: LOAD, "stroke-width": 1 }));
-          svg.append(s("path", { d: `M${xi - 3} ${beamY - 15} L${xi + 3} ${beamY - 15} L${xi} ${beamY - 9} Z`, fill: LOAD }));
-        }
-        svg.append(text((x1 + x2) / 2, top + 2, `${ld.w || 0} kN/m`, { "text-anchor": "middle", "font-weight": 700, "font-size": 10.5 }));
-      } else if (ld.type === "moment") {
-        const x = X(ld.x || 0);
-        svg.append(s("circle", { cx: x, cy: beamY - 20, r: 10, fill: "none", stroke: LOAD, "stroke-width": 1.5 }));
-        svg.append(text(x, top - 8, `${ld.M0 || 0} kNm`, { "text-anchor": "middle", "font-weight": 700, "font-size": 11 }));
-      } else if (ld.type === "linear") {
-        const x1 = X(ld.l1 || 0), x2 = X(ld.l2 || e.l);
-        const w1 = ld.w1 ?? 0, w2 = ld.w2 ?? 0;
-        const maxW = Math.max(Math.abs(w1), Math.abs(w2), 1e-3);
-        const yTop1 = beamY - 12 - (Math.abs(w1) / maxW) * 26;
-        const yTop2 = beamY - 12 - (Math.abs(w2) / maxW) * 26;
-        svg.append(s("line", { x1, y1: yTop1, x2, y2: yTop2, stroke: LOAD, "stroke-width": 1.4 }));
-        for (let i = 0; i <= 6; i++) {
-          const t = i / 6;
-          const xi = x1 + (x2 - x1) * t;
-          const yi = yTop1 + (yTop2 - yTop1) * t;
-          svg.append(s("line", { x1: xi, y1: yi, x2: xi, y2: beamY - 10, stroke: LOAD, "stroke-width": 1 }));
-          svg.append(s("path", { d: `M${xi - 3} ${beamY - 15} L${xi + 3} ${beamY - 15} L${xi} ${beamY - 9} Z`, fill: LOAD }));
-        }
-        svg.append(text((x1 + x2) / 2, Math.min(yTop1, yTop2) - 6, `${w1} → ${w2} kN/m`, { "text-anchor": "middle", "font-weight": 700, "font-size": 10.5 }));
-      }
-    }
-  } else if (e.w) {
-    const top = beamY - 38;
-    svg.append(s("line", { x1: left, y1: top, x2: right, y2: top, stroke: LOAD, "stroke-width": 1.4 }));
-    for (let i = 0; i <= 12; i++) {
-      const x = left + ((right - left) * i) / 12;
-      svg.append(s("line", { x1: x, y1: top, x2: x, y2: beamY - 12, stroke: LOAD, "stroke-width": 1.1 }));
-      svg.append(s("path", { d: `M${x - 3.5} ${beamY - 17} L${x + 3.5} ${beamY - 17} L${x} ${beamY - 10} Z`, fill: LOAD }));
-    }
-    svg.append(text((left + right) / 2, top - 8, `w = ${e.w.toFixed(1)} kN/m`, { "text-anchor": "middle", "font-weight": 700, "font-size": 12 }));
-  }
-  svg.append(dimH(left, right, beamY + 44, `l = ${e.l.toFixed(2)} m`));
-  if (!e.M) {
-    target.replaceChildren(svg);
-    return svg;
-  }
-  const diagram = (values, base, depth, colour, name, unit) => {
-    const peak = Math.max(...values.map(Math.abs)) || 1;
-    const pts = e.x.map((x, i) => `${X(x)},${base + (values[i] / peak) * depth}`);
-    svg.append(s("polygon", { points: [`${left},${base}`, ...pts, `${right},${base}`].join(" "), fill: colour, "fill-opacity": 0.12, stroke: colour, "stroke-width": 1.8 }));
-    svg.append(s("line", { x1: left, y1: base, x2: right, y2: base, stroke: MUTED, "stroke-width": 0.8 }));
-    svg.append(text(left - 8, base + 4, name, { "text-anchor": "end", "font-size": 12, fill: MUTED, "font-weight": 700 }));
-    svg.append(text(right + 6, base - 4, unit, { "font-size": 10.5, fill: MUTED }));
-  };
-  // Positive values are drawn below the axis, negative values above (tension convention for M & V)
-  diagram(e.M, 196, 52, ACCENT, "M", "kNm");
-  diagram(e.V, 322, 36, MUTED, "V", "kN");
-  if (hasDelta) {
-    diagram(e.delta, 415, 26, "#D97706", "δ", "mm");
-    const maxD = Math.max(...e.delta.map(Math.abs));
-    svg.append(symText(right + 6, 415 + 16, ["δ", sub("max"), ` = ${maxD.toFixed(2)} mm`], { "text-anchor": "end", "font-weight": 700, fill: "#D97706", "font-size": 11.5 }));
-  }
-  const xd = X(e.x_design);
-  svg.append(s("line", { x1: xd, y1: beamY + 10, x2: xd, y2: H - 12, stroke: LOAD, "stroke-width": 1.2, "stroke-dasharray": "4 3" }));
-  const anchor = xd > (left + right) / 2 ? "end" : "start";
-  const dx = anchor === "end" ? -6 : 6;
-  svg.append(symText(xd + dx, 196 + (e.MEd >= 0 ? 72 : -60), ["M", sub("Ed"), ` = ${e.MEd.toFixed(1)} kNm`], { "text-anchor": anchor, "font-weight": 700, fill: ACCENT, "font-size": 12 }));
-  // the design shear acts at the support where the shear is largest, not at the section checked
-  const iv = e.V.reduce((best, v, i) => (Math.abs(v) > Math.abs(e.V[best]) + 1e-9 ? i : best), 0);
-  const xv = X(e.x[iv]);
-  const vAnchor = xv > (left + right) / 2 ? "end" : "start";
-  svg.append(symText(xv + (vAnchor === "end" ? -6 : 6), (hasDelta ? 362 : H - 14), ["V", sub("Ed"), ` = ${e.VEd.toFixed(1)} kN`], { "text-anchor": vAnchor, "font-size": 12 }));
   target.replaceChildren(svg);
   return svg;
 }

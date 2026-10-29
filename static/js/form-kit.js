@@ -43,7 +43,7 @@ export function formErrors(form, message) {
     clear();
     let first = null;
     for (const [path, text] of Object.entries(errors || {})) {
-      const input = form.querySelector(`[name="${CSS.escape(path)}"]`);
+      const input = form.querySelector(`[name="${CSS.escape(path)}"], [data-path="${CSS.escape(path)}"]`);
       if (!input) continue;
       const section = input.closest("details.section");
       if (section) section.open = true;
@@ -64,14 +64,14 @@ export function formErrors(form, message) {
  * The "Examples and files" menu: load an example, open an exported inputs file, or reset.
  * `looksValid(data)` tells an inputs file for this element from any other JSON.
  */
-export function setupFilesMenu({ examples, fill, errors, inputKey, looksValid, message }) {
+export function setupFilesMenu({ examples, fill, errors, inputKey, looksValid, message, resetTo = "pass" }) {
   const menu = document.getElementById("files-menu");
   anchorPopover(menu, document.getElementById("files-button"), "start");
   for (const item of menu.querySelectorAll("[data-example]")) {
     item.addEventListener("click", () => { errors.clear(); fill(structuredClone(examples[item.dataset.example])); menu.hidePopover(); });
   }
   document.getElementById("reset").addEventListener("click", () => {
-    errors.clear(); fill(structuredClone(examples.pass)); store.set(inputKey, null); menu.hidePopover();
+    errors.clear(); fill(structuredClone(examples[resetTo])); store.set(inputKey, null); menu.hidePopover();
   });
   const fileInput = document.getElementById("import-file");
   document.getElementById("import").addEventListener("click", () => { menu.hidePopover(); fileInput.click(); });
