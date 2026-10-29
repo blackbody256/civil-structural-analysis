@@ -10,12 +10,13 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
 from ec2 import actions, creep, durability, fire, tables
 from ec2 import slenderness as sl
-from ec2.beam import check_beam
+from ec2.beam import analyse_input, check_beam
 from ec2.column import check_column
 from ec2.inputs import ValidationError
 from ec2.elements import ELEMENTS
 from ec2.materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, LINK_SIZES, Concrete
 from ec2.references import GUIDE, PDF_PAGE_OFFSET
+from reports.beam_figures import beam_figures
 from reports.beam_pdf import build_beam_pdf
 from reports.column_pdf import build_column_pdf
 
@@ -25,10 +26,19 @@ GUIDE_PDF = ROOT / "How-to-design-concrete-structures-using-Eurocode-2.pdf"
 
 app = Flask(__name__, static_folder=str(STATIC), static_url_path="/static")
 
+
+
+def check_beam_with_figures(data):
+    """The beam check, with the analysis figures drawn for the report page."""
+    report = check_beam(data)
+    report["plots"]["figures"] = beam_figures(report)
+    return report
+
+
 # element: (check function, PDF builder)
 ELEMENT_HANDLERS = {
     "column": (check_column, build_column_pdf),
-    "beam": (check_beam, build_beam_pdf),
+    "beam": (check_beam_with_figures, build_beam_pdf),
 }
 
 PAGES = {"/": "index.html"}
@@ -162,22 +172,15 @@ def api_stiffness():
     return jsonify({"k": None if math.isinf(k) else k, "pinned": math.isinf(k)})
 
 
-@app.post("/api/helpers/beam-analysis")
+@app.post("/api/beam/analysis")
 def api_beam_analysis():
-    """1D Matrix stiffness analysis for arbitrary beam spans and loads."""
-    from ec2.analysis import solve_beam
-    data = _payload()
-    span = _num(data, "span", 6.0)
-    system = data.get("system", "simple")
-    loads = data.get("loads", [])
-    E_kpa = _num(data, "E_kpa", 33e6)
-    I_m4 = _num(data, "I_m4", 0.003)
-    self_weight = _num(data, "self_weight", 0.0)
-    res = solve_beam(
-        span_m=span, system=system, loads=loads,
-        E_kpa=E_kpa, I_m4=I_m4, self_weight=self_weight
-    )
-    return jsonify({k: v for k, v in res.items() if k != "analysis"})
+    """Analysis only, for the live diagrams on the beam input page."""
+    try:
+        result = analyse_input(_payload())
+    except ValidationError as exc:
+        return jsonify({"errors": exc.errors}), 400
+    figures = beam_figures({"plots": result}) if result["analysis"] else {}
+    return jsonify({**result, "figures": figures})
 
 
 @app.errorhandler(400)

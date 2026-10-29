@@ -238,8 +238,9 @@ def calc_sheet(report, st):
     return flow
 
 
-def build_report(report, element_title, drawings, caption):
-    """Assemble the PDF. `drawings` is a flowable (or None) shown after the summary."""
+def build_report(report, element_title, drawings, caption, extra=None):
+    """Assemble the PDF. `drawings` is a flowable (or None) shown after the summary; `extra` is a
+    list of flowables (an analysis section, say) placed before the calculations."""
     f = fonts()
     st = styles()
     generated = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -284,14 +285,17 @@ def build_report(report, element_title, drawings, caption):
     if drawings is not None:
         story += [CondPageBreak(175 * mm), Paragraph("Drawings", st["h2"]),
                   KeepTogether([drawings, Spacer(1, 2 * mm), Paragraph(caption, st["muted"])])]
-    story += [CondPageBreak(60 * mm), Paragraph("2. Calculations", st["h1"])]
+    if extra:
+        story += extra
+    story += [CondPageBreak(60 * mm), Paragraph(f"{3 if extra else 2}. Calculations", st["h1"])]
     story += calc_sheet(report, st)
     inputs = Table([[para(i["label"], st["bold"]), para(i["value"], st["body"])] for i in report["inputs"]],
                    colWidths=[60 * mm, 120 * mm])
     inputs.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.3, RULE), ("TOPPADDING", (0, 0), (-1, -1), 2.5),
                                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    story += [CondPageBreak(60 * mm), Paragraph("3. Inputs", st["h1"]), inputs,
-              Paragraph("4. Assumptions", st["h1"])]
+    n = 4 if extra else 3
+    story += [CondPageBreak(60 * mm), Paragraph(f"{n}. Inputs", st["h1"]), inputs,
+              Paragraph(f"{n + 1}. Assumptions", st["h1"])]
     story += [Paragraph(f"• {to_markup(a)}", st["body"]) for a in report["assumptions"]]
     story += [Spacer(1, 4 * mm), Paragraph(
         "This report is produced by a checking tool for education and preliminary design. It does not replace "

@@ -18,10 +18,11 @@ ELEMENTS = [
     {
         "id": "beam", "title": "Beam", "subtitle": "Rectangular & flanged", "chapter": 4, "page": 25,
         "status": "active", "url": "/beam",
-        "summary": "Simply supported, continuous or cantilever beams, rectangular or flanged (T or L).",
-        "checks": ["Durability & cover", "Fire resistance", "Bending (K, K′, lever arm)",
-                   "Compression steel where K > K′", "Vertical shear (strut inclination)",
-                   "Deflection (span/depth)", "Flange longitudinal shear", "Min/max steel, spacing & cracking"],
+        "summary": "Any beam drawn with its supports and loads, rectangular or flanged (T or L). The loads, "
+                   "including a slab on the beam, are analysed by the matrix stiffness method first.",
+        "checks": ["Matrix stiffness analysis", "Load from a one-way or two-way slab", "Durability, cover & fire",
+                   "Sagging and hogging bending", "Vertical shear (strut inclination)", "Deflection of every span",
+                   "Flange longitudinal shear", "Min/max steel, spacing & cracking"],
     },
     {
         "id": "slab", "title": "Slab", "subtitle": "One-way, two-way & ribbed", "chapter": 3, "page": 17,

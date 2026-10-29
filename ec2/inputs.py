@@ -18,9 +18,12 @@ class Reader:
     def raw(self, path):
         node = self.data
         for key in path.split("."):
-            if not isinstance(node, dict) or key not in node:
+            if isinstance(node, list) and key.isdigit() and int(key) < len(node):
+                node = node[int(key)]
+            elif isinstance(node, dict) and key in node:
+                node = node[key]
+            else:
                 return None
-            node = node[key]
         return node
 
     def number(self, path, lo=None, hi=None, default=None, integer=False, optional=False):

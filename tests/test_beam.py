@@ -1,4 +1,4 @@
-"""Beam check against hand calculations and the printed tables."""
+"""Beam check: loads → matrix stiffness analysis → design of every critical moment and shear."""
 import copy
 import math
 
@@ -6,18 +6,33 @@ import pytest
 
 from conftest import by_id
 from ec2 import fire, flexure, tables
-from ec2.beam import ValidationError, check_beam
+from ec2.beam import ValidationError, analyse_input, check_beam, spans_of
 
 # 300 × 500 simply supported over 6 m, C30/37, 4H20 bottom, 2H12 top, H8 links.
 BEAM = {
     "project": {"name": "Test", "ref": "B1"},
     "section": {"shape": "rectangular", "b": 300, "h": 500},
     "materials": {"concrete": "C30/37", "fyk": 500, "ductility": "B", "dg": 20},
-    "span": {"l": 6.0, "system": "simple", "location": "span"},
-    "reinforcement": {"tension_n": 4, "tension_dia": 20, "layers": 1, "compression_n": 2, "compression_dia": 12,
-                      "link_dia": 8, "legs": 2, "cover": 30, "delta_c_dev": 10},
-    "actions": {"mode": "loads", "gk": 15, "qk": 10, "self_weight": True, "category": "B", "combination": "6.10ab"},
+    "span": {"l": 6.0, "supports": [{"x": 0, "type": "pin"}, {"x": 6, "type": "roller"}]},
+    "reinforcement": {"bottom_n": 4, "bottom_dia": 20, "top_n": 2, "top_dia": 12, "link_dia": 8, "legs": 2,
+                      "cover": 30, "delta_c_dev": 10},
+    "actions": {"mode": "analysis", "gk": 15, "qk": 10, "self_weight": True, "category": "B"},
     "durability": {"exposure": "XC1", "cement_group": "All", "fire_period": "R60"},
+}
+
+# The client's example with a section to design.
+CLIENT = {
+    **copy.deepcopy(BEAM),
+    "section": {"shape": "rectangular", "b": 400, "h": 750},
+    "span": {"l": 20, "supports": [{"x": 0, "type": "fixed"}, {"x": 10, "type": "roller"}, {"x": 20, "type": "roller"}]},
+    "reinforcement": {"bottom_n": 4, "bottom_dia": 20, "top_n": 4, "top_dia": 25, "link_dia": 10, "legs": 2, "cover": 35},
+    "actions": {"mode": "analysis", "gk": 0, "qk": 0, "self_weight": False, "category": "B",
+                "loads": [{"type": "linear", "case": "Ed", "w1": 30, "w2": 0, "x1": 0, "x2": 6},
+                          {"type": "point", "case": "Ed", "W": 200, "x": 6},
+                          {"type": "moment", "case": "Ed", "M": 90, "x": 10},
+                          {"type": "point", "case": "Ed", "W": 150, "x": 15}]},
+    "stiffness": {"E_method": "enter", "E": 28, "I_method": "enter",
+                  "segments": [{"x1": 0, "x2": 6, "I": 8700}, {"x1": 6, "x2": 20, "I": 5800}]},
 }
 
 
@@ -29,21 +44,105 @@ def beam():
 def test_hand_calculated_simply_supported_beam(beam):
     report = check_beam(beam)
     d = report["derived"]
-    # gk = 15 + 25×0.3×0.5 = 18.75; G = 1.35×gk, Q = 1.5×10: w = 1.35×18.75 + 1.5×10 = 40.3125 kN/m
-    assert d["w"] == pytest.approx(40.3125, abs=0.01)
-    assert d["MEd"] == pytest.approx(40.3125 * 36 / 8, abs=0.05)       # wl²/8 = 181.41
-    assert d["VEd"] == pytest.approx(40.3125 * 3, abs=0.05)            # wl/2 = 120.94
-    # d = 500 − 30 − 8 − 10 = 452; K = M/(b d² fck)
-    assert d["d"] == pytest.approx(452)
-    assert d["K"] == pytest.approx(181.40625e6 / (300 * 452**2 * 30), rel=1e-3)
-    z = 452 / 2 * (1 + math.sqrt(1 - 3.53 * d["K"]))
-    assert d["z"] == pytest.approx(z, rel=1e-6)
-    assert d["As_req"] == pytest.approx(181.40625e6 / (500 / 1.15 * z), rel=1e-3)
-    # links: ρw,min governs (0.263 mm²/mm), 101/0.263 = 382 > 0.75d = 339 → 325 mm
-    assert d["links"]["near"] == 325
-    checks = by_id(report)
-    assert checks["deflection"]["limit"] == pytest.approx(25.46, abs=0.1)
+    # gk = 15 + 25×0.3×0.5 = 18.75; G = 1.35gk, Q = 1.5qk: w = 25.31 + 15 = 40.31 kN/m
+    assert d["w"] == pytest.approx(1.35 * 18.75 + 1.5 * 10)
+    assert d["MEd_sag"] == pytest.approx(d["w"] * 36 / 8, rel=1e-6)          # wl²/8 from the analysis
+    assert d["VEd"] == pytest.approx(d["w"] * 3, rel=1e-6)                   # wl/2
+    assert d["x_sag"] == pytest.approx(3)
+    assert d["MEd_hog"] == 0
+    assert d["bottom"]["d"] == pytest.approx(452)                            # 500 − 30 − 8 − 10
+    s = d["sag"]
+    assert s["K"] == pytest.approx(d["MEd_sag"] * 1e6 / (300 * 452**2 * 30), rel=1e-6)
+    z = 452 / 2 * (1 + math.sqrt(1 - 3.53 * s["K"]))
+    assert s["z"] == pytest.approx(z, rel=1e-6)
+    assert s["As_req"] == pytest.approx(d["MEd_sag"] * 1e6 / (500 / 1.15 * z), rel=1e-6)
+    assert d["links"]["near"] == 325                                         # ρw,min and 0.75d govern
     assert report["summary"]["verdict"] == "pass"
+
+
+def test_zero_moment_is_not_designed_for(beam):
+    """A simply supported beam has no hogging moment, so the top bars are not designed for one."""
+    checks = by_id(check_beam(beam))
+    assert checks["bending_hog"]["status"] == "na"
+    assert "tension_hog" not in checks and "cracking_top" not in checks and "as_min_top" not in checks
+    assert checks["tension_sag"]["status"] == "pass"
+
+
+def test_client_example_designs_sagging_hogging_and_shear():
+    report = check_beam(CLIENT)
+    d = report["derived"]
+    assert d["MEd_sag"] == pytest.approx(251.04, abs=0.01) and d["x_sag"] == pytest.approx(15)
+    assert d["MEd_hog"] == pytest.approx(337.92, abs=0.01) and d["x_hog"] == pytest.approx(10)
+    assert d["VEd"] == pytest.approx(146.33, abs=0.01) and d["x_v"] == pytest.approx(0)
+    checks = by_id(report)
+    for cid in ("tension_sag", "tension_hog", "strut", "deflection", "cracking_bottom", "cracking_top"):
+        assert checks[cid]["status"] == "pass", cid
+    # deflection is checked for both 10 m spans: the first restrained at both ends, the second an end span
+    lines = " ".join(checks["deflection"]["working"])
+    assert "Span 1 (0–10 m, interior span)" in lines and "Span 2 (10–20 m, end span)" in lines
+    rx = {r["x"]: r for r in report["plots"]["analysis"]["reactions"]}
+    assert rx[0.0]["M"] == pytest.approx(281.19, abs=0.01)
+    assert report["summary"]["verdict"] == "pass"
+
+
+def test_design_loads_without_the_0925_factor(beam):
+    beam["actions"]["self_weight"] = False
+    assert check_beam(beam)["derived"]["w"] == pytest.approx(1.35 * 15 + 1.5 * 10)
+
+
+def test_load_cases_are_factored(beam):
+    beam["actions"].update(gk=0, qk=0, self_weight=False)
+    for case, factor in (("Ed", 1.0), ("G", 1.35), ("Q", 1.5)):
+        beam["actions"]["loads"] = [{"type": "point", "case": case, "W": 100, "x": 3}]
+        assert check_beam(beam)["derived"]["MEd_sag"] == pytest.approx(factor * 100 * 6 / 4)
+
+
+def test_one_way_slab_uses_the_tributary_width(beam):
+    beam["actions"].update(gk=0, qk=0, self_weight=False,
+                           slab={"on": True, "type": "one_way", "gk": 5, "qk": 3, "trib": 2.5})
+    w = (1.35 * 5 + 1.5 * 3) * 2.5
+    d = check_beam(beam)["derived"]
+    assert d["w"] == pytest.approx(w) and d["w_shear"] == pytest.approx(w)
+    assert d["MEd_sag"] == pytest.approx(w * 36 / 8, rel=1e-6)
+
+
+def test_two_way_slab_equivalent_loads(beam):
+    """The client's formulas: moment and shear equivalents of the trapezoidal load on the long beam."""
+    beam["actions"].update(gk=0, qk=0, self_weight=False,
+                           slab={"on": True, "type": "two_way_long", "gk": 5, "qk": 2.5, "lx": 4, "ly": 6, "sides": 1})
+    w_slab = 1.35 * 5 + 1.5 * 2.5
+    w_m = w_slab * 4 / 6 * (3 - (4 / 6) ** 2)
+    w_v = w_slab * 4 / 4 * (2 - 4 / 6)
+    d = check_beam(beam)["derived"]
+    assert d["w"] == pytest.approx(w_m) and d["w_shear"] == pytest.approx(w_v)
+    assert d["MEd_sag"] == pytest.approx(w_m * 36 / 8, rel=1e-6)
+    assert d["VEd"] == pytest.approx(w_v * 3, rel=1e-6)
+    beam["actions"]["slab"].update(type="two_way_short", sides=2)
+    d = check_beam(beam)["derived"]
+    assert d["w"] == pytest.approx(2 * w_slab * 4 / 3) and d["w_shear"] == pytest.approx(2 * w_slab * 4 / 4)
+
+
+def test_continuous_beam_designs_the_support(beam):
+    beam["span"] = {"l": 12, "supports": [{"x": 0, "type": "pin"}, {"x": 6, "type": "roller"}, {"x": 12, "type": "roller"}]}
+    beam["reinforcement"].update(top_n=3, top_dia=20)
+    report = check_beam(beam)
+    d = report["derived"]
+    assert d["MEd_hog"] == pytest.approx(d["w"] * 36 / 8, rel=1e-6)     # wl²/8 over the middle support
+    assert d["x_hog"] == pytest.approx(6)
+    assert d["VEd"] == pytest.approx(0.625 * d["w"] * 6, rel=1e-6)
+    checks = by_id(report)
+    assert checks["tension_hog"]["status"] in {"pass", "fail"} and "top" in checks["tension_hog"]["title"]
+    assert [s.kind for s in spans_of(12, beam["span"]["supports"])] == ["end", "end"]
+
+
+def test_cantilever_uses_the_top_bars(beam):
+    beam["span"] = {"l": 3, "supports": [{"x": 0, "type": "fixed"}]}
+    beam["reinforcement"].update(top_n=3, top_dia=20)
+    report = check_beam(beam)
+    d = report["derived"]
+    assert d["MEd_sag"] == 0 and d["MEd_hog"] == pytest.approx(d["w"] * 9 / 2, rel=1e-6)
+    lines = " ".join(by_id(report)["deflection"]["working"])
+    assert "cantilever" in lines and "top bars" in lines
 
 
 def test_k_prime_matches_table4():
@@ -80,9 +179,9 @@ def test_flanged_neutral_axis_in_flange(beam):
     beam["section"] = {"shape": "flanged", "flange": "T", "b": 300, "h": 500, "hf": 150,
                        "beff_method": "enter", "beff": 1500}
     report = check_beam(beam)
-    lines = " ".join(by_id(report)["bending_design"]["working"])
+    lines = " ".join(by_id(report)["bending_sag"]["working"])
     assert "neutral axis in the flange" in lines
-    assert report["derived"]["K"] == pytest.approx(report["derived"]["MEd"] * 1e6 / (1500 * 452**2 * 30), rel=1e-3)
+    assert report["derived"]["sag"]["K"] == pytest.approx(report["derived"]["MEd_sag"] * 1e6 / (1500 * 452**2 * 30), rel=1e-6)
 
 
 def test_flanged_neutral_axis_in_web():
@@ -100,35 +199,38 @@ def test_effective_flange_width_calculated(beam):
     assert check_beam(beam)["derived"]["beff"] == pytest.approx(300 + 2 * 870)
 
 
-def test_continuous_support_uses_coefficients_and_redistribution(beam):
-    beam["span"].update(system="end", location="support")
-    report = check_beam(beam)
-    w = report["derived"]["w"]
-    assert report["derived"]["MEd"] == pytest.approx(0.094 * w * 36, rel=1e-6)
-    assert report["derived"]["VEd"] == pytest.approx(0.63 * w * 6, rel=1e-6)
-    assert by_id(report)["deflection"]["status"] == "na"
-    assert report["plots"]["section"]["tension_face"] == "top"
-
-
 def test_compression_steel_when_k_exceeds_k_prime(beam):
     beam["actions"].update(gk=60, qk=40)
     report = check_beam(beam)
-    assert report["derived"]["K"] > 0.168
-    assert report["derived"]["As2_req"] > 0
-    assert by_id(report)["compression"]["status"] in {"pass", "fail"}
+    assert report["derived"]["sag"]["K"] > 0.168
+    assert report["derived"]["sag"]["As2_req"] > 0
+    assert by_id(report)["compression_sag"]["status"] in {"pass", "fail"}
 
 
 def test_direct_actions(beam):
-    beam["actions"] = {"mode": "direct", "MEd": 150, "VEd": 100}
+    beam["actions"] = {"mode": "direct", "M_sag": 150, "M_hog": 0, "VEd": 100}
     report = check_beam(beam)
-    assert report["derived"]["MEd"] == pytest.approx(150)
+    assert report["derived"]["MEd_sag"] == pytest.approx(150)
+    assert by_id(report)["bending_hog"]["status"] == "na"
     assert any("310" in w for w in by_id(report)["deflection"]["working"])
+    assert report["plots"]["analysis"] is None
+
+
+def test_old_inputs_are_read(beam):
+    """Inputs saved before the analysis (one section per run) still load."""
+    old = copy.deepcopy(beam)
+    old["span"] = {"l": 6, "system": "simple", "location": "span"}
+    old["reinforcement"] = {"tension_n": 4, "tension_dia": 20, "compression_n": 2, "compression_dia": 12,
+                            "link_dia": 8, "legs": 2, "cover": 30}
+    old["actions"]["mode"] = "loads"
+    assert check_beam(old)["derived"]["MEd_sag"] == pytest.approx(check_beam(beam)["derived"]["MEd_sag"])
 
 
 @pytest.mark.parametrize("change, field", [
-    ({"span": {"l": 6, "system": "simple", "location": "support"}}, "span.location"),
-    ({"span": {"l": 3, "system": "cantilever", "location": "span"}}, "span.location"),
-    ({"reinforcement": {**BEAM["reinforcement"], "tension_n": 8, "tension_dia": 32}}, "reinforcement.tension_n"),
+    ({"span": {"l": 6, "supports": [{"x": 3, "type": "roller"}]}}, "span.supports"),
+    ({"span": {"l": 6, "supports": [{"x": 8, "type": "pin"}, {"x": 0, "type": "pin"}]}}, "span.supports.0.x"),
+    ({"span": {"l": 6, "supports": []}}, "span.supports"),
+    ({"reinforcement": {**BEAM["reinforcement"], "bottom_n": 8, "bottom_dia": 32}}, "reinforcement.bottom_n"),
 ])
 def test_validation(beam, change, field):
     beam.update(change)
@@ -137,151 +239,38 @@ def test_validation(beam, change, field):
     assert field in err.value.errors
 
 
+def test_load_validation(beam):
+    beam["actions"]["loads"] = [{"type": "udl", "case": "G", "w": 5, "x1": 4, "x2": 2},
+                                {"type": "point", "case": "Ed", "W": 10, "x": 9}]
+    with pytest.raises(ValidationError) as err:
+        check_beam(beam)
+    assert {"actions.loads.0.x2", "actions.loads.1.x"} <= set(err.value.errors)
+
+
+def test_stiffness_segments_must_cover_the_beam():
+    bad = copy.deepcopy(CLIENT)
+    bad["stiffness"]["segments"] = [{"x1": 0, "x2": 6, "I": 8700}]
+    with pytest.raises(ValidationError) as err:
+        check_beam(bad)
+    assert "stiffness.segments" in err.value.errors
+
+
+def test_live_analysis_for_the_form():
+    plots = analyse_input(CLIENT)
+    assert plots["analysis"]["envelope"]["hogging"]["M"] == pytest.approx(-337.92, abs=0.01)
+    assert plots["loads"]["w"] == 0
+
+
 def test_beam_api_and_pdf(beam):
     from app import app
     client = app.test_client()
-    assert client.post("/api/beam/check", json=beam).get_json()["summary"]["verdict"] == "pass"
-    pdf = client.post("/api/beam/report.pdf", json=beam)
+    res = client.post("/api/beam/check", json=CLIENT).get_json()
+    assert res["summary"]["verdict"] == "pass"
+    assert set(res["plots"]["figures"]) == {"loading", "model", "reactions", "diagrams", "deflection"}
+    pdf = client.post("/api/beam/report.pdf", json=CLIENT)
     assert pdf.mimetype == "application/pdf" and pdf.data.startswith(b"%PDF")
+    live = client.post("/api/beam/analysis", json=CLIENT).get_json()
+    assert "diagrams" in live["figures"]
+    bad = client.post("/api/beam/analysis", json={**beam, "span": {"l": 6, "supports": [{"x": 3, "type": "roller"}]}})
+    assert bad.status_code == 400 and "span.supports" in bad.get_json()["errors"]
     assert client.post("/api/slab/check", json={}).status_code == 404
-
-
-def test_form_examples():
-    """The flanged and failing examples offered on the beam page."""
-    flanged = copy.deepcopy(BEAM)
-    flanged["section"] = {"shape": "flanged", "flange": "T", "b": 300, "h": 550, "hf": 150,
-                          "beff_method": "calculate", "b1": 1350, "b2": 1350}
-    flanged["span"] = {"l": 7.0, "system": "end", "location": "span"}
-    flanged["reinforcement"].update(tension_dia=25, compression_dia=16)
-    flanged["actions"].update(gk=25, qk=15)
-    report = check_beam(flanged)
-    assert report["derived"]["beff"] == pytest.approx(2030)
-    assert report["summary"]["counts"]["pass"] == 15 and report["summary"]["verdict"] == "pass"
-
-    cantilever = copy.deepcopy(BEAM)
-    cantilever["section"] = {"shape": "rectangular", "b": 250, "h": 450}
-    cantilever["materials"]["concrete"] = "C25/30"
-    cantilever["span"] = {"l": 3.0, "system": "cantilever", "location": "support"}
-    cantilever["reinforcement"].update(tension_n=3, link_dia=6, cover=25)
-    cantilever["actions"].update(gk=20, qk=15, category="C")
-    cantilever["durability"] = {"exposure": "XC3/4-XF1", "cement_group": "All except IVB", "fire_period": "R90"}
-    failed = {c["id"] for c in check_beam(cantilever)["checks"] if c["status"] == "fail"}
-    assert failed == {"cover_durability", "fire", "tension", "compression", "deflection", "cracking"}
-
-
-def test_beam_analysis_mode(beam):
-    """Beam check with Matrix Stiffness Analysis mode."""
-    beam_analysis = copy.deepcopy(beam)
-    beam_analysis["actions"] = {
-        "mode": "analysis",
-        "self_weight": True,
-        "partitions": False,
-        "kprime_limit": True,
-        "loads": [
-            {"type": "point", "W": 50.0, "x": 3.0},
-            {"type": "udl", "w": 12.0, "l1": 0.0, "l2": 6.0}
-        ]
-    }
-    report = check_beam(beam_analysis)
-    assert report["summary"]["verdict"] == "pass"
-    assert report["derived"]["mode"] == "analysis"
-    assert len(report["derived"]["reactions"]) == 2
-    assert report["derived"]["max_deflection_mm"] > 0
-    assert len(report["plots"]["elevation"]["delta"]) > 0
-
-    # Check API and PDF export with analysis mode
-    from app import app
-    client = app.test_client()
-    res = client.post("/api/beam/check", json=beam_analysis)
-    assert res.status_code == 200
-    pdf = client.post("/api/beam/report.pdf", json=beam_analysis)
-    assert pdf.status_code == 200
-    assert pdf.mimetype == "application/pdf"
-    assert pdf.data.startswith(b"%PDF")
-
-
-def test_slab_to_beam_loading(beam):
-    """Test one-way and two-way slab equivalent UDL calculations."""
-    # 1. One-way slab
-    b_oneway = copy.deepcopy(beam)
-    b_oneway["actions"]["has_slab"] = True
-    b_oneway["actions"]["slab_type"] = "one_way"
-    b_oneway["actions"]["slab_gk"] = 4.0
-    b_oneway["actions"]["slab_qk"] = 3.0
-    b_oneway["actions"]["slab_trib"] = 2.5
-    b_oneway["actions"]["self_weight"] = False
-    b_oneway["actions"]["gk"] = 0.0
-    b_oneway["actions"]["qk"] = 0.0
-
-    rep1 = check_beam(b_oneway)
-    w_slab1 = 1.35 * 4.0 + 1.5 * 3.0  # 5.4 + 4.5 = 9.9 kN/m²
-    expected_w1 = w_slab1 * 2.5       # 24.75 kN/m
-    assert rep1["derived"]["w"] == pytest.approx(expected_w1, rel=1e-3)
-    assert rep1["derived"]["MEd"] == pytest.approx(expected_w1 * 36 / 8, rel=1e-3)
-
-    # 2. Two-way slab onto long beam Ly
-    b_twoway = copy.deepcopy(beam)
-    b_twoway["actions"]["has_slab"] = True
-    b_twoway["actions"]["slab_type"] = "two_way_long"
-    b_twoway["actions"]["slab_gk"] = 5.0
-    b_twoway["actions"]["slab_qk"] = 3.0
-    b_twoway["actions"]["slab_lx"] = 4.0
-    b_twoway["actions"]["slab_ly"] = 6.0
-    b_twoway["actions"]["self_weight"] = False
-    b_twoway["actions"]["gk"] = 0.0
-    b_twoway["actions"]["qk"] = 0.0
-
-    rep2 = check_beam(b_twoway)
-    w_slab2 = 1.35 * 5.0 + 1.5 * 3.0  # 6.75 + 4.5 = 11.25 kN/m²
-    r = 4.0 / 6.0
-    expected_weq_m = w_slab2 * (4.0 / 6.0) * (3.0 - r**2)   # 11.25 * (2/3) * (3 - 4/9) = 19.1667 kN/m
-    expected_weq_v = w_slab2 * (4.0 / 4.0) * (2.0 - r)      # 11.25 * 1 * (4/3) = 15.0 kN/m
-    assert rep2["derived"]["w"] == pytest.approx(expected_weq_m, rel=1e-3)
-    assert rep2["derived"]["MEd"] == pytest.approx(expected_weq_m * 36 / 8, rel=1e-3)
-    assert rep2["derived"]["VEd"] == pytest.approx(expected_weq_v * 6.0 / 2, rel=1e-3)
-
-
-def test_textbook_beam_in_check_pipeline(beam):
-    """Test textbook 20 m beam runs through check_beam pipeline with non-zero actions."""
-    textbook_beam = copy.deepcopy(beam)
-    textbook_beam["span"]["l"] = 20.0
-    textbook_beam["span"]["system"] = "end"
-    textbook_beam["span"]["location"] = "span"
-    textbook_beam["section"]["b"] = 400
-    textbook_beam["section"]["h"] = 750
-    textbook_beam["reinforcement"]["tension_n"] = 5
-    textbook_beam["reinforcement"]["tension_dia"] = 25
-    textbook_beam["reinforcement"]["compression_n"] = 2
-    textbook_beam["reinforcement"]["compression_dia"] = 16
-    textbook_beam["reinforcement"]["link_dia"] = 10
-    textbook_beam["actions"] = {
-        "mode": "analysis",
-        "self_weight": False,
-        "loads": [
-            {"type": "linear", "w1": 30.0, "w2": 0.0, "l1": 0.0, "l2": 6.0},
-            {"type": "point", "W": 200.0, "x": 6.0},
-            {"type": "moment", "M0": 90.0, "x": 10.0},
-            {"type": "point", "W": 150.0, "x": 15.0}
-        ],
-        "supports": [
-            {"x": 0.0, "fix_v": 1, "fix_m": 1},
-            {"x": 10.0, "fix_v": 1, "fix_m": 0},
-            {"x": 20.0, "fix_v": 1, "fix_m": 0}
-        ],
-        "inertia": [
-            {"x1": 0.0, "x2": 6.0, "I": 0.0087},
-            {"x1": 6.0, "x2": 20.0, "I": 0.0058}
-        ]
-    }
-    report = check_beam(textbook_beam)
-    # Ensure critical MEd and VEd are non-zero and used for section checks
-    assert report["derived"]["MEd"] == pytest.approx(251.04, abs=0.1)
-    assert report["derived"]["VEd"] == pytest.approx(146.33, abs=0.1)
-    assert report["derived"]["analysis_res"]["abs_max_M_kNm"] == pytest.approx(337.92, abs=0.5)
-    assert report["derived"]["analysis_res"]["abs_max_V_kN"] == pytest.approx(146.33, abs=0.1)
-    rx = {round(r["x"], 1): r for r in report["derived"]["reactions"]}
-    assert rx[0.0]["Ry"] == pytest.approx(-146.33, abs=0.1)
-    assert rx[0.0]["M"] == pytest.approx(-281.19, abs=0.1)
-    assert rx[10.0]["Ry"] == pytest.approx(-243.46, abs=0.1)
-    assert rx[20.0]["Ry"] == pytest.approx(-50.21, abs=0.1)
-

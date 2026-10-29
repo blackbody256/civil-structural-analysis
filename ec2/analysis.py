@@ -1,33 +1,27 @@
-"""Matrix Stiffness Method 2D Beam Analysis Engine.
+"""Beam analysis by the matrix stiffness method.
 
-Integrated from the client's BeamViz Pro analysis tool. Provides full 1D
-finite-element beam analysis for arbitrary continuous beams with nodes,
-elements, support conditions, and member span loads (point loads, UDLs,
-concentrated moments, and linear/trapezoidal loads).
+The solver class is the client's BeamViz Pro engine ("Beam Pro.py") without its user interface.
+`analyse()` wraps it for the design checks: it builds the analytical model the way a textbook
+does (a node at each end, at each support and where the stiffness changes), solves it on a finer
+mesh so that every load acts exactly at a node or inside one element, and returns the reactions,
+member end forces, joint displacements and the shear, moment and deflection along the beam.
 
-Solves global stiffness equations Ku = F, support reactions, member end
-forces, continuous shear (V), bending moment (M), and deflection curves.
+Conventions of `analyse()`: x in m from the left end, loads in kN and kN/m acting downwards,
+applied moments in kNm clockwise, reactions upwards and anticlockwise, sagging moments and
+downward deflections positive.
 """
 import math
+
 import numpy as np
 
-__all__ = [
-    "BeamAnalysis",
-    "solve_beam",
-    "MAP_LENGTH",
-    "MAP_E",
-    "MAP_I",
-    "MAP_FORCE",
-    "MAP_MOMENT",
-    "MAP_DIST_LOAD",
-]
+__all__ = ["BeamAnalysis", "AnalysisError", "analyse", "SUPPORT_TYPES"]
 
-MAP_LENGTH = {"m": 1.0, "cm": 0.01, "mm": 0.001, "in": 0.0254, "ft": 0.3048}
-MAP_E = {"GPa": 1e6, "MPa": 1e3, "kPa": 1.0, "psi": 6.89476, "ksi": 6894.76}
-MAP_I = {"m⁴": 1.0, "cm⁴": 1e-8, "mm⁴": 1e-12, "in⁴": 4.162314e-7, "ft⁴": 0.00863097}
-MAP_FORCE = {"kN": 1.0, "N": 0.001, "lb": 0.00444822, "kip": 4.44822}
-MAP_MOMENT = {"kN·m": 1.0, "N·m": 0.001, "lb·ft": 0.00135582, "kip·ft": 1.35582}
-MAP_DIST_LOAD = {"kN/m": 1.0, "N/m": 0.001, "lb/ft": 0.0145939, "kip/ft": 14.5939}
+# support type → (vertical restraint, rotational restraint)
+SUPPORT_TYPES = {"pin": (1, 0), "roller": (1, 0), "fixed": (1, 1)}
+
+
+class AnalysisError(ValueError):
+    """The beam cannot be analysed, for example because it is unstable."""
 
 
 class BeamAnalysis:
@@ -218,405 +212,239 @@ class BeamAnalysis:
         self.apply_boundary_conditions_and_solve()
         self.calculate_member_end_forces()
 
-    def get_diagram_data(self, num_points=50):
-        """Computes continuous internal actions along the beam.
-
-        Returns (x, V, M, d):
-          x: global position along beam (m)
-          V: shear force (kN)
-          M: bending moment (kNm, sagging positive)
-          d: vertical deflection (m, downward positive)
-        """
-        x_all, v_all, m_all, d_all = [], [], [], []
-        for eid in range(self.num_elements):
-            L = self.L[eid]
-            s_node, e_node = self.elements[eid]
-            x_start = self.nodes[s_node]
-            V1 = self.member_end_forces[eid][0]
-            M1 = self.member_end_forces[eid][1]
-            v1, t1, v2, t2 = [self.displacements[d] for d in self._get_elem_dofs(eid)]
-
-            pts = num_points if eid == self.num_elements - 1 else num_points
-            for i in range(pts + 1):
-                # Avoid duplicate point at shared internal nodes
-                if i == 0 and eid > 0:
-                    continue
-                x_loc = L * i / pts
-                x_glob = x_start + x_loc
-                xi = x_loc / L if L > 0 else 0.0
-
-                # Hermite cubic shape functions for transverse deflection
-                N1 = 1.0 - 3.0 * xi**2 + 2.0 * xi**3
-                N2 = L * xi * (1.0 - xi)**2
-                N3 = 3.0 * xi**2 - 2.0 * xi**3
-                N4 = L * (xi**3 - xi**2)
-                deflection = N1 * v1 + N2 * t1 + N3 * v2 + N4 * t2
-
-                # Static equilibrium for internal shear and moment
-                # V1 and M1 are end reactions in local member coordinate
-                # With downward loads entered as negative (w < 0, W < 0):
-                V = V1
-                M = -M1 + V1 * x_loc
-                for ld in self.member_point_loads:
-                    if ld["elem"] == eid and x_loc >= ld["l1"]:
-                        V -= ld["W"]
-                        M -= ld["W"] * (x_loc - ld["l1"])
-                for ld in self.member_udl:
-                    if ld["elem"] == eid:
-                        if x_loc > ld["l2"]:
-                            dx = ld["l2"] - ld["l1"]
-                            V -= ld["w"] * dx
-                            M -= ld["w"] * dx * (x_loc - (ld["l1"] + ld["l2"]) / 2.0)
-                        elif x_loc > ld["l1"]:
-                            dx = x_loc - ld["l1"]
-                            V -= ld["w"] * dx
-                            M -= ld["w"] * dx * (dx / 2.0)
-                for ld in self.member_moment:
-                    if ld["elem"] == eid and x_loc >= ld["l1"]:
-                        M -= ld["M0"]
-                for ld in self.member_linear_load:
-                    if ld["elem"] == eid:
-                        w1, w2, l1s, l2s = ld["w1"], ld["w2"], ld["l1"], ld["l2"]
-                        if x_loc >= l2s:
-                            c = l2s - l1s
-                            Wa = (w1 + w2) * c / 2.0
-                            xa = l1s + c * (w1 + 2.0 * w2) / (3.0 * (w1 + w2)) if abs(w1 + w2) > 1e-12 else l1s
-                            V -= Wa
-                            M -= Wa * (x_loc - xa)
-                        elif x_loc > l1s:
-                            dx = x_loc - l1s
-                            w_at_x = w1 + (w2 - w1) * (dx / (l2s - l1s))
-                            V -= (w1 + w_at_x) * dx / 2.0
-                            M -= (dx**2 / 6.0) * (2.0 * w1 + w_at_x)
-
-                x_all.append(float(x_glob))
-                v_all.append(float(V))
-                m_all.append(float(M))
-                d_all.append(float(deflection))
-
-        # Standard Eurocode sign convention:
-        # Sagging moment is positive (tension at bottom)
-        # Shear force starts positive at left support under downward load
-        return np.array(x_all), -np.array(v_all), -np.array(m_all), np.array(d_all)
-
-    def get_key_indices(self, y_vals, x_vals):
-        """Smart feature detection for diagrams: nodes, zero-crossings, peaks."""
-        key_idxs = set()
-        for xn in self.nodes.values():
-            idx = int(np.argmin(np.abs(x_vals - xn)))
-            key_idxs.add(idx)
-        for i in range(len(y_vals) - 1):
-            if y_vals[i] * y_vals[i + 1] < 0:
-                key_idxs.add(i)
-        for i in range(1, len(y_vals) - 1):
-            if (y_vals[i] > y_vals[i - 1] and y_vals[i] > y_vals[i + 1]) or \
-               (y_vals[i] < y_vals[i - 1] and y_vals[i] < y_vals[i + 1]):
-                key_idxs.add(i)
-
-        sorted_idxs = sorted(list(key_idxs))
-        filtered_idxs = []
-        min_dist = max(1, int(len(x_vals) * 0.05))
-        for idx in sorted_idxs:
-            if not filtered_idxs or (idx - filtered_idxs[-1]) >= min_dist:
-                filtered_idxs.append(idx)
-            else:
-                if abs(y_vals[idx]) > abs(y_vals[filtered_idxs[-1]]):
-                    filtered_idxs[-1] = idx
-        return filtered_idxs
 
 
-def solve_beam(span_m, system="simple", loads=None, supports=None, E_kpa=33e6, I_m4=0.003, self_weight=0.0, num_points=60):
-    """High-level beam solver integrating with EC2 concrete design.
+# ---------------------------------------------------------------- wrapper for the design checks
 
-    Parameters:
-      span_m: total beam span in metres (or list of span lengths for continuous beams)
-      system: "simple", "cantilever", "end", "interior", or "custom"
-      loads: list of load dicts:
-         - {'type': 'point', 'W': kN, 'x': m}
-         - {'type': 'udl', 'w': kN/m, 'l1': m, 'l2': m}
-         - {'type': 'moment', 'M0': kNm, 'x': m}
-         - {'type': 'linear', 'w1': kN/m, 'w2': kN/m, 'l1': m, 'l2': m}
-      supports: custom supports (dict of {node_or_x: [fix_v, fix_m]} or list of dicts)
-      E_kpa: Elastic modulus in kPa (kN/m²), scalar or list/dict
-      I_m4: Second moment of area in m⁴, scalar or list/dict
-      self_weight: Self weight UDL in kN/m (positive, acting downwards)
+def _inertia_at(inertia, x):
+    if isinstance(inertia, (int, float)):
+        return float(inertia)
+    for seg in inertia:
+        if seg["x1"] - 1e-9 <= x <= seg["x2"] + 1e-9:
+            return float(seg["I"])
+    return float(inertia[-1]["I"])
+
+
+def _internal(a, eid, x_loc):
+    """Shear, moment and deflection at x_loc inside element eid, in the client's convention."""
+    L = a.L[eid]
+    V1, M1 = a.member_end_forces[eid][0], a.member_end_forces[eid][1]
+    v1, t1, v2, t2 = [a.displacements[d] for d in a._get_elem_dofs(eid)]
+    xi = x_loc / L
+    deflection = ((1 - 3 * xi**2 + 2 * xi**3) * v1 + L * xi * (1 - xi)**2 * t1
+                  + (3 * xi**2 - 2 * xi**3) * v2 + L * (xi**3 - xi**2) * t2)
+    V, M = V1, -M1 + V1 * x_loc
+    for ld in a.member_udl:
+        if ld["elem"] == eid and x_loc > ld["l1"]:
+            dx = min(x_loc, ld["l2"]) - ld["l1"]
+            V -= ld["w"] * dx
+            M -= ld["w"] * dx * (x_loc - ld["l1"] - dx / 2)
+    for ld in a.member_linear_load:
+        if ld["elem"] == eid and x_loc > ld["l1"]:
+            w1, w2, l1, l2 = ld["w1"], ld["w2"], ld["l1"], ld["l2"]
+            c = min(x_loc, l2) - l1
+            w_c = w1 + (w2 - w1) * c / (l2 - l1)
+            force = (w1 + w_c) * c / 2
+            centroid = l1 + (c / 3 * (w1 + 2 * w_c) / (w1 + w_c) if abs(w1 + w_c) > 1e-12 else c / 2)
+            V -= force
+            M -= force * (x_loc - centroid)
+    return V, M, deflection
+
+
+def _key(x):
+    return round(float(x), 6)
+
+
+def analyse(length, supports, loads, E=33e6, inertia=0.003):
+    """Analyse a straight beam.
+
+    length    total length in m
+    supports  [{"x": m, "type": "pin" | "roller" | "fixed"}]
+    loads     [{"type": "point", "W", "x"}, {"type": "udl", "w", "x1", "x2"},
+               {"type": "linear", "w1", "w2", "x1", "x2"}, {"type": "moment", "M", "x"}]
+    E         kPa (kN/m²)
+    inertia   m⁴, or [{"x1", "x2", "I"}] for a beam whose stiffness changes along its length
     """
-    if isinstance(span_m, (int, float)):
-        spans = [float(span_m)]
-    else:
-        spans = [float(s) for s in span_m]
+    L = float(length)
+    if not supports:
+        raise AnalysisError("Add at least one support.")
+    sups = {}
+    for sp in supports:
+        x = _key(sp["x"])
+        if sp["type"] == "fixed" or x not in sups:
+            sups[x] = sp["type"]
+    segments = [] if isinstance(inertia, (int, float)) else inertia
 
-    total_len = sum(spans)
-    loads = loads or []
-
-    # Collect key x-coordinates where nodes should be placed for exact solution
-    x_nodes = [0.0]
-    curr_x = 0.0
-    support_xs = [0.0]
-    span_bounds = []
-    for s in spans:
-        x_start_span = curr_x
-        n_sub = max(4, int(math.ceil(s / 1.0)))
-        for j in range(1, n_sub):
-            x_nodes.append(round(curr_x + j * (s / n_sub), 4))
-        curr_x += s
-        x_nodes.append(round(curr_x, 4))
-        support_xs.append(round(curr_x, 4))
-        span_bounds.append((x_start_span, curr_x))
-
-    if supports is not None:
-        if isinstance(supports, dict):
-            for k in supports.keys():
-                if isinstance(k, (int, float)):
-                    x_nodes.append(round(float(k), 4))
-        elif isinstance(supports, list):
-            for sp in supports:
-                if isinstance(sp, dict) and "x" in sp:
-                    x_nodes.append(round(float(sp["x"]), 4))
-
+    # analytical model: ends, supports and changes of stiffness
+    model_x = sorted({0.0, _key(L), *sups, *(_key(s[k]) for s in segments for k in ("x1", "x2") if 0 < s[k] < L)})
+    # mesh: the model nodes, every load position and a fine subdivision for the deflected shape
+    mesh_x = set(model_x)
     for ld in loads:
-        ltype = ld.get("type")
-        if ltype == "point":
-            x_nodes.append(round(float(ld.get("x", 0.0)), 4))
-        elif ltype == "moment":
-            x_nodes.append(round(float(ld.get("x", 0.0)), 4))
-        elif ltype in ("udl", "linear"):
-            x_nodes.append(round(float(ld.get("l1", 0.0)), 4))
-            x_nodes.append(round(float(ld.get("l2", total_len)), 4))
+        for k in ("x", "x1", "x2"):
+            if k in ld:
+                mesh_x.add(_key(ld[k]))
+    target = L / 48
+    for x0, x1 in zip(model_x, model_x[1:]):
+        n = max(4, math.ceil((x1 - x0) / target))
+        mesh_x.update(_key(x0 + (x1 - x0) * i / n) for i in range(1, n))
+    mesh_x = sorted(x for x in mesh_x if 0 <= x <= L)
+    merged = [mesh_x[0]]
+    for x in mesh_x[1:]:
+        if x - merged[-1] > 1e-6 * max(L, 1):
+            merged.append(x)
+    mesh_x = merged
+    index = {x: i for i, x in enumerate(mesh_x)}
 
-    # Keep unique within bounds [0, total_len]
-    x_nodes = sorted(list(set(x for x in x_nodes if 0.0 <= x <= total_len)))
-    if len(x_nodes) < 2:
-        x_nodes = [0.0, total_len]
-
-    node_map = {i: x for i, x in enumerate(x_nodes)}
-    x_to_node = {x: i for i, x in enumerate(x_nodes)}
+    def node_at(x):
+        x = _key(x)
+        return index[x] if x in index else min(index.values(), key=lambda i: abs(mesh_x[i] - x))
 
     a = BeamAnalysis()
-    a.num_nodes = len(x_nodes)
-    a.nodes = node_map
+    a.num_nodes = len(mesh_x)
+    a.nodes = dict(enumerate(mesh_x))
     a.total_dofs = 2 * a.num_nodes
-    a.num_elements = len(x_nodes) - 1
-
-    def _resolve_prop(prop, x_mid):
-        if isinstance(prop, (int, float)):
-            return float(prop)
-        if isinstance(prop, (list, tuple)):
-            if len(prop) == 0:
-                return 1.0
-            if isinstance(prop[0], dict):
-                for item in prop:
-                    x1 = float(item.get("l1", item.get("x1", 0.0)))
-                    x2 = float(item.get("l2", item.get("x2", total_len)))
-                    if x1 <= x_mid <= x2:
-                        return float(item.get("val", item.get("value", item.get("I", item.get("E", 1.0)))))
-                return float(prop[-1].get("val", prop[-1].get("value", prop[-1].get("I", prop[-1].get("E", 1.0)))))
-            for s_idx, (sx0, sx1) in enumerate(span_bounds):
-                if sx0 <= x_mid <= sx1:
-                    return float(prop[min(s_idx, len(prop) - 1)])
-            return float(prop[0])
-        return float(prop)
-
+    a.num_elements = a.num_nodes - 1
     for i in range(a.num_elements):
         a.elements[i] = (i, i + 1)
-        x_mid = 0.5 * (x_nodes[i] + x_nodes[i + 1])
-        a.E[i] = _resolve_prop(E_kpa, x_mid)
-        a.I[i] = _resolve_prop(I_m4, x_mid)
-        a.L[i] = float(x_nodes[i + 1] - x_nodes[i])
+        a.E[i] = float(E)
+        a.I[i] = _inertia_at(inertia, 0.5 * (mesh_x[i] + mesh_x[i + 1]))
+        a.L[i] = mesh_x[i + 1] - mesh_x[i]
+    for x, kind in sups.items():
+        a.supports[node_at(x)] = list(SUPPORT_TYPES[kind])
 
-    # Assign boundary conditions
-    # 0 = free, 1 = fixed
-    # [fix_vert, fix_rot]
-    if supports is not None:
-        if isinstance(supports, dict):
-            for k, val in supports.items():
-                if isinstance(k, (int, np.integer)) and int(k) in a.nodes:
-                    a.supports[int(k)] = [int(val[0]), int(val[1])]
-                else:
-                    x_val = float(k)
-                    best_n = min(a.nodes.keys(), key=lambda n: abs(a.nodes[n] - x_val))
-                    a.supports[best_n] = [int(val[0]), int(val[1])]
-        elif isinstance(supports, list):
-            for sp in supports:
-                if isinstance(sp, dict):
-                    x_val = float(sp.get("x", 0.0))
-                    best_n = min(a.nodes.keys(), key=lambda n: abs(a.nodes[n] - x_val))
-                    a.supports[best_n] = [int(sp.get("fix_v", 1)), int(sp.get("fix_m", 0))]
-    elif system == "cantilever":
-        # Fixed at node 0, all others free
-        a.supports[0] = [1, 1]
-    elif system == "simple":
-        # Pin at start, roller at end
-        a.supports[0] = [1, 0]
-        a.supports[x_to_node[total_len]] = [1, 0]
-    elif system == "end":
-        # Pin at start, intermediate supports roller, continuous end
-        a.supports[0] = [1, 0]
-        for sx in support_xs[1:]:
-            if sx in x_to_node:
-                a.supports[x_to_node[sx]] = [1, 0]
-    elif system == "interior":
-        # All support points pinned/roller
-        for sx in support_xs:
-            if sx in x_to_node:
-                a.supports[x_to_node[sx]] = [1, 0]
-    else:
-        a.supports[0] = [1, 0]
-        a.supports[x_to_node[total_len]] = [1, 0]
-
-    # Apply self-weight across all elements (downward load is negative)
-    if self_weight > 0:
-        for i in range(a.num_elements):
-            a.member_udl.append({
-                "elem": i,
-                "w": -float(self_weight),
-                "l1": 0.0,
-                "l2": a.L[i]
-            })
-
-    # Apply member loads
+    # the client's engine takes downward loads as negative and moments with the opposite sense
     for ld in loads:
-        ltype = ld.get("type")
-        if ltype == "point":
-            x_pos = float(ld.get("x", 0.0))
-            w_val = float(ld.get("W", 0.0))
-            if x_pos in x_to_node:
-                n = x_to_node[x_pos]
-                a.point_loads.append({"node": n, "Fy": -w_val, "M": 0.0})
-            else:
-                for eid in range(a.num_elements):
-                    x0 = a.nodes[a.elements[eid][0]]
-                    x1 = a.nodes[a.elements[eid][1]]
-                    if x0 <= x_pos <= x1:
-                        a.member_point_loads.append({"elem": eid, "W": -w_val, "l1": x_pos - x0})
-                        break
+        kind = ld["type"]
+        if kind == "point":
+            a.point_loads.append({"node": node_at(ld["x"]), "Fy": -ld["W"], "M": 0.0})
+        elif kind == "moment":
+            a.point_loads.append({"node": node_at(ld["x"]), "Fy": 0.0, "M": ld["M"]})
+        elif kind in ("udl", "linear"):
+            x1, x2 = ld["x1"], ld["x2"]
+            w1, w2 = (ld["w"], ld["w"]) if kind == "udl" else (ld["w1"], ld["w2"])
+            for e in range(a.num_elements):
+                s, f = max(mesh_x[e], x1), min(mesh_x[e + 1], x2)
+                if f - s <= 1e-9:
+                    continue
+                ws = w1 + (w2 - w1) * (s - x1) / (x2 - x1)
+                wf = w1 + (w2 - w1) * (f - x1) / (x2 - x1)
+                l1, l2 = s - mesh_x[e], f - mesh_x[e]
+                if abs(ws - wf) < 1e-12:
+                    a.member_udl.append({"elem": e, "w": -ws, "l1": l1, "l2": l2})
+                else:
+                    a.member_linear_load.append({"elem": e, "w1": -ws, "w2": -wf, "l1": l1, "l2": l2})
 
-        elif ltype == "moment":
-            x_pos = float(ld.get("x", 0.0))
-            m_val = float(ld.get("M0", 0.0))
-            if x_pos in x_to_node:
-                n = x_to_node[x_pos]
-                a.point_loads.append({"node": n, "Fy": 0.0, "M": m_val})
-            else:
-                for eid in range(a.num_elements):
-                    x0 = a.nodes[a.elements[eid][0]]
-                    x1 = a.nodes[a.elements[eid][1]]
-                    if x0 <= x_pos <= x1:
-                        a.member_moment.append({"elem": eid, "M0": m_val, "l1": x_pos - x0})
-                        break
+    a.assemble_global_stiffness()
+    a.assemble_force_vector()
+    restrained = a.get_restrained_dofs()
+    free = [d for d in range(a.total_dofs) if d not in restrained]
+    if free and np.linalg.matrix_rank(a.K_global[np.ix_(free, free)]) < len(free):
+        raise AnalysisError("The beam is unstable with these supports: add a support or make one end fixed.")
+    a.apply_boundary_conditions_and_solve()
+    a.calculate_member_end_forces()
+    return _results(a, L, model_x, sups, segments, E, inertia)
 
-        elif ltype == "udl":
-            w_val = float(ld.get("w", 0.0))
-            l1_abs = max(0.0, float(ld.get("l1", 0.0)))
-            l2_abs = min(total_len, float(ld.get("l2", total_len)))
-            for eid in range(a.num_elements):
-                x0 = a.nodes[a.elements[eid][0]]
-                x1 = a.nodes[a.elements[eid][1]]
-                overlap_start = max(x0, l1_abs)
-                overlap_end = min(x1, l2_abs)
-                if overlap_end > overlap_start:
-                    a.member_udl.append({
-                        "elem": eid,
-                        "w": -w_val,
-                        "l1": overlap_start - x0,
-                        "l2": overlap_end - x0
-                    })
 
-        elif ltype == "linear":
-            w1 = float(ld.get("w1", 0.0))
-            w2 = float(ld.get("w2", 0.0))
-            l1_abs = max(0.0, float(ld.get("l1", 0.0)))
-            l2_abs = min(total_len, float(ld.get("l2", total_len)))
-            span_ld = l2_abs - l1_abs
-            for eid in range(a.num_elements):
-                x0 = a.nodes[a.elements[eid][0]]
-                x1 = a.nodes[a.elements[eid][1]]
-                overlap_start = max(x0, l1_abs)
-                overlap_end = min(x1, l2_abs)
-                if overlap_end > overlap_start and span_ld > 0:
-                    t_start = (overlap_start - l1_abs) / span_ld
-                    t_end = (overlap_end - l1_abs) / span_ld
-                    w_start = w1 + (w2 - w1) * t_start
-                    w_end = w1 + (w2 - w1) * t_end
-                    a.member_linear_load.append({
-                        "elem": eid,
-                        "w1": -w_start,
-                        "w2": -w_end,
-                        "l1": overlap_start - x0,
-                        "l2": overlap_end - x0
-                    })
+def _results(a, L, model_x, sups, segments, E, inertia):
+    # samples along each element, both ends included, so jumps at nodes keep both values
+    xs, vs, ms, ds = [], [], [], []
+    per_m = 400 / L
+    for e in range(a.num_elements):
+        n = max(6, math.ceil(a.L[e] * per_m))
+        for i in range(n + 1):
+            xl = a.L[e] * i / n
+            v, m, d = _internal(a, e, xl)
+            xs.append(a.nodes[e] + xl)
+            vs.append(-v)
+            ms.append(-m)
+            ds.append(d * 1000)
+    xs, vs, ms, ds = (np.array(t) for t in (xs, vs, ms, ds))
 
-    # Solve the system
-    a.run_analysis()
+    def side(x, values, right):
+        idx = np.where(np.abs(xs - x) < 1e-9)[0]
+        if not len(idx):
+            return float(np.interp(x, xs, values))
+        return float(values[idx[-1] if right else idx[0]])
 
-    # Extract diagram data
-    pts_per_elem = max(10, num_points // max(1, a.num_elements))
-    x_pts, v_pts, m_pts, d_pts = a.get_diagram_data(pts_per_elem)
+    # analytical model: nodes, elements and degrees of freedom numbered as in the textbook method
+    mesh_index = {_key(x): i for i, x in a.nodes.items()}
+    nodes = []
+    for j, x in enumerate(model_x):
+        kind = sups.get(x)
+        fix = SUPPORT_TYPES[kind] if kind else (0, 0)
+        i = mesh_index[x]
+        nodes.append({"n": j + 1, "x": x, "support": kind, "fix": list(fix),
+                      "v_mm": -float(a.displacements[2 * i]) * 1000, "theta": -float(a.displacements[2 * i + 1])})
+    number = 1
+    for nd in nodes:
+        nd["dofs"] = [None, None]
+        for k in (0, 1):
+            if not nd["fix"][k]:
+                nd["dofs"][k] = number
+                number += 1
+    free_dofs = number - 1
+    for nd in nodes:
+        for k in (0, 1):
+            if nd["fix"][k]:
+                nd["dofs"][k] = number
+                number += 1
 
-    # In structural engineering sign convention:
-    # Sagging moment is positive (tension at bottom), hogging is negative (tension at top)
-    # Deflection downward is positive
-    max_sagging = float(np.max(m_pts)) if len(m_pts) else 0.0
-    max_hogging = float(np.min(m_pts)) if len(m_pts) else 0.0
-    abs_max_m = float(np.max(np.abs(m_pts))) if len(m_pts) else 0.0
-    abs_max_v = float(np.max(np.abs(v_pts))) if len(v_pts) else 0.0
-    max_defl_m = float(np.max(np.abs(d_pts))) if len(d_pts) else 0.0
-
-    # Build reactions list
-    reactions_list = []
-    for n in sorted(a.supports.keys()):
-        reactions_list.append({
-            "node": n + 1,
-            "x": float(a.nodes[n]),
-            "Ry": float(a.reactions[2 * n]),
-            "M": float(a.reactions[2 * n + 1])
+    elements = []
+    for j, (x0, x1) in enumerate(zip(model_x, model_x[1:])):
+        elements.append({
+            "e": j + 1, "start": j + 1, "end": j + 2, "x1": x0, "x2": x1, "L": x1 - x0, "E": float(E),
+            "I": _inertia_at(inertia, 0.5 * (x0 + x1)),
+            # member end forces: shear up and moment anticlockwise at each end
+            "Q": [side(x0, vs, True), -side(x0, ms, True), -side(x1, vs, False), side(x1, ms, False)],
         })
 
-    # Build displacements list
-    displacements_list = []
-    for n in range(a.num_nodes):
-        displacements_list.append({
-            "node": n + 1,
-            "x": float(a.nodes[n]),
-            "dy_mm": float(a.displacements[2 * n] * 1000.0),
-            "theta_rad": float(a.displacements[2 * n + 1])
-        })
+    reactions = []
+    for nd in nodes:
+        if not nd["support"]:
+            continue
+        i = mesh_index[nd["x"]]
+        reactions.append({"node": nd["n"], "x": nd["x"], "type": nd["support"],
+                          "Ry": -float(a.reactions[2 * i]),
+                          "M": -float(a.reactions[2 * i + 1]) if nd["fix"][1] else None})
 
-    # Member end forces list
-    member_forces_list = []
-    for eid in range(a.num_elements):
-        f = a.member_end_forces[eid]
-        member_forces_list.append({
-            "elem": eid + 1,
-            "V1": float(f[0]),
-            "M1": float(f[1]),
-            "V2": float(f[2]),
-            "M2": float(f[3])
-        })
-
-    key_idxs = a.get_key_indices(m_pts, x_pts)
-    key_points = []
-    for idx in key_idxs:
-        key_points.append({
-            "x": float(x_pts[idx]),
-            "M": float(m_pts[idx]),
-            "V": float(v_pts[idx]),
-            "d_mm": float(d_pts[idx] * 1000.0)
-        })
-
-    return {
-        "analysis": a,
-        "x": [round(float(x), 4) for x in x_pts],
-        "M": [round(float(m), 3) for m in m_pts],
-        "V": [round(float(v), 3) for v in v_pts],
-        "delta_mm": [round(float(d * 1000.0), 3) for d in d_pts],
-        "max_sagging_kNm": max_sagging,
-        "max_hogging_kNm": max_hogging,
-        "abs_max_M_kNm": abs_max_m,
-        "abs_max_V_kN": abs_max_v,
-        "max_deflection_mm": max_defl_m * 1000.0,
-        "reactions": reactions_list,
-        "displacements": displacements_list,
-        "member_forces": member_forces_list,
-        "key_points": key_points
+    i_sag, i_hog, i_v, i_d = int(np.argmax(ms)), int(np.argmin(ms)), int(np.argmax(np.abs(vs))), int(np.argmax(np.abs(ds)))
+    envelope = {
+        "sagging": {"M": max(float(ms[i_sag]), 0.0), "x": float(xs[i_sag]), "i": i_sag},
+        "hogging": {"M": min(float(ms[i_hog]), 0.0), "x": float(xs[i_hog]), "i": i_hog},
+        "shear": {"V": float(abs(vs[i_v])), "x": float(xs[i_v]), "i": i_v},
+        "deflection": {"d": float(ds[i_d]), "x": float(xs[i_d]), "i": i_d},
     }
+    return {
+        "length": L, "E": float(E), "segments": segments, "free_dofs": free_dofs,
+        "nodes": nodes, "elements": elements, "reactions": reactions, "envelope": envelope,
+        "x": xs.round(5).tolist(), "V": vs.round(4).tolist(), "M": ms.round(4).tolist(), "delta": ds.round(5).tolist(),
+        "events": _events(xs, vs, ms, model_x, a),
+    }
+
+
+def _events(xs, vs, ms, model_x, a):
+    """Points worth labelling: values either side of every node, peaks and zero moments."""
+    out = {"V": [], "M": [], "zeros": []}
+    marked = sorted({*model_x, *(_key(v) for v in a.nodes.values() if _is_load_node(a, v))})
+    for x in marked:
+        idx = np.where(np.abs(xs - x) < 1e-9)[0]
+        for name, values in (("V", vs), ("M", ms)):
+            left, right = float(values[idx[0]]), float(values[idx[-1]])
+            out[name].append({"x": x, "left": left, "right": right})
+    # moment peaks between nodes, where the shear changes sign under a distributed load
+    ux, first = np.unique(xs, return_index=True)
+    um = ms[first]
+    for i in range(1, len(ux) - 1):
+        if (um[i] - um[i - 1]) * (um[i + 1] - um[i]) < 0 and abs(um[i]) > 1e-6 and _key(ux[i]) not in marked:
+            out["M"].append({"x": float(ux[i]), "left": float(um[i]), "right": float(um[i]), "peak": True})
+    tol = 1e-6 * max(float(np.max(np.abs(ms))), 1e-9)
+    for i in range(len(xs) - 1):
+        if xs[i + 1] > xs[i] and ms[i] * ms[i + 1] < 0 and min(abs(ms[i]), abs(ms[i + 1])) > tol:
+            t = ms[i] / (ms[i] - ms[i + 1])
+            out["zeros"].append(float(xs[i] + t * (xs[i + 1] - xs[i])))
+    return out
+
+
+def _is_load_node(a, x):
+    n = next(i for i, v in a.nodes.items() if v == x)
+    return any(p["node"] == n for p in a.point_loads)

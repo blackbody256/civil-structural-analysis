@@ -1,202 +1,112 @@
-"""Tests for the Matrix Stiffness Beam Analysis engine (ec2/analysis.py)."""
-import math
-import numpy as np
+"""Matrix stiffness beam analysis against the client's example and standard beam formulas."""
 import pytest
 
-from ec2.analysis import BeamAnalysis, solve_beam
+from ec2.analysis import AnalysisError, analyse
+
+# The client's example (BeamViz Pro): fixed at 0, rollers at 10 m and 20 m, 1.5I over the first 6 m.
+CLIENT_SUPPORTS = [{"x": 0, "type": "fixed"}, {"x": 10, "type": "roller"}, {"x": 20, "type": "roller"}]
+CLIENT_LOADS = [{"type": "linear", "w1": 30, "w2": 0, "x1": 0, "x2": 6}, {"type": "point", "W": 200, "x": 6},
+                {"type": "moment", "M": 90, "x": 10}, {"type": "point", "W": 150, "x": 15}]
+CLIENT_I = [{"x1": 0, "x2": 6, "I": 0.0087}, {"x1": 6, "x2": 20, "I": 0.0058}]
 
 
-def test_simply_supported_point_load():
-    L = 6.0
-    P = 120.0  # kN
-    E = 30e6   # kPa
-    I = 0.002  # m4
-    res = solve_beam(
-        span_m=L,
-        system="simple",
-        loads=[{"type": "point", "W": P, "x": 3.0}],
-        E_kpa=E,
-        I_m4=I,
-        self_weight=0.0
-    )
-    # Theoretical results
-    expected_R = P / 2.0  # 60 kN
-    expected_M = P * L / 4.0  # 180 kNm
-    expected_defl_m = P * L**3 / (48.0 * E * I)  # 0.0089999 m = 9.0 mm
+@pytest.fixture(scope="module")
+def client():
+    return analyse(20, CLIENT_SUPPORTS, CLIENT_LOADS, E=28e6, inertia=CLIENT_I)
 
-    assert len(res["reactions"]) == 2
-    assert math.isclose(res["reactions"][0]["Ry"], -expected_R, rel_tol=1e-3)
-    assert math.isclose(res["reactions"][1]["Ry"], -expected_R, rel_tol=1e-3)
-    assert math.isclose(res["abs_max_M_kNm"], expected_M, rel_tol=1e-3)
-    assert math.isclose(res["abs_max_V_kN"], expected_R, rel_tol=1e-3)
-    assert math.isclose(res["max_deflection_mm"], expected_defl_m * 1000.0, rel_tol=1e-3)
+
+def event(res, name, x):
+    return next(e for e in res["events"][name] if abs(e["x"] - x) < 1e-9 and not e.get("peak"))
+
+
+def test_client_example_reactions(client):
+    rx = {r["x"]: r for r in client["reactions"]}
+    assert rx[0.0]["Ry"] == pytest.approx(146.33, abs=0.005)
+    assert rx[0.0]["M"] == pytest.approx(281.19, abs=0.005)
+    assert rx[10.0]["Ry"] == pytest.approx(243.46, abs=0.005)
+    assert rx[20.0]["Ry"] == pytest.approx(50.21, abs=0.005)
+    assert rx[10.0]["M"] is None
+
+
+def test_client_example_shear_and_moment(client):
+    # the values in the client's diagrams (moments to the 0.03 kNm the printed values are rounded to)
+    assert event(client, "V", 0)["right"] == pytest.approx(146.33, abs=0.005)
+    assert event(client, "V", 6)["left"] == pytest.approx(56.33, abs=0.005)
+    assert event(client, "V", 6)["right"] == pytest.approx(-143.67, abs=0.005)
+    assert event(client, "V", 10)["right"] == pytest.approx(99.79, abs=0.005)
+    assert event(client, "V", 15)["right"] == pytest.approx(-50.21, abs=0.005)
+    assert event(client, "M", 0)["right"] == pytest.approx(-281.19, abs=0.005)
+    assert event(client, "M", 6)["left"] == pytest.approx(236.79, abs=0.03)
+    assert event(client, "M", 10)["left"] == pytest.approx(-337.89, abs=0.03)
+    assert event(client, "M", 10)["right"] == pytest.approx(-247.89, abs=0.03)
+    assert event(client, "M", 15)["left"] == pytest.approx(251.06, abs=0.03)
+    assert event(client, "M", 20)["left"] == pytest.approx(0, abs=1e-6)
+    assert len(client["events"]["zeros"]) == 3
+
+
+def test_client_example_statics(client):
+    # the moments follow exactly from the reactions: M(6) = −281.19 + 146.33·6 − 90·(6 − 2)
+    rx = client["reactions"][0]
+    assert event(client, "M", 6)["left"] == pytest.approx(-rx["M"] + rx["Ry"] * 6 - 90 * 4, abs=1e-6)
+    assert sum(r["Ry"] for r in client["reactions"]) == pytest.approx(90 + 200 + 150)
+
+
+def test_client_example_model_numbering(client):
+    """Nodes, elements and degrees of freedom numbered as in the client's analytical model."""
+    assert [n["x"] for n in client["nodes"]] == [0, 6, 10, 20]
+    assert [n["dofs"] for n in client["nodes"]] == [[5, 6], [1, 2], [7, 3], [8, 4]]
+    assert client["free_dofs"] == 4
+    assert [r["node"] for r in client["reactions"]] == [1, 3, 4]
+    q = client["elements"][0]["Q"]
+    assert q == pytest.approx([146.33, 281.19, -56.33, 236.77], abs=0.01)
 
 
 def test_simply_supported_udl():
-    L = 8.0
-    w = 25.0  # kN/m
-    E = 33e6  # kPa
-    I = 0.005  # m4
-    res = solve_beam(
-        span_m=L,
-        system="simple",
-        loads=[{"type": "udl", "w": w, "l1": 0.0, "l2": L}],
-        E_kpa=E,
-        I_m4=I,
-        self_weight=0.0
-    )
-    expected_R = w * L / 2.0  # 100 kN
-    expected_M = w * L**2 / 8.0  # 200 kNm
-    expected_defl_m = 5.0 * w * L**4 / (384.0 * E * I)  # 5 * 25 * 4096 / (384 * 33e6 * 0.005)
-
-    assert math.isclose(res["reactions"][0]["Ry"], -expected_R, rel_tol=1e-3)
-    assert math.isclose(res["reactions"][1]["Ry"], -expected_R, rel_tol=1e-3)
-    assert math.isclose(res["abs_max_M_kNm"], expected_M, rel_tol=1e-3)
-    assert math.isclose(res["abs_max_V_kN"], expected_R, rel_tol=1e-3)
-    assert math.isclose(res["max_deflection_mm"], expected_defl_m * 1000.0, rel_tol=1e-3)
+    res = analyse(10, [{"x": 0, "type": "pin"}, {"x": 10, "type": "roller"}],
+                  [{"type": "udl", "w": 10, "x1": 0, "x2": 10}], E=30e6, inertia=0.001)
+    assert [r["Ry"] for r in res["reactions"]] == pytest.approx([50, 50])
+    assert res["envelope"]["sagging"]["M"] == pytest.approx(10 * 100 / 8)
+    assert res["envelope"]["sagging"]["x"] == pytest.approx(5)
+    assert res["envelope"]["hogging"]["M"] == pytest.approx(0, abs=1e-6)
+    assert res["envelope"]["deflection"]["d"] == pytest.approx(5 * 10 * 10**4 / (384 * 30e6 * 0.001) * 1000, rel=1e-6)
 
 
-def test_cantilever_point_load_and_udl():
-    L = 3.5
-    P = 40.0   # kN at tip
-    w = 12.0   # kN/m
-    E = 30e6
-    I = 0.0015
-    res = solve_beam(
-        span_m=L,
-        system="cantilever",
-        loads=[
-            {"type": "point", "W": P, "x": L},
-            {"type": "udl", "w": w, "l1": 0.0, "l2": L}
-        ],
-        E_kpa=E,
-        I_m4=I,
-        self_weight=0.0
-    )
-    expected_V = P + w * L  # 40 + 42 = 82 kN
-    expected_M = P * L + w * L**2 / 2.0  # 140 + 73.5 = 213.5 kNm
-    expected_tip_defl_m = (P * L**3 / (3.0 * E * I)) + (w * L**4 / (8.0 * E * I))
-
-    assert len(res["reactions"]) == 1
-    fixed_r = res["reactions"][0]
-    assert math.isclose(abs(fixed_r["Ry"]), expected_V, rel_tol=1e-3)
-    assert math.isclose(abs(fixed_r["M"]), expected_M, rel_tol=1e-3)
-    assert math.isclose(res["abs_max_M_kNm"], expected_M, rel_tol=1e-3)
-    assert math.isclose(res["abs_max_V_kN"], expected_V, rel_tol=1e-3)
-    assert math.isclose(res["max_deflection_mm"], expected_tip_defl_m * 1000.0, rel_tol=1e-3)
+def test_two_equal_spans():
+    res = analyse(12, [{"x": 0, "type": "pin"}, {"x": 6, "type": "roller"}, {"x": 12, "type": "roller"}],
+                  [{"type": "udl", "w": 10, "x1": 0, "x2": 12}])
+    assert [r["Ry"] for r in res["reactions"]] == pytest.approx([3 * 60 / 8, 10 * 60 / 8, 3 * 60 / 8])
+    assert res["envelope"]["hogging"]["M"] == pytest.approx(-10 * 36 / 8)
+    assert res["envelope"]["sagging"]["M"] == pytest.approx(9 / 128 * 10 * 36, rel=1e-6)
 
 
-def test_client_beam_pro_example():
-    """Verify exact match with client's load_example from Beam Pro.py."""
-    a = BeamAnalysis()
-    a.num_nodes = 3
-    a.nodes = {0: 0.0, 1: 5.0, 2: 10.0}
-    a.total_dofs = 6
-    a.num_elements = 2
-    a.elements[0] = (0, 1)
-    a.elements[1] = (1, 2)
-    a.E[0] = 200e6
-    a.E[1] = 200e6
-    a.I[0] = 0.0001
-    a.I[1] = 0.0001
-    a.L[0] = 5.0
-    a.L[1] = 5.0
-    a.supports = {0: [1, 0], 2: [1, 1]}
-    a.point_loads = [{"node": 1, "Fy": -20.0, "M": 0.0}]
-    a.member_udl = [{"elem": 0, "w": -10.0, "l1": 0.0, "l2": 5.0}]
-
-    a.run_analysis()
-
-    # Equilibrium checks
-    total_reaction = abs(a.reactions[0]) + abs(a.reactions[4])
-    total_applied = 20.0 + 10.0 * 5.0
-    assert math.isclose(total_reaction, total_applied, rel_tol=1e-4)
-
-    # Reaction values from Matrix stiffness
-    assert math.isclose(abs(a.reactions[0]), 38.28125, rel_tol=1e-4)
-    assert math.isclose(abs(a.reactions[4]), 31.71875, rel_tol=1e-4)
-    assert math.isclose(abs(a.reactions[5]), 92.1875, rel_tol=1e-4)
-
-    x, v, m, d = a.get_diagram_data(20)
-    assert len(x) == len(v) == len(m) == len(d)
-    assert np.max(np.abs(v)) > 38.0
-    assert np.max(np.abs(m)) > 92.0
+def test_fixed_ends_and_cantilever():
+    fixed = analyse(8, [{"x": 0, "type": "fixed"}, {"x": 8, "type": "fixed"}], [{"type": "udl", "w": 12, "x1": 0, "x2": 8}])
+    assert fixed["envelope"]["hogging"]["M"] == pytest.approx(-12 * 64 / 12)
+    assert fixed["envelope"]["sagging"]["M"] == pytest.approx(12 * 64 / 24)
+    cant = analyse(3, [{"x": 0, "type": "fixed"}], [{"type": "point", "W": 20, "x": 3}])
+    assert cant["envelope"]["hogging"]["M"] == pytest.approx(-60)
+    assert cant["reactions"][0]["Ry"] == pytest.approx(20)
+    assert cant["envelope"]["sagging"]["M"] == pytest.approx(0, abs=1e-6)
 
 
-def test_partial_udl_and_moment():
-    res = solve_beam(
-        span_m=6.0,
-        system="simple",
-        loads=[
-            {"type": "udl", "w": 10.0, "l1": 1.0, "l2": 4.0},
-            {"type": "moment", "M0": 25.0, "x": 3.0}
-        ],
-        E_kpa=30e6,
-        I_m4=0.002
-    )
-    assert res["abs_max_M_kNm"] > 0
-    assert res["abs_max_V_kN"] > 0
-    assert len(res["key_points"]) > 0
+def test_clockwise_moment_sign():
+    res = analyse(10, [{"x": 0, "type": "pin"}, {"x": 10, "type": "roller"}], [{"type": "moment", "M": 100, "x": 5}])
+    assert [r["Ry"] for r in res["reactions"]] == pytest.approx([-10, 10])
+    assert event(res, "M", 5)["left"] == pytest.approx(-50)
+    assert event(res, "M", 5)["right"] == pytest.approx(50)
 
 
-def test_textbook_sample_stepped_continuous_beam():
-    """Verify exact match with the textbook problem in the client's uploaded images:
+def test_part_and_varying_loads_balance():
+    loads = [{"type": "udl", "w": 8, "x1": 2, "x2": 5}, {"type": "linear", "w1": 0, "w2": 12, "x1": 4, "x2": 9}]
+    res = analyse(9, [{"x": 0, "type": "pin"}, {"x": 9, "type": "roller"}], loads)
+    total = 8 * 3 + 12 * 5 / 2
+    assert sum(r["Ry"] for r in res["reactions"]) == pytest.approx(total)
+    # moments about the left support: 24 × 3.5 + 30 × (4 + 2/3·5) = Rb × 9
+    assert res["reactions"][1]["Ry"] == pytest.approx((24 * 3.5 + 30 * (4 + 10 / 3)) / 9)
 
-    20 m beam with:
-    - Span 1: x in [0, 6], 1.5 I = 0.0087 m⁴, triangular load 30 kN/m -> 0 kN/m
-    - Span 2: x in [6, 10], 1.0 I = 0.0058 m⁴
-    - Span 3: x in [10, 20], 1.0 I = 0.0058 m⁴
-    - Supports: Node 1 (x=0) Fixed [1, 1], Node 3 (x=10) Roller [1, 0], Node 4 (x=20) Roller [1, 0]
-    - Nodal load: 200 kN at x=6, 90 kNm CCW moment at x=10
-    - Point load: 150 kN at x=15
 
-    Reactions:
-      R_y1 = 146.33 kN, M_1 = 281.19 kNm
-      R_y3 = 243.46 kN
-      R_y4 = 50.21 kN
-    Bending moments:
-      M(0) = -281.19 kNm, M(6) = 236.79 kNm, M(10-) = -337.89 kNm, M(15) = 251.06 kNm
-    """
-    res = solve_beam(
-        span_m=[6.0, 4.0, 10.0],
-        supports={0.0: [1, 1], 10.0: [1, 0], 20.0: [1, 0]},
-        E_kpa=28e6,
-        I_m4=[1.5 * 5.8e-3, 5.8e-3, 5.8e-3],
-        loads=[
-            {"type": "linear", "w1": 30.0, "w2": 0.0, "l1": 0.0, "l2": 6.0},
-            {"type": "point", "W": 200.0, "x": 6.0},
-            {"type": "moment", "M0": 90.0, "x": 10.0},
-            {"type": "point", "W": 150.0, "x": 15.0}
-        ]
-    )
-
-    rx_by_x = {round(r["x"], 1): r for r in res["reactions"]}
-    assert rx_by_x[0.0]["Ry"] == pytest.approx(-146.33, abs=0.05)
-    assert rx_by_x[0.0]["M"] == pytest.approx(-281.19, abs=0.05)
-    assert rx_by_x[10.0]["Ry"] == pytest.approx(-243.46, abs=0.05)
-    assert rx_by_x[20.0]["Ry"] == pytest.approx(-50.21, abs=0.05)
-
-    # Diagram values at key sections
-    x_arr = np.array(res["x"])
-    m_arr = np.array(res["M"])
-    v_arr = np.array(res["V"])
-
-    def val_at(target_x):
-        idx = int(np.argmin(np.abs(x_arr - target_x)))
-        return float(v_arr[idx]), float(m_arr[idx])
-
-    v0, m0 = val_at(0.0)
-    assert v0 == pytest.approx(146.33, abs=0.1)
-    assert m0 == pytest.approx(-281.19, abs=0.1)
-
-    v6, m6 = val_at(6.0)
-    assert m6 == pytest.approx(236.79, abs=0.1)
-
-    v10, m10 = val_at(10.0)
-    assert m10 == pytest.approx(-337.89, abs=0.5)
-
-    v15, m15 = val_at(15.0)
-    assert m15 == pytest.approx(251.06, abs=0.1)
-
-    v20, m20 = val_at(20.0)
-    assert m20 == pytest.approx(0.0, abs=0.05)
+def test_unstable_beam_is_rejected():
+    with pytest.raises(AnalysisError):
+        analyse(10, [{"x": 5, "type": "roller"}], [{"type": "point", "W": 10, "x": 2}])
+    with pytest.raises(AnalysisError):
+        analyse(10, [], [])

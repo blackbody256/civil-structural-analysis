@@ -1,9 +1,18 @@
-"""PDF report for a beam check: the beam drawings on top of the shared report layout."""
+"""PDF report for a beam check: the section, the structural analysis and the shared report layout."""
 from reportlab.graphics.shapes import Circle, Drawing, Line, PolyLine, Polygon, Rect, String
+from reportlab.lib import colors
 from reportlab.lib.units import mm
-from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import CondPageBreak, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
-from .pdf_base import ACCENT, CONCRETE, INK, MUTED, RULE, STATUS, build_report, fonts, target_status
+from .beam_figures import beam_figures
+from .pdf_base import ACCENT, CONCRETE, INK, MUTED, RULE, STATUS, build_report, fonts, styles, target_status
+
+FIGURE_COLOURS = {
+    "ink": INK, "muted": MUTED, "accent": ACCENT, "load": STATUS["fail"], "rule": RULE, "concrete": CONCRETE,
+    "paper": colors.white, "sfd": colors.HexColor("#2F5D8A"), "bmd": colors.HexColor("#A4452C"),
+    "defl": colors.HexColor("#8F5D0A"), "react": STATUS["pass"],
+}
+WIDTH = 180 * mm
 
 
 def _outline(sec):
@@ -42,7 +51,7 @@ def _section_drawing(report, width=86 * mm, height=72 * mm):
     d.add(Rect(X(-sec["b"] / 2 + c), Y(c), (sec["b"] - 2 * c) * s, (h - 2 * c) * s, rx=3, ry=3, fillColor=None,
                strokeColor=STATUS["fail"] if fail("links") else ACCENT, strokeWidth=max(sec["link_dia"] * s, 0.7)))
     for bar in sec["bars"]:
-        colour = STATUS["fail"] if fail("bars") and bar["kind"] == "tension" else INK
+        colour = STATUS["fail"] if fail("bars") else INK
         d.add(Circle(X(bar["x"]), Y(bar["y"]), max(bar["dia"] / 2 * s, 1.2), fillColor=colour, strokeColor=None))
     d.add(String(X(0), oy - 9, f"b{'w' if sec['shape'] == 'flanged' else ''} = {sec['b']:g}", fontName=f["regular"],
                  fontSize=8, fillColor=INK, textAnchor="middle"))
@@ -51,77 +60,109 @@ def _section_drawing(report, width=86 * mm, height=72 * mm):
     if sec["shape"] == "flanged":
         d.add(String(X((x_min + x_max) / 2), Y(h) + 4, f"beff = {sec['beff']:.0f}, hf = {sec['hf']:g}",
                      fontName=f["regular"], fontSize=8, fillColor=MUTED, textAnchor="middle"))
-    face = "top" if sec["tension_face"] == "top" else "bottom"
-    d.add(String(width - 2, 2, f"tension at the {face}", fontName=f["regular"], fontSize=7.5, fillColor=MUTED,
-                 textAnchor="end"))
+    for kind, y in (("bottom", 2), ("top", height - 9)):
+        bars = [b for b in sec["bars"] if b["kind"] == kind]
+        if bars:
+            d.add(String(width - 2, y, f"{kind}: {len(bars)}H{bars[0]['dia']}", fontName=f["regular"], fontSize=7.5,
+                         fillColor=MUTED, textAnchor="end"))
     return d
 
 
-def _elevation_drawing(report, width=86 * mm, height=72 * mm):
+def render_figure(spec, width=WIDTH):
+    """Draw a figure from reports.beam_figures at the given width."""
     f = fonts()
-    el = report["plots"]["elevation"]
-    d = Drawing(width, height)
-    left, right = 10 * mm, width - 6 * mm
-    L = el["l"]
-    X = lambda x: left + x / L * (right - left)
-    beam_y = height - 16 * mm
-    d.add(Rect(left, beam_y, right - left, 3 * mm, fillColor=CONCRETE, strokeColor=INK, strokeWidth=0.8))
-    if el.get("supports"):
-        for sp in el["supports"]:
-            sx = X(sp["x"])
-            if sp.get("fix_m") == 1:
-                d.add(Line(sx, beam_y - 6, sx, beam_y + 14, strokeColor=INK, strokeWidth=1.6))
+    k = width / spec["w"]
+    H = spec["h"] * k
+    d = Drawing(width, H)
+    colour = lambda name: FIGURE_COLOURS.get(name) if name else None
+    for it in spec["items"]:
+        kind = it["k"]
+        if kind == "line":
+            x1, y1, x2, y2 = it["p"]
+            d.add(Line(x1 * k, H - y1 * k, x2 * k, H - y2 * k, strokeColor=colour(it["c"]),
+                       strokeWidth=it["sw"] * k * 1.25,
+                       strokeDashArray=[v * k for v in it["dash"]] if it.get("dash") else None))
+        elif kind == "poly":
+            pts = []
+            for i in range(0, len(it["p"]), 2):
+                pts += [it["p"][i] * k, H - it["p"][i + 1] * k]
+            fill = colour(it.get("f"))
+            if fill is not None and it.get("fo", 1) < 1:
+                fill = colors.Color(fill.red, fill.green, fill.blue, alpha=it["fo"])
+            if it.get("closed") or fill is not None:
+                d.add(Polygon(pts, fillColor=fill, strokeColor=colour(it["c"]) if it["sw"] > 0.2 else None,
+                              strokeWidth=it["sw"] * k * 1.25))
             else:
-                d.add(Polygon([sx, beam_y, sx - 3, beam_y - 5, sx + 3, beam_y - 5], fillColor=None, strokeColor=INK,
-                              strokeWidth=0.7))
-    elif el["system"] == "cantilever":
-        d.add(Line(left, beam_y - 6, left, beam_y + 14, strokeColor=INK, strokeWidth=1.6))
-    else:
-        for x in (left, right):
-            d.add(Polygon([x, beam_y, x - 3, beam_y - 5, x + 3, beam_y - 5], fillColor=None, strokeColor=INK,
-                          strokeWidth=0.7))
-    if el["w"]:
-        for i in range(9):
-            x = left + i * (right - left) / 8
-            d.add(Line(x, beam_y + 3 * mm + 7, x, beam_y + 3 * mm + 1, strokeColor=STATUS["fail"], strokeWidth=0.7))
-        d.add(String((left + right) / 2, beam_y + 3 * mm + 9, f"w = {el['w']:.1f} kN/m", fontName=f["regular"],
-                     fontSize=7.5, fillColor=INK, textAnchor="middle"))
-    d.add(String(4, height - 7, f"Span {L:.2f} m: bending moment (kNm) and shear (kN)", fontName=f["bold"],
-                 fontSize=8.5, fillColor=INK))
-    if el.get("delta"):
-        max_d = max(abs(v) for v in el["delta"])
-        d.add(String(right, height - 7, f"δmax = {max_d:.2f} mm", fontName=f["bold"],
-                     fontSize=8.0, fillColor=MUTED, textAnchor="end"))
-
-    def diagram(values, base, depth, colour, label):
-        peak = max(abs(v) for v in values) or 1
-        pts = [left, base]
-        for x, v in zip(el["x"], values):
-            pts += [X(x), base - v / peak * depth]
-        pts += [right, base]
-        d.add(Line(left, base, right, base, strokeColor=MUTED, strokeWidth=0.5))
-        d.add(PolyLine(pts, strokeColor=colour, strokeWidth=1.1))
-        d.add(String(left - 2, base - 2, label, fontName=f["regular"], fontSize=7, fillColor=MUTED, textAnchor="end"))
-
-    diagram(el["M"], beam_y - 15 * mm, 11 * mm, ACCENT, "M")
-    diagram(el["V"], 13 * mm, 8 * mm, MUTED, "V")
-    xd = X(el["x_design"])
-    d.add(Line(xd, 4 * mm, xd, beam_y, strokeColor=STATUS["fail"], strokeWidth=0.5, strokeDashArray=[2, 2]))
-    d.add(String(min(xd + 3, right - 40), beam_y - 4 * mm, f"MEd = {el['MEd']:.1f}", fontName=f["bold"],
-                 fontSize=7.5, fillColor=ACCENT))
-    d.add(String(min(xd + 3, right - 40), 4 * mm, f"VEd = {el['VEd']:.1f}", fontName=f["regular"], fontSize=7.5,
-                 fillColor=INK))
-    for r in el.get("reactions", []):
-        xr = X(r["x"])
-        d.add(String(xr, beam_y - 9 * mm, f"Ry={abs(r['Ry']):.1f}kN", fontName=f["regular"],
-                     fontSize=6.5, fillColor=INK, textAnchor="middle"))
+                d.add(PolyLine(pts, strokeColor=colour(it["c"]), strokeWidth=it["sw"] * k * 1.25))
+        elif kind == "circle":
+            d.add(Circle(it["x"] * k, H - it["y"] * k, it["r"] * k, fillColor=colour(it.get("f")),
+                         strokeColor=colour(it["c"]), strokeWidth=it["sw"] * k * 1.25))
+        elif kind == "text":
+            d.add(String(it["x"] * k, H - it["y"] * k, it["t"], fontName=f["bold"] if it.get("b") else f["regular"],
+                         fontSize=it["size"] * k * 1.05, fillColor=colour(it["c"]),
+                         textAnchor={"s": "start", "m": "middle", "e": "end"}[it["a"]]))
     return d
+
+
+def _table(rows, widths, st, head_rows=1):
+    t = Table(rows, colWidths=widths, repeatRows=head_rows)
+    t.setStyle(TableStyle([
+        ("FONT", (0, 0), (-1, -1), fonts()["regular"], 11), ("FONT", (0, 0), (-1, head_rows - 1), fonts()["bold"], 11),
+        ("TEXTCOLOR", (0, 0), (-1, head_rows - 1), MUTED), ("LINEBELOW", (0, head_rows - 1), (-1, head_rows - 1), 0.8, INK),
+        ("LINEBELOW", (0, head_rows), (-1, -1), 0.3, RULE), ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+    return t
+
+
+def analysis_section(report):
+    """Section 2 of the PDF: the structural analysis behind the design actions."""
+    data = report["plots"].get("analysis")
+    if not data:
+        return None
+    st = styles()
+    figs = beam_figures(report)
+
+    def block(title, spec, caption):
+        return KeepTogether([Paragraph(title, st["h2"]), render_figure(spec), Spacer(1, 1.5 * mm),
+                             Paragraph(caption, st["muted"])])
+
+    flow = [CondPageBreak(120 * mm), Paragraph("2. Structural analysis", st["h1"]),
+            Paragraph("Matrix stiffness analysis of the beam under the design loads. Positive shear forces and "
+                      "sagging moments are drawn below the axis, negative ones above.", st["body"]),
+            block("Beam, loads and stiffness", figs["loading"], "Design loads on the beam, with the dimensions "
+                  "between supports and loads, and the second moment of area of each part."),
+            block("Analytical model", figs["model"], "Nodes are circled and elements boxed. Degrees of freedom: "
+                  "free ones (blue) numbered first, restrained ones (green, crossed) after them."),
+            block("Support reactions", figs["reactions"], "Reactions from the analysis: forces upwards, moments "
+                  "with the sense drawn."),
+            block("Shear force and bending moment diagrams", figs["diagrams"], "Values at the nodes and loads, "
+                  "and at the peaks; dots mark zero moment. Bold values are the ones designed for."),
+            block("Deflected shape", figs["deflection"], "Elastic deflection, for information.")]
+    rx = [["Support (node)", "x (m)", "Type", "Ry (kN)", "M (kNm)"]]
+    for r in data["reactions"]:
+        rx.append([str(r["node"]), f"{r['x']:.2f}", r["type"], f"{r['Ry']:.2f}",
+                   f"{r['M']:.2f}" if r["M"] is not None else "—"])
+    me = [["Element", "Nodes", "V1 (kN)", "M1 (kNm)", "V2 (kN)", "M2 (kNm)"]]
+    for e in data["elements"]:
+        me.append([str(e["e"]), f"{e['start']}–{e['end']}"] + [f"{v:.2f}" for v in e["Q"]])
+    jd = [["Node", "x (m)", "DOFs", "v (mm)", "θ (rad)"]]
+    for n in data["nodes"]:
+        jd.append([str(n["n"]), f"{n['x']:.2f}", f"{n['dofs'][0]}, {n['dofs'][1]}",
+                   "0" if n["fix"][0] else f"{n['v_mm']:.4f}", "0" if n["fix"][1] else f"{n['theta']:.6f}"])
+    flow += [KeepTogether([Paragraph("Support reactions", st["h2"]),
+                           _table(rx, [36 * mm, 24 * mm, 30 * mm, 30 * mm, 30 * mm], st)]),
+             KeepTogether([Paragraph("Member end forces", st["h2"]),
+                           _table(me, [22 * mm, 22 * mm, 30 * mm, 32 * mm, 30 * mm, 32 * mm], st),
+                           Paragraph("Shears upwards and moments anticlockwise on the element ends.", st["muted"])]),
+             KeepTogether([Paragraph("Joint displacements", st["h2"]),
+                           _table(jd, [22 * mm, 26 * mm, 26 * mm, 40 * mm, 40 * mm], st),
+                           Paragraph("Translations upwards and rotations anticlockwise, in the directions of the "
+                                     "degrees of freedom.", st["muted"])])]
+    return flow
 
 
 def build_beam_pdf(report):
-    drawings = Table([[_section_drawing(report), _elevation_drawing(report)]], colWidths=[90 * mm, 90 * mm])
-    drawings.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, RULE), ("INNERGRID", (0, 0), (-1, -1), 0.6, RULE),
-                                  ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (0, 0), (-1, -1), "CENTER")]))
-    caption = ("Cross-section to scale (a part drawn red failed a check) and the bending moment and shear along the "
-               "span, with the section checked marked by the dashed line.")
-    return build_report(report, "Beam", drawings, caption)
+    sec = Table([[_section_drawing(report, width=100 * mm)]], colWidths=[110 * mm])
+    sec.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, RULE), ("ALIGN", (0, 0), (-1, -1), "CENTER")]))
+    caption = "Cross-section to scale; a part drawn red failed a check."
+    return build_report(report, "Beam", sec, caption, extra=analysis_section(report))
