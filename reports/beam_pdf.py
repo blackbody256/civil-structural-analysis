@@ -66,7 +66,15 @@ def _elevation_drawing(report, width=86 * mm, height=72 * mm):
     X = lambda x: left + x / L * (right - left)
     beam_y = height - 16 * mm
     d.add(Rect(left, beam_y, right - left, 3 * mm, fillColor=CONCRETE, strokeColor=INK, strokeWidth=0.8))
-    if el["system"] == "cantilever":
+    if el.get("supports"):
+        for sp in el["supports"]:
+            sx = X(sp["x"])
+            if sp.get("fix_m") == 1:
+                d.add(Line(sx, beam_y - 6, sx, beam_y + 14, strokeColor=INK, strokeWidth=1.6))
+            else:
+                d.add(Polygon([sx, beam_y, sx - 3, beam_y - 5, sx + 3, beam_y - 5], fillColor=None, strokeColor=INK,
+                              strokeWidth=0.7))
+    elif el["system"] == "cantilever":
         d.add(Line(left, beam_y - 6, left, beam_y + 14, strokeColor=INK, strokeWidth=1.6))
     else:
         for x in (left, right):

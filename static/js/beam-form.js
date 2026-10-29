@@ -440,7 +440,8 @@ function refresh() {
     l: d.span.l > 0 ? d.span.l : 6,
     system: d.span.system,
     w,
-    loads: d.actions?.mode === "analysis" ? analysisLoads : null
+    loads: d.actions?.mode === "analysis" ? analysisLoads : null,
+    supports: d.actions?.mode === "analysis" ? analysisSupports : null
   });
   $("elev-hint").textContent = d.actions?.mode === "analysis"
     ? "Matrix FEA applied loads"

@@ -525,7 +525,23 @@ export function drawBeamElevation(target, e, opts = {}) {
   const X = (x) => left + (x / e.l) * (right - left);
   const beamY = 78;
   svg.append(s("rect", { x: left, y: beamY - 7, width: right - left, height: 14, fill: CONCRETE, stroke: INK, "stroke-width": 1.4 }));
-  if (e.system === "cantilever") {
+  if (e.supports && Array.isArray(e.supports) && e.supports.length > 0) {
+    for (const sp of e.supports) {
+      const sx = X(sp.x);
+      if (sp.fix_m === 1) {
+        const side = sp.x <= e.l / 2 ? -1 : 1;
+        svg.append(s("line", { x1: sx, y1: beamY - 26, x2: sx, y2: beamY + 26, stroke: INK, "stroke-width": 2.4 }));
+        for (let y = beamY - 24; y < beamY + 26; y += 7) {
+          svg.append(s("line", { x1: sx, y1: y, x2: sx + side * 8, y2: y + 6, stroke: INK, "stroke-width": 0.9 }));
+        }
+      } else if (sp.fix_v === 1) {
+        svg.append(s("path", { d: `M${sx} ${beamY + 7} l-9 14 h18 z`, fill: PAPER, stroke: INK, "stroke-width": 1.3 }));
+        svg.append(s("circle", { cx: sx - 4.5, cy: beamY + 25, r: 2.8, fill: PAPER, stroke: INK }));
+        svg.append(s("circle", { cx: sx + 4.5, cy: beamY + 25, r: 2.8, fill: PAPER, stroke: INK }));
+        svg.append(s("line", { x1: sx - 12, y1: beamY + 29, x2: sx + 12, y2: beamY + 29, stroke: INK, "stroke-width": 1.1 }));
+      }
+    }
+  } else if (e.system === "cantilever") {
     svg.append(s("line", { x1: left, y1: beamY - 30, x2: left, y2: beamY + 30, stroke: INK, "stroke-width": 2.4 }));
     for (let y = beamY - 28; y < beamY + 30; y += 8) svg.append(s("line", { x1: left, y1: y, x2: left - 8, y2: y + 7, stroke: INK, "stroke-width": 0.9 }));
   } else {

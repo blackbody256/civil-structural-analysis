@@ -987,7 +987,7 @@ def _diagrams(inp, act):
             "reactions": ares["reactions"], "member_forces": ares["member_forces"],
             "key_points": ares["key_points"], "x_design": x_design, "MEd": m_d, "VEd": v_d,
             "w": act["w"], "system": inp.system, "location": inp.location, "l": l,
-            "mode": "analysis"
+            "mode": "analysis", "supports": inp.analysis_supports, "loads": inp.analysis_loads
         }
     pts = [i / 40 for i in range(41)]
     if inp.system == "cantilever":
