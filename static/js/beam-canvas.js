@@ -113,7 +113,7 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
       } else {
         arrowDown(g, sx, yTop - 74, yTop - 1, colour, 2.2, 11);
       }
-      g.append(s("text", { x: sx, y: yTop - 80, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK }, `${fmt(Math.abs(ld.W))} kN`));
+      g.append(s("text", { x: sx, y: yTop - 80, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK, class: "load-label-text" }, `${fmt(Math.abs(ld.W))} kN`));
       g.append(s("rect", { x: sx - 12, y: yTop - 96, width: 24, height: 96, fill: "transparent", class: "grab" }));
     } else if (ld.type === "moment") {
       const sx = X(ld.x, L);
@@ -128,7 +128,7 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
       const [xa, ya] = pts[19], [xb, yb] = pts[20];
       const ang = Math.atan2(yb - ya, xb - xa);
       g.append(s("path", { d: `M${xb} ${yb} L${xb - 9 * Math.cos(ang - 0.45)} ${yb - 9 * Math.sin(ang - 0.45)} L${xb - 9 * Math.cos(ang + 0.45)} ${yb - 9 * Math.sin(ang + 0.45)} Z`, fill: colour }));
-      g.append(s("text", { x: sx, y: cy - r - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK }, `${fmt(Math.abs(ld.M))} kN·m`));
+      g.append(s("text", { x: sx, y: cy - r - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK, class: "load-label-text" }, `${fmt(Math.abs(ld.M))} kN·m`));
       g.append(s("rect", { x: sx - 26, y: cy - r - 24, width: 52, height: r * 2 + 30, fill: "transparent", class: "grab" }));
     } else {
       const n = Math.max(2, Math.round((X(ld.x2, L) - X(ld.x1, L)) / 30));
@@ -143,7 +143,7 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
       g.append(s("polyline", { points: pts.map((p) => p.join(",")).join(" "), fill: "none", stroke: colour, "stroke-width": 1.6 }));
       const label = ld.type === "udl" ? `${fmt(ld.w)} kN/m` : `${fmt(ld.w1)} → ${fmt(ld.w2)} kN/m`;
       const top = Math.min(...pts.map((p) => p[1]));
-      g.append(s("text", { x: (X(ld.x1, L) + X(ld.x2, L)) / 2, y: top - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK }, label));
+      g.append(s("text", { x: (X(ld.x1, L) + X(ld.x2, L)) / 2, y: top - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK, class: "load-label-text" }, label));
       g.append(s("rect", { x: X(ld.x1, L), y: top - 22, width: Math.max(4, X(ld.x2, L) - X(ld.x1, L)), height: yTop - top + 22, fill: "transparent", class: "grab" }));
       if (interactive && isSel("load", i)) {
         for (const end of ["x1", "x2"]) {
@@ -183,7 +183,11 @@ export class BeamCanvas {
     this.svg.addEventListener("pointercancel", () => { this.drag = null; });
     this.svg.addEventListener("dblclick", (e) => {
       const hit = this.hit(e.target);
-      if (hit) this.onEdit(hit);
+      if (hit) {
+        this.select({ kind: hit.kind, index: hit.index });
+        const pt = { x: e.clientX, y: e.clientY };
+        this.onEdit(this.selected, pt);
+      }
     });
     host.addEventListener("keydown", (e) => {
       if ((e.key === "Delete" || e.key === "Backspace") && this.selected) {
@@ -244,6 +248,33 @@ export class BeamCanvas {
     return Number(x.toFixed(3));
   }
 
+  getItemScreenPoint(sel) {
+    if (!sel) return null;
+    const L = this.model.length || 1;
+    let sx = X0, sy = BEAM_Y;
+    if (sel.kind === "load") {
+      const item = (this.model.loads || [])[sel.index];
+      if (!item) return null;
+      if (item.type === "point" || item.type === "moment") {
+        sx = X(item.x, L);
+        sy = BEAM_Y - 40;
+      } else {
+        sx = (X(item.x1, L) + X(item.x2, L)) / 2;
+        sy = BEAM_Y - 50;
+      }
+    } else if (sel.kind === "support") {
+      const item = (this.model.supports || [])[sel.index];
+      if (!item) return null;
+      sx = X(item.x, L);
+      sy = BEAM_Y + 20;
+    }
+    const pt = this.svg.createSVGPoint();
+    pt.x = sx;
+    pt.y = sy;
+    const ctm = this.svg.getScreenCTM();
+    return ctm ? pt.matrixTransform(ctm) : null;
+  }
+
   hit(node) {
     const g = node.closest("[data-kind]");
     return g ? { kind: g.dataset.kind, index: Number(g.dataset.index), handle: node.dataset.handle || null } : null;
@@ -254,6 +285,13 @@ export class BeamCanvas {
     if (!(L > 0)) return;
     const x = this.toBeam(event);
     const hit = this.hit(event.target);
+    const isTextClick = event.target.tagName === "text" || event.target.classList.contains("load-label-text");
+    if (isTextClick && hit) {
+      this.select({ kind: hit.kind, index: hit.index });
+      const pt = { x: event.clientX, y: event.clientY };
+      this.onEdit(this.selected, pt);
+      return;
+    }
     if (this.tool === "select") {
       if (!hit) { this.select(null); return; }
       this.select({ kind: hit.kind, index: hit.index });
@@ -282,6 +320,7 @@ export class BeamCanvas {
     }
     this.onSelect(this.selected);
     this.onChange({ structural: true });
+    this.onEdit(this.selected, this.getItemScreenPoint(this.selected));
   }
 
   move(event) {

@@ -1,5 +1,6 @@
 import { el, getJSON, keysFor, postJSON, store } from "./common.js";
 import { BeamCanvas, DEFAULT_LOAD } from "./beam-canvas.js";
+import { CanvasEditor } from "./canvas-editor.js";
 import { beamSectionFromInputs, drawBeamSection } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
 import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
@@ -436,7 +437,40 @@ async function runAnalysis() {
 
 // ------------------------------------------------------------------ init
 
+let canvasEditor = null;
+
+function editItem(sel, screenPoint) {
+  if (!sel || !canvasEditor) return;
+  const list = sel.kind === "load" ? model.loads : model.supports;
+  const item = list[sel.index];
+  if (!item) return;
+  const L = length() || 20;
+  canvasEditor.open({
+    selection: sel,
+    item,
+    length: L,
+    screenPoint: screenPoint || canvas.getItemScreenPoint(sel),
+    onApply: (selection, updated) => {
+      const l = selection.kind === "load" ? model.loads : model.supports;
+      l[selection.index] = updated;
+      if (selection.kind === "support") {
+        model.supports.sort((a, b) => a.x - b.x);
+        markCustom();
+        selected = { kind: "support", index: model.supports.indexOf(updated) };
+      }
+      canvas.render();
+      renderTables();
+      refresh();
+    },
+    onDelete: (selection) => {
+      canvas.select(selection);
+      canvas.remove();
+    },
+  });
+}
+
 function setupCanvas() {
+  canvasEditor = new CanvasEditor($("beam-canvas"));
   canvas = new BeamCanvas($("beam-canvas"), {
     onChange: ({ structural: big } = {}) => {
       if (big) {
@@ -450,14 +484,14 @@ function setupCanvas() {
       }
     },
     onSelect: (sel) => pick(sel),
-    onEdit: (sel) => focusItem(sel),
+    onEdit: (sel, screenPoint) => editItem(sel, screenPoint),
   });
   for (const button of document.querySelectorAll(".canvas-tools [data-tool]")) {
     button.addEventListener("click", () => {
       document.querySelectorAll(".canvas-tools [data-tool]").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
       canvas.setTool(button.dataset.tool);
       $("canvas-hint").textContent = button.dataset.tool === "select"
-        ? "Click an item to select it, drag to move it; double-click to edit its value"
+        ? "Click the beam to place; type the value in the box; drag to move; double-click to edit"
         : `Click on the beam to place: ${button.textContent.toLowerCase()}`;
     });
   }

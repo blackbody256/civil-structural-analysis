@@ -156,9 +156,100 @@ details.more > .fields + .check { margin-top: 14px; }
 .canvas-tools button:disabled { opacity: .45; cursor: default; }
 .canvas-tools .sep { width: 1px; height: 22px; background: var(--line-strong); margin: 0 4px; }
 .canvas-tools .spacer { flex: 1; }
-.canvas-host { padding: 6px 8px 0; outline: none; }
+.canvas-host { padding: 6px 8px 0; outline: none; position: relative; }
 .canvas-host:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 .beam-canvas { width: 100%; height: auto; display: block; touch-action: none; user-select: none; }
+
+/* floating inline editor on the canvas */
+.canvas-editor {
+  position: absolute;
+  z-index: 25;
+  width: min(290px, calc(100% - 16px));
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  padding: 12px 14px;
+}
+.canvas-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.canvas-editor-close {
+  background: none;
+  border: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 4px;
+}
+.canvas-editor-close:hover {
+  color: var(--text);
+}
+.canvas-editor .fields {
+  display: grid;
+  gap: 8px;
+}
+.canvas-editor .field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.canvas-editor label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.canvas-editor .control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.canvas-editor input,
+.canvas-editor select {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.canvas-editor input:not([type="checkbox"]) {
+  padding-right: 36px;
+}
+.canvas-editor input:focus,
+.canvas-editor select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+.canvas-editor input.is-invalid {
+  border-color: var(--fail) !important;
+  box-shadow: 0 0 0 2px var(--fail-soft) !important;
+}
+.canvas-editor .unit {
+  position: absolute;
+  right: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.canvas-editor .actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
 .beam-canvas .grab { cursor: grab; }
 .beam-canvas .handle { cursor: ew-resize; }
 .beam-canvas.placing, .beam-canvas.placing .grab { cursor: crosshair; }
