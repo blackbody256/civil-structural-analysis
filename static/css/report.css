@@ -134,3 +134,14 @@ details[open] > summary .chev { transform: rotate(-135deg) translateY(-2px); }
   details.block > summary .chev, .section-tools .btn, .switch { display: none; }
   .calc tr { break-inside: avoid; }
 }
+
+/* beam analysis: full-width figures and data tables */
+.figures .wide { grid-column: 1 / -1; }
+.data-wrap { overflow-x: auto; }
+.data { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data th { text-align: left; font-weight: 600; color: var(--muted); font-size: 13px; padding: 7px 10px; border-bottom: 1.5px solid var(--line-strong); }
+.data td { padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.data .num { text-align: right; font-family: var(--font-mono); font-size: 13.5px; }
+.data-note { color: var(--muted); font-size: 12.5px; margin: 6px 10px 0; }
+.data-lede { margin: 4px 10px 10px; font-size: 14px; }
+.data-wrap + .data-wrap { margin-top: 14px; }

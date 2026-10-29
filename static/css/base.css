@@ -42,6 +42,10 @@
   --draw-grain: #c8bfae;
   --draw-steel: #192329;
   --draw-load: #b33830;
+  --draw-sfd: #2f5d8a;
+  --draw-bmd: #a4452c;
+  --draw-react: #2b7440;
+  --draw-defl: #8f5d0a;
   --shadow-1: 0 1px 2px rgb(25 35 41 / 0.06);
   --shadow-2: 0 1px 2px rgb(25 35 41 / 0.06), 0 10px 30px -12px rgb(25 35 41 / 0.28);
   --ring: 0 0 0 3px rgb(30 100 121 / 0.28);
@@ -84,6 +88,10 @@
   --draw-grain: #4a5457;
   --draw-steel: #eae7e2;
   --draw-load: #ec7c6f;
+  --draw-sfd: #8fb4e0;
+  --draw-bmd: #e9937a;
+  --draw-react: #73c385;
+  --draw-defl: #e3b667;
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.35);
   --shadow-2: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
   --ring: 0 0 0 3px rgb(112 184 198 / 0.35);
@@ -225,3 +233,6 @@ svg .part.is-hl { filter: drop-shadow(0 0 4px var(--accent)); }
   .topbar, .no-print { display: none !important; }
   body { background: #fff; }
 }
+
+/* figures drawn from the server's figure descriptions */
+.fig-spec .fig-text { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
