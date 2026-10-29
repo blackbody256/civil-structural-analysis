@@ -54,21 +54,43 @@ only) or biaxial (moments about both axes). The link spacing is calculated, not 
 
 ## Beam (Chapter 4)
 
-The user first chooses a **rectangular** or **flanged** (T or L) section, then the span, the support
-arrangement (simply supported, continuous end or interior span, cantilever) and the section to check
-(mid-span or over the support). Loads are either uniform gk and qk, from which the checker finds MEd and
-VEd (with the coefficients for continuous beams), or MEd and VEd from your own analysis.
+The user first chooses a **rectangular** or **flanged** (T or L) section, then draws the beam: its length,
+its supports (pinned, roller or fixed, anywhere along it) and its loads. On the drawing canvas a tool is
+picked and the beam clicked to place a support, point load, part-length uniform load, varying load or
+moment; items can be dragged, their ends stretched, and deleted. The same supports and loads appear in
+tables for exact values.
+
+The check then works in three steps:
+
+1. **Loading.** The design line load w = 1.35·gk + 1.5·qk (no 0.925 reduction) from the uniform loads,
+   the beam's self-weight and, with "Slab on top of the beam", the slab: a one-way slab through its
+   tributary width (w = wslab × btrib), a two-way slab through the equivalent uniform loads for bending,
+   wslab × (Lx/6)·[3 − (Lx/Ly)²], and for shear, wslab × (Lx/4)·[2 − Lx/Ly], on the long beam (Lx/3 and
+   Lx/4 on the short beam). Further loads are entered as design values or as gk or qk, which are factored.
+2. **Analysis.** The client's matrix stiffness solver (`ec2/analysis.py`, from BeamViz Pro) analyses the
+   beam. The analytical model is numbered as in the textbook method (nodes at the ends, supports and
+   changes of stiffness; free degrees of freedom first), and the report shows the beam with its loads and
+   dimensions, the analytical model, the support reactions, the shear force and bending moment diagrams
+   (positive values below the axis) and the deflected shape, with tables of reactions, member end forces
+   and joint displacements. The live diagrams on the input page come from the same analysis.
+3. **Design.** Every critical value from the analysis is designed for: the largest sagging moment with
+   the bottom bars, the largest hogging moment with the top bars, and the largest shear. A value that is
+   zero is not designed for.
+
+The default example is the client's: a 20 m beam fixed at one end on two rollers, with a 30 kN/m varying
+load, 200 kN and 150 kN point loads and a 90 kN·m moment, E = 28 GPa and 1.5I over the first 6 m. It gives
+the reactions 146.33 kN and 281.19 kN·m, 243.46 kN and 50.21 kN.
 
 | Group | Check |
 |---|---|
 | Scope | C ≤ 50/60, 400 ≤ fyk ≤ 600 |
 | Durability & cover | Cover for the exposure and concrete class; bond cover to links and main bars |
 | Fire | Minimum web width and axis distance of the bottom bars |
-| Design actions | Self-weight, the less favourable of combinations 6.10a and 6.10b, MEd and VEd |
-| Bending | K = M/(b·d²·fck) against K′; lever arm z; As,req; compression steel when K > K′; flanged sections with the neutral axis in the flange or the web |
+| Design actions | w from the loads and the slab; reactions and the design values from the analysis |
+| Bending | For sagging and for hogging: K = M/(b·d²·fck) against K′, lever arm z, As,req, compression steel when K > K′; flanged sections with the neutral axis in the flange or the web |
 | Shear | Concrete strut capacity; link spacing calculated from Asw/s with ρw,min and 0.75d; spacing of link legs; longitudinal shear in the flange |
-| Deflection | Basic span/depth ratio × F1 × F2 × F3 against the actual l/d |
-| Detailing | As,min, As,max, clear bar spacing, crack control by bar size or spacing |
+| Deflection | For every span: basic span/depth ratio × F1 × F2 × F3 against the actual l/d (K from the span's end conditions); the elastic deflection for information |
+| Detailing | As,min of each tension face, As,max, clear spacing of the bottom and top bars, crack control |
 
 The numeric tables from the guide (concrete properties, ψ factors, effective length, biaxial exponent,
 K′, strut capacity, minimum shear ratio, crack control, lap lengths) are NumPy arrays in `ec2/tables.py`.
@@ -92,12 +114,15 @@ ec2/                calculation engine (no web code)
   geometry.py       column section and bar layout · interaction.py  N–M resistance
   slenderness.py    effective length, slenderness, nominal curvature
   flexure.py        bending, shear and span/depth for beams
+  analysis.py       matrix stiffness beam analysis (the client's BeamViz Pro solver)
   column.py · beam.py   each element's procedure → report data
-reports/            PDF reports (reportlab): pdf_base.py shared layout, one module per element
+reports/            PDF reports (reportlab): pdf_base.py shared layout, one module per element;
+                    beam_figures.py draws the analysis figures once for the page and the PDF
 static/             HTML pages, JS, and fonts (IBM Plex for the pages, Liberation Serif for the PDF)
   css/base.css      theme tokens (light and dark) and shared components
   css/landing.css · form.css · run.css · report.css   one stylesheet per page
   js/form-kit.js    shared input-page helpers; js/report-<element>.js  each element's drawings
+  js/beam-canvas.js the beam drawing canvas; js/figure-spec.js draws the analysis figures
 tests/              pytest suite
 ```
 
@@ -109,6 +134,6 @@ and mark it `active` in `ec2/elements.py`. The run and report pages serve every 
 ## Limits
 
 Rectangular columns; rectangular, T and L beams; normal-weight concrete up to C50/60; 50-year durability
-covers with 20 mm aggregate. Fire is checked by the tabulated method. Beams are checked one section per run,
-and continuous beams use the coefficients for three or more similar spans. The tool is for learning and
-preliminary checking: a qualified structural engineer must verify the inputs and results.
+covers with 20 mm aggregate. Fire is checked by the tabulated method. The beam analysis is linear elastic
+(no redistribution) with the gross section unless I is entered. The tool is for learning and preliminary
+checking: a qualified structural engineer must verify the inputs and results.
