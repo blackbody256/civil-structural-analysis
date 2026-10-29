@@ -4,9 +4,10 @@ import { s } from "./drawings.js";
 
 const COLOURS = {
   ink: "var(--draw-ink, #192329)", muted: "var(--draw-muted, #6a747a)", accent: "var(--draw-accent, #1e6479)",
-  load: "var(--draw-load, #b33830)", rule: "var(--draw-rule, #e2ddd5)", concrete: "var(--draw-concrete, #ece6db)",
-  paper: "var(--surface, #fffdfa)", sfd: "var(--draw-sfd, #2f5d8a)", bmd: "var(--draw-bmd, #a4452c)",
-  defl: "var(--draw-defl, #8f5d0a)", react: "var(--draw-react, #2b7440)",
+  load: "var(--draw-load, #dc2626)", rule: "var(--draw-rule, #e2ddd5)", concrete: "var(--draw-concrete, #ece6db)",
+  paper: "var(--surface, #fffdfa)", sfd: "var(--draw-sfd, #2563eb)", bmd: "var(--draw-bmd, #059669)",
+  defl: "var(--draw-defl, #d97706)", react: "var(--draw-react, #7c3aed)",
+  node: "var(--draw-node, #ea580c)", elem: "var(--draw-elem, #0d9488)", dof: "var(--draw-dof, #4f46e5)",
 };
 const ANCHOR = { s: "start", m: "middle", e: "end" };
 const paint = (name) => (name ? COLOURS[name] || name : "none");

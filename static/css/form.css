@@ -134,9 +134,25 @@ details.more > .fields + .check { margin-top: 14px; }
 /* beam page: drawing canvas, tables and live analysis */
 .model-panel { overflow: hidden; }
 .canvas-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
-.canvas-tools button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2); font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 6px; cursor: pointer; }
+.canvas-tools button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2); font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 6px; cursor: pointer; border-left-width: 3px; }
+.canvas-tools button[data-tool="select"] { border-left-color: var(--accent); }
+.canvas-tools button[data-tool="pin"],
+.canvas-tools button[data-tool="roller"],
+.canvas-tools button[data-tool="fixed"] { border-left-color: var(--draw-react); }
+.canvas-tools button[data-tool="point"],
+.canvas-tools button[data-tool="udl"],
+.canvas-tools button[data-tool="linear"],
+.canvas-tools button[data-tool="moment"] { border-left-color: var(--draw-load); }
 .canvas-tools button:hover:not(:disabled) { border-color: var(--muted); color: var(--text); }
 .canvas-tools button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
+.canvas-tools button[aria-pressed="true"][data-tool="select"] { border-left-color: var(--on-accent, #fff); }
+.canvas-tools button[aria-pressed="true"][data-tool="pin"],
+.canvas-tools button[aria-pressed="true"][data-tool="roller"],
+.canvas-tools button[aria-pressed="true"][data-tool="fixed"] { border-left-color: var(--draw-react); }
+.canvas-tools button[aria-pressed="true"][data-tool="point"],
+.canvas-tools button[aria-pressed="true"][data-tool="udl"],
+.canvas-tools button[aria-pressed="true"][data-tool="linear"],
+.canvas-tools button[aria-pressed="true"][data-tool="moment"] { border-left-color: var(--draw-load); }
 .canvas-tools button:disabled { opacity: .45; cursor: default; }
 .canvas-tools .sep { width: 1px; height: 22px; background: var(--line-strong); margin: 0 4px; }
 .canvas-tools .spacer { flex: 1; }

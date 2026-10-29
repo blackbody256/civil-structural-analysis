@@ -222,22 +222,22 @@ def model_figure(data):
         mid = (a + b) / 2
         tip = a + 0.62 * (b - a)
         fig.poly([(tip, y), (tip - 12, y - 6), (tip - 12, y + 6)], c="ink", f="ink", closed=True, sw=0.6)
-        fig.poly([(mid - 17, y - 50), (mid + 17, y - 50), (mid + 17, y - 26), (mid - 17, y - 26)], c="ink",
+        fig.poly([(mid - 17, y - 50), (mid + 17, y - 50), (mid + 17, y - 26), (mid - 17, y - 26)], c="elem",
                  f="paper", closed=True, sw=1.2)
-        fig.text(mid, y - 32, str(el["e"]), "ink", 16)
+        fig.text(mid, y - 32, str(el["e"]), "elem", 16)
     for nd in data["nodes"]:
         sx = X(nd["x"])
         offset = 36 if nd["x"] < data["length"] - 1e-6 else -36
-        fig.circle(sx + offset, y + 18, 12, c="ink", f="paper", sw=1.2)
-        fig.text(sx + offset, y + 24, str(nd["n"]), "ink", 15)
+        fig.circle(sx + offset, y + 18, 12, c="node", f="node", sw=1.2)
+        fig.text(sx + offset, y + 24, str(nd["n"]), "paper", 15, b=True)
         v, r = nd["dofs"]
         if nd["fix"][0]:
             fig.arrow(sx, y + 104, sx, y + 62, "react", 1.6)
             fig.line(sx - 7, y + 90, sx + 7, y + 80, "react", 1.6)
             fig.text(sx, y + 126, str(v), "react", 16, "m", True)
         else:
-            fig.arrow(sx, y - 4, sx, y - 62, "accent", 1.6)
-            fig.text(sx + 10, y - 62, str(v), "accent", 16, "s", True)
+            fig.arrow(sx, y - 4, sx, y - 62, "dof", 1.6)
+            fig.text(sx + 10, y - 62, str(v), "dof", 16, "s", True)
         if nd["fix"][1]:
             side = -1 if nd["x"] < 1e-6 else 1
             cx = sx + side * 22
@@ -246,8 +246,8 @@ def model_figure(data):
             fig.line(mid[0] - 7, mid[1] - 5, mid[0] + 7, mid[1] + 5, "react", 1.5)
             fig.text(cx + side * 34, y + 6, str(r), "react", 16, "m", True)
         else:
-            fig.arc_arrow(sx, y, 24, -35, 215, "accent", 1.4, 8)
-            fig.text(sx - 30, y - 22, str(r), "accent", 16, "e", True)
+            fig.arc_arrow(sx, y, 24, -35, 215, "dof", 1.4, 8)
+            fig.text(sx - 30, y - 22, str(r), "dof", 16, "e", True)
     fig.text(X0, 288, f"{len(data['nodes'])} nodes, {len(data['elements'])} element"
              f"{'s' if len(data['elements']) > 1 else ''}; degrees of freedom 1–{data['free_dofs']} free, "
              f"{data['free_dofs'] + 1}–{2 * len(data['nodes'])} restrained", "muted", 15, "s")
@@ -292,7 +292,7 @@ def _diagram(fig, xs, values, X, base, depth, colour, events, unit_title, top, z
     else:
         Y = lambda v: base - v / vmax * depth
     pts = [(X(xs[0]), base)] + [(X(x), Y(v)) for x, v in zip(xs, values)] + [(X(xs[-1]), base)]
-    fig.poly(pts, c=colour, f=colour, fo=0.16, sw=0.1, closed=True)
+    fig.poly(pts, c=colour, f=colour, fo=0.22, sw=0.1, closed=True)
     fig.poly(pts[1:-1], c=colour, sw=2.0)
     fig.line(X0, base, X1, base, "ink", 1.0)
     fig.text(X0 - 8, top, unit_title, "ink", 17, "s", True)

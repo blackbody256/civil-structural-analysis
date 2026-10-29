@@ -8,9 +8,10 @@ from .beam_figures import beam_figures
 from .pdf_base import ACCENT, CONCRETE, INK, MUTED, RULE, STATUS, build_report, fonts, styles, target_status
 
 FIGURE_COLOURS = {
-    "ink": INK, "muted": MUTED, "accent": ACCENT, "load": STATUS["fail"], "rule": RULE, "concrete": CONCRETE,
-    "paper": colors.white, "sfd": colors.HexColor("#2F5D8A"), "bmd": colors.HexColor("#A4452C"),
-    "defl": colors.HexColor("#8F5D0A"), "react": STATUS["pass"],
+    "ink": INK, "muted": MUTED, "accent": ACCENT, "load": colors.HexColor("#DC2626"), "rule": RULE, "concrete": CONCRETE,
+    "paper": colors.white, "sfd": colors.HexColor("#2563EB"), "bmd": colors.HexColor("#059669"),
+    "defl": colors.HexColor("#D97706"), "react": colors.HexColor("#7C3AED"),
+    "node": colors.HexColor("#EA580C"), "elem": colors.HexColor("#0D9488"), "dof": colors.HexColor("#4F46E5"),
 }
 WIDTH = 180 * mm
 
