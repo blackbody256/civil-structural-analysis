@@ -49,3 +49,12 @@ def test_helpers(client):
     k = client.post("/api/helpers/stiffness", json={"col_width": 300, "col_depth": 300, "col_length": 3500,
                                                     "beams": []}).get_json()
     assert k["pinned"] is True
+
+    analysis = client.post("/api/helpers/beam-analysis", json={
+        "span": 6.0, "system": "simple",
+        "loads": [{"type": "point", "W": 60, "x": 3.0}],
+        "E_kpa": 30e6, "I_m4": 0.002
+    }).get_json()
+    assert analysis["abs_max_M_kNm"] == pytest.approx(90.0)
+    assert analysis["abs_max_V_kN"] == pytest.approx(30.0)
+    assert len(analysis["reactions"]) == 2

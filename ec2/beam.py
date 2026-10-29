@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from . import durability, fire, flexure, tables
 from .actions import psi_factors
+from .analysis import BeamAnalysis, solve_beam
 from .tables import PSI_CATEGORIES
 from .inputs import Reader, ValidationError
 from .materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, LINK_SIZES, Concrete, Reinforcement, bar_area
@@ -79,6 +80,7 @@ class BeamInput:
     exposure: str
     cement_group: str
     fire_period: str
+    analysis_loads: list | None = None
 
 
 def parse_input(data):
@@ -126,14 +128,56 @@ def parse_input(data):
     cover = r.number("reinforcement.cover", lo=0, hi=150)
     delta_c_dev = r.number("reinforcement.delta_c_dev", lo=0, hi=20, default=10)
 
-    mode = r.choice("actions.mode", ("loads", "direct"), default="loads")
+    mode = r.choice("actions.mode", ("loads", "direct", "analysis"), default="loads")
     gk = qk = m_ed = v_ed = None
     category, combination = "B", "6.10ab"
+    analysis_loads = []
     if mode == "loads":
         gk = r.number("actions.gk", lo=0, hi=10000)
         qk = r.number("actions.qk", lo=0, hi=10000)
         category = r.choice("actions.category", PSI_CATEGORIES, default="B")
         combination = r.choice("actions.combination", ("6.10ab", "6.10"), default="6.10ab")
+    elif mode == "analysis":
+        raw_loads = r.raw("actions.loads")
+        if isinstance(raw_loads, list):
+            for ld in raw_loads:
+                if not isinstance(ld, dict):
+                    continue
+                ltype = ld.get("type", "point")
+                if ltype == "point":
+                    w_val = float(ld.get("W", ld.get("w", 0.0)) or 0.0)
+                    x_val = float(ld.get("x", ld.get("l1", 0.0)) or 0.0)
+                    if w_val != 0.0:
+                        analysis_loads.append({"type": "point", "W": abs(w_val), "x": max(0.0, min(x_val, span))})
+                elif ltype == "udl":
+                    w_val = float(ld.get("w", ld.get("W", 0.0)) or 0.0)
+                    l1_val = float(ld.get("l1", 0.0) or 0.0)
+                    l2_val = float(ld.get("l2", span) or span)
+                    if w_val != 0.0:
+                        analysis_loads.append({
+                            "type": "udl",
+                            "w": abs(w_val),
+                            "l1": max(0.0, min(l1_val, span)),
+                            "l2": max(0.0, min(l2_val, span))
+                        })
+                elif ltype == "moment":
+                    m_val = float(ld.get("M0", ld.get("m", 0.0)) or 0.0)
+                    x_val = float(ld.get("x", ld.get("l1", 0.0)) or 0.0)
+                    if m_val != 0.0:
+                        analysis_loads.append({"type": "moment", "M0": m_val, "x": max(0.0, min(x_val, span))})
+                elif ltype == "linear":
+                    w1 = float(ld.get("w1", 0.0) or 0.0)
+                    w2 = float(ld.get("w2", 0.0) or 0.0)
+                    l1_val = float(ld.get("l1", 0.0) or 0.0)
+                    l2_val = float(ld.get("l2", span) or span)
+                    if w1 != 0.0 or w2 != 0.0:
+                        analysis_loads.append({
+                            "type": "linear",
+                            "w1": abs(w1),
+                            "w2": abs(w2),
+                            "l1": max(0.0, min(l1_val, span)),
+                            "l2": max(0.0, min(l2_val, span))
+                        })
     else:
         m_ed = r.number("actions.MEd", lo=0.001, hi=1e6)
         v_ed = r.number("actions.VEd", lo=0, hi=1e6)
@@ -171,7 +215,7 @@ def parse_input(data):
         category=category, combination=combination,
         m_ed=None if m_ed is None else m_ed * 1e6, v_ed=None if v_ed is None else v_ed * 1e3,
         partitions=partitions, kprime_limit=kprime_limit, exposure=exposure, cement_group=cement_group,
-        fire_period=fire_period,
+        fire_period=fire_period, analysis_loads=analysis_loads,
     )
 
 
@@ -268,8 +312,51 @@ def design_actions(inp, geo):
     if inp.mode == "direct":
         out.update(MEd=inp.m_ed, VEd=inp.v_ed, w=None, qp_ratio=None)
         return out
-    area = inp.b * (inp.h - inp.hf) if inp.shape == "flanged" else inp.b * inp.h
+    area = inp.b * (inp.h - (inp.hf or 0)) if inp.shape == "flanged" else inp.b * inp.h
     sw = CONCRETE_DENSITY * area / 1e6 if inp.self_weight else 0.0
+
+    if inp.mode == "analysis":
+        E_kpa = inp.concrete.Ecm * 1e6
+        b_m = inp.b / 1000.0
+        h_m = inp.h / 1000.0
+        if inp.shape == "rectangular":
+            I_m4 = b_m * h_m**3 / 12.0
+        else:
+            hf_m = (inp.hf or 0.0) / 1000.0
+            beff_m = geo.beff / 1000.0
+            bw_m = b_m
+            hw_m = h_m - hf_m
+            Af = beff_m * hf_m
+            Aw = bw_m * hw_m
+            Atot = Af + Aw
+            if Atot > 0:
+                y_bar = (Af * (h_m - hf_m / 2.0) + Aw * (hw_m / 2.0)) / Atot
+                I_m4 = ((beff_m * hf_m**3 / 12.0 + Af * (h_m - hf_m / 2.0 - y_bar)**2) +
+                        (bw_m * hw_m**3 / 12.0 + Aw * (hw_m / 2.0 - y_bar)**2))
+            else:
+                I_m4 = b_m * h_m**3 / 12.0
+
+        sw_uls = 1.35 * sw if inp.self_weight else 0.0
+        analysis_res = solve_beam(
+            span_m=l,
+            system=inp.system,
+            loads=inp.analysis_loads or [],
+            E_kpa=E_kpa,
+            I_m4=I_m4,
+            self_weight=sw_uls
+        )
+
+        if inp.location == "support":
+            m_kNm = abs(analysis_res["max_hogging_kNm"]) if analysis_res["max_hogging_kNm"] < 0 else analysis_res["abs_max_M_kNm"]
+        else:
+            m_kNm = analysis_res["max_sagging_kNm"] if analysis_res["max_sagging_kNm"] > 0 else analysis_res["abs_max_M_kNm"]
+        v_kN = analysis_res["abs_max_V_kN"]
+
+        out.update(
+            sw=sw, sw_uls=sw_uls, MEd=m_kNm * 1e6, VEd=v_kN * 1e3, w=None, qp_ratio=None,
+            analysis_res=analysis_res, E_kpa=E_kpa, I_m4=I_m4
+        )
+        return out
     gk = inp.gk + sw
     psi0, _, psi2 = psi_factors(inp.category)
     if inp.combination == "6.10":
@@ -304,6 +391,47 @@ def _actions_checks(inp, geo, act):
             "actions", GROUPS[3], "Design actions", INFO, result=f"MEd = {kNm(act['MEd'])} kNm, VEd = {kN(act['VEd'])} kN",
             working=[f"Entered from the analysis: MEd = {kNm(act['MEd'])} kNm "
                      f"({'hogging' if inp.location == 'support' else 'sagging'}), VEd = {kN(act['VEd'])} kN"]))
+        return out
+    if act["mode"] == "analysis":
+        ares = act["analysis_res"]
+        lines = [
+            f"Span l = {act['l']:.2f} m, {SYSTEMS[inp.system].lower()}",
+            f"Matrix Stiffness FEA: {ares['analysis'].num_nodes} nodes, {ares['analysis'].num_elements} elements",
+            f"Gross concrete section: E = {act['E_kpa']/1e6:.1f} GPa, I = {act['I_m4']:.6f} m⁴"
+        ]
+        if inp.self_weight:
+            what = "web below the flange" if inp.shape == "flanged" else "beam"
+            lines.append(f"Self-weight of the {what} = {CONCRETE_DENSITY:g} × {inp.b:g} × "
+                         f"{inp.h - (inp.hf or 0):g}/10⁶ = {act['sw']:.2f} kN/m")
+            lines.append(f"Factored self-weight (ULS γG = 1.35) = {act['sw_uls']:.2f} kN/m")
+        if inp.analysis_loads:
+            ld_strs = []
+            for ld in inp.analysis_loads:
+                t = ld["type"]
+                if t == "point":
+                    ld_strs.append(f"Point load W = {ld['W']:.1f} kN at x = {ld['x']:.2f} m")
+                elif t == "udl":
+                    ld_strs.append(f"UDL w = {ld['w']:.1f} kN/m from x = {ld['l1']:.2f} to {ld['l2']:.2f} m")
+                elif t == "moment":
+                    ld_strs.append(f"Moment M0 = {ld['M0']:.1f} kNm at x = {ld['x']:.2f} m")
+                elif t == "linear":
+                    ld_strs.append(f"Varying load w = {ld['w1']:.1f} → {ld['w2']:.1f} kN/m from x = {ld['l1']:.2f} to {ld['l2']:.2f} m")
+            lines.append("Applied loads: " + "; ".join(ld_strs))
+
+        lines.append(f"Peak sagging moment = {ares['max_sagging_kNm']:.1f} kNm, peak hogging = {ares['max_hogging_kNm']:.1f} kNm")
+        lines.append(f"Governing design actions: MEd = {kNm(act['MEd'])} kNm "
+                     f"({'hogging' if inp.location == 'support' else 'sagging'}), VEd = {kN(act['VEd'])} kN")
+        lines.append(f"Maximum calculated elastic deflection δmax = {ares['max_deflection_mm']:.2f} mm")
+
+        r_strs = [f"Node {r['node']} ({r['x']:.2f} m): Ry = {abs(r['Ry']):.1f} kN" +
+                  (f", M = {abs(r['M']):.1f} kNm" if abs(r["M"]) > 0.05 else "") for r in ares["reactions"]]
+        lines.append("Support reactions: " + ", ".join(r_strs))
+
+        out.append(CheckResult(
+            "actions", GROUPS[3], "Design actions (Matrix Analysis)", INFO,
+            result=f"MEd = {kNm(act['MEd'])} kNm, VEd = {kN(act['VEd'])} kN, δmax = {ares['max_deflection_mm']:.2f} mm",
+            working=lines
+        ))
         return out
     lines = [f"Span l = {act['l']:.2f} m, {SYSTEMS[inp.system].lower()}"]
     if inp.self_weight:
@@ -673,10 +801,27 @@ def _deflection_checks(inp, geo, act, res):
     lines += sigma_lines + [f"F3 = 310/σs ≤ 1.5 = {f3:.2f}",
                             f"Allowable l/d = {basic:.1f} × {f1:.2f} × {f2:.2f} × {f3:.2f} = {allowed:.1f}",
                             f"Actual l/d = {inp.span:.0f}/{d:.0f} = {actual:.1f}"]
-    return [CheckResult("deflection", GROUPS[6], "Span to depth ratio", PASS if ok else FAIL,
-                        result=f"l/d {actual:.1f} {_cmp(ok)} {allowed:.1f}", value=actual, limit=allowed,
-                        utilisation=actual / allowed, working=lines, target="section",
-                        note="" if ok else "Increase the depth or add tension reinforcement.")]
+    out = [CheckResult("deflection", GROUPS[6], "Span to depth ratio", PASS if ok else FAIL,
+                       result=f"l/d {actual:.1f} {_cmp(ok)} {allowed:.1f}", value=actual, limit=allowed,
+                       utilisation=actual / allowed, working=lines, target="section",
+                       note="" if ok else "Increase the depth or add tension reinforcement.")]
+    if act.get("analysis_res"):
+        d_calc = act["analysis_res"]["max_deflection_mm"]
+        d_lim = inp.span / (500.0 if inp.partitions else 250.0)
+        lim_label = "span/500" if inp.partitions else "span/250"
+        ok_d = d_calc <= d_lim
+        out.append(CheckResult(
+            "fea_deflection", GROUPS[6], f"Calculated deflection ({lim_label})", PASS if ok_d else FAIL,
+            result=f"δ = {d_calc:.2f} mm {_cmp(ok_d)} {d_lim:.1f} mm ({lim_label})",
+            value=d_calc, limit=d_lim, unit="mm", utilisation=d_calc / d_lim if d_lim > 0 else None,
+            working=[
+                f"Maximum deflection from Matrix Stiffness Analysis: δmax = {d_calc:.2f} mm",
+                f"Allowable limit {lim_label} = {inp.span:.0f}/{(500 if inp.partitions else 250)} = {d_lim:.1f} mm",
+                "Deflection satisfies serviceability limit" if ok_d else "Calculated deflection exceeds allowable limit"
+            ],
+            target="elevation"
+        ))
+    return out
 
 
 def _detailing_checks(inp, geo, act, res):
@@ -744,6 +889,10 @@ def _input_echo(inp, geo):
     if inp.mode == "loads":
         rows.append(("Loads", f"gk = {inp.gk:g} kN/m{' + self-weight' if inp.self_weight else ''}, qk = {inp.qk:g} kN/m "
                               f"(category {inp.category}), combination {'6.10' if inp.combination == '6.10' else '6.10a/b'}"))
+    elif inp.mode == "analysis":
+        n_ld = len(inp.analysis_loads) if inp.analysis_loads else 0
+        rows.append(("Loading method", f"Matrix Stiffness FEA ({n_ld} load{'s' if n_ld != 1 else ''}"
+                                       f"{' + self-weight' if inp.self_weight else ''})"))
     else:
         rows.append(("Design actions", f"MEd = {kNm(inp.m_ed)} kNm, VEd = {kN(inp.v_ed)} kN"))
     rows += [("Exposure", f"{durability.ROWS_BY_ID[inp.exposure]['classes']} ({inp.cement_group})"),
@@ -755,6 +904,16 @@ def _diagrams(inp, act):
     """Bending moment and shear along the span (kNm, kN) for the elevation drawing."""
     l = inp.span / 1000
     m_d, v_d = act["MEd"] / 1e6, act["VEd"] / 1e3
+    if act.get("analysis_res"):
+        ares = act["analysis_res"]
+        x_design = (0.0 if inp.system == "cantilever" else l) if inp.location == "support" else 0.5 * l
+        return {
+            "x": ares["x"], "M": ares["M"], "V": ares["V"], "delta": ares["delta_mm"],
+            "reactions": ares["reactions"], "member_forces": ares["member_forces"],
+            "key_points": ares["key_points"], "x_design": x_design, "MEd": m_d, "VEd": v_d,
+            "w": act["w"], "system": inp.system, "location": inp.location, "l": l,
+            "mode": "analysis"
+        }
     pts = [i / 40 for i in range(41)]
     if inp.system == "cantilever":
         M = [-m_d * (1 - t) ** 2 for t in pts]
@@ -805,6 +964,22 @@ def check_beam(data):
     if inp.system in ("end", "interior") and inp.mode == "loads":
         assumptions.insert(1, "Moments and shears of continuous beams from coefficients for three or more spans of "
                               "similar length with Qk ≤ Gk; support moments include 15 % redistribution.")
+    derived = {
+        "shape": inp.shape, "flange": inp.flange, "system": inp.system, "location": inp.location,
+        "d": geo.d, "d2": geo.d2, "beff": geo.beff, "l0": geo.l0, "As": geo.As, "As2": geo.As2,
+        "As_req": res["As"] if res["ok"] else None, "As2_req": res["As2"] if res["ok"] else None,
+        "K": res["K"], "kp": res["kp"], "z": res.get("z"), "MEd": act["MEd"] / 1e6, "VEd": act["VEd"] / 1e3,
+        "w": act["w"], "links": links, "l": inp.span, "mode": inp.mode,
+    }
+    if act.get("analysis_res"):
+        ares = act["analysis_res"]
+        derived.update(
+            reactions=ares["reactions"],
+            displacements=ares["displacements"],
+            member_forces=ares["member_forces"],
+            max_deflection_mm=ares["max_deflection_mm"],
+            key_points=ares["key_points"]
+        )
     return {
         "element": "beam",
         "project": inp.project,
@@ -813,13 +988,7 @@ def check_beam(data):
         "checks": [c.to_dict() for c in checks],
         "inputs": _input_echo(inp, geo),
         "assumptions": assumptions,
-        "derived": {
-            "shape": inp.shape, "flange": inp.flange, "system": inp.system, "location": inp.location,
-            "d": geo.d, "d2": geo.d2, "beff": geo.beff, "l0": geo.l0, "As": geo.As, "As2": geo.As2,
-            "As_req": res["As"] if res["ok"] else None, "As2_req": res["As2"] if res["ok"] else None,
-            "K": res["K"], "kp": res["kp"], "z": res.get("z"), "MEd": act["MEd"] / 1e6, "VEd": act["VEd"] / 1e3,
-            "w": act["w"], "links": links, "l": inp.span,
-        },
+        "derived": derived,
         "plots": {
             "section": {"shape": inp.shape, "flange": inp.flange, "b": inp.b, "h": inp.h, "hf": inp.hf,
                         "beff": geo.beff, "cover": inp.cover, "link_dia": inp.link_dia, "legs": inp.legs,

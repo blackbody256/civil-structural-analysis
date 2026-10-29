@@ -80,6 +80,10 @@ def _elevation_drawing(report, width=86 * mm, height=72 * mm):
                      fontSize=7.5, fillColor=INK, textAnchor="middle"))
     d.add(String(4, height - 7, f"Span {L:.2f} m: bending moment (kNm) and shear (kN)", fontName=f["bold"],
                  fontSize=8.5, fillColor=INK))
+    if el.get("delta"):
+        max_d = max(abs(v) for v in el["delta"])
+        d.add(String(right, height - 7, f"δmax = {max_d:.2f} mm", fontName=f["bold"],
+                     fontSize=8.0, fillColor=MUTED, textAnchor="end"))
 
     def diagram(values, base, depth, colour, label):
         peak = max(abs(v) for v in values) or 1
@@ -99,6 +103,10 @@ def _elevation_drawing(report, width=86 * mm, height=72 * mm):
                  fontSize=7.5, fillColor=ACCENT))
     d.add(String(min(xd + 3, right - 40), 4 * mm, f"VEd = {el['VEd']:.1f}", fontName=f["regular"], fontSize=7.5,
                  fillColor=INK))
+    for r in el.get("reactions", []):
+        xr = X(r["x"])
+        d.add(String(xr, beam_y - 9 * mm, f"Ry={abs(r['Ry']):.1f}kN", fontName=f["regular"],
+                     fontSize=6.5, fillColor=INK, textAnchor="middle"))
     return d
 
 

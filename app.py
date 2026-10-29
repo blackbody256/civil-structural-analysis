@@ -162,6 +162,24 @@ def api_stiffness():
     return jsonify({"k": None if math.isinf(k) else k, "pinned": math.isinf(k)})
 
 
+@app.post("/api/helpers/beam-analysis")
+def api_beam_analysis():
+    """1D Matrix stiffness analysis for arbitrary beam spans and loads."""
+    from ec2.analysis import solve_beam
+    data = _payload()
+    span = _num(data, "span", 6.0)
+    system = data.get("system", "simple")
+    loads = data.get("loads", [])
+    E_kpa = _num(data, "E_kpa", 33e6)
+    I_m4 = _num(data, "I_m4", 0.003)
+    self_weight = _num(data, "self_weight", 0.0)
+    res = solve_beam(
+        span_m=span, system=system, loads=loads,
+        E_kpa=E_kpa, I_m4=I_m4, self_weight=self_weight
+    )
+    return jsonify({k: v for k, v in res.items() if k != "analysis"})
+
+
 @app.errorhandler(400)
 def bad_request(err):
     return jsonify({"error": getattr(err, "description", "Bad request")}), 400

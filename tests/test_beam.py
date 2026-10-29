@@ -167,3 +167,35 @@ def test_form_examples():
     cantilever["durability"] = {"exposure": "XC3/4-XF1", "cement_group": "All except IVB", "fire_period": "R90"}
     failed = {c["id"] for c in check_beam(cantilever)["checks"] if c["status"] == "fail"}
     assert failed == {"cover_durability", "fire", "tension", "compression", "deflection", "cracking"}
+
+
+def test_beam_analysis_mode(beam):
+    """Beam check with Matrix Stiffness Analysis mode."""
+    beam_analysis = copy.deepcopy(beam)
+    beam_analysis["actions"] = {
+        "mode": "analysis",
+        "self_weight": True,
+        "partitions": False,
+        "kprime_limit": True,
+        "loads": [
+            {"type": "point", "W": 50.0, "x": 3.0},
+            {"type": "udl", "w": 12.0, "l1": 0.0, "l2": 6.0}
+        ]
+    }
+    report = check_beam(beam_analysis)
+    assert report["summary"]["verdict"] == "pass"
+    assert report["derived"]["mode"] == "analysis"
+    assert len(report["derived"]["reactions"]) == 2
+    assert report["derived"]["max_deflection_mm"] > 0
+    assert len(report["plots"]["elevation"]["delta"]) > 0
+
+    # Check API and PDF export with analysis mode
+    from app import app
+    client = app.test_client()
+    res = client.post("/api/beam/check", json=beam_analysis)
+    assert res.status_code == 200
+    pdf = client.post("/api/beam/report.pdf", json=beam_analysis)
+    assert pdf.status_code == 200
+    assert pdf.mimetype == "application/pdf"
+    assert pdf.data.startswith(b"%PDF")
+
