@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EC2 Checker</title>
+  <title>EC2 Checker · Reinforced Concrete to Eurocode 2</title>
   <script>(function(){var p="system";try{p=localStorage.getItem("ec2.theme")||"system"}catch(e){}var d=p==="dark"||(p!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})();</script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e6479'/%3E%3Crect x='12' y='6' width='8' height='20' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/base.css">
@@ -17,18 +17,56 @@
     <span id="theme-slot"></span>
   </header>
 
-  <main class="page">
-    <section class="intro">
-      <div>
-        <h1>Check a reinforced concrete element</h1>
-        <p class="lede">Enter a design and test it against the procedures in <em>How to Design Concrete Structures
-          using Eurocode 2</em> (The Concrete Centre, 2006). Each test shows its working with the
-          numbers substituted, and whether it passes.</p>
+  <section class="hero-band">
+    <div class="hero-container">
+      <div class="hero-copy">
+        <span class="hero-badge">Reinforced Concrete · Eurocode 2</span>
+        <h1 class="hero-title">Draw a beam. Watch it think. Design it to Eurocode 2.</h1>
+        <p class="hero-sub">Interactive matrix stiffness analysis and reinforced-concrete design to Eurocode 2 with UK National Annex — live in your browser.</p>
+        <div class="hero-actions">
+          <a class="btn primary btn-hero" href="/beam">Analyse a beam</a>
+          <a class="btn btn-hero btn-secondary" href="/column">Check a column</a>
+        </div>
       </div>
-      <p class="facts">UK National Annex values<br>Runs on this computer, no account</p>
+      <div class="hero-art" id="hero-animation" aria-label="Interactive beam analysis animation" role="region"></div>
+    </div>
+  </section>
+
+  <main class="page landing-page">
+    <section class="how-it-works" aria-label="How it works">
+      <div class="how-step step-analyse">
+        <div class="how-num">1</div>
+        <div class="how-body">
+          <h3>Analyse</h3>
+          <p>Draw supports and loads. Instant stiffness solver, reactions, and colourful diagrams.</p>
+        </div>
+      </div>
+      <div class="how-step step-design">
+        <div class="how-num">2</div>
+        <div class="how-body">
+          <h3>Design</h3>
+          <p>Reinforcement, concrete, and durability checks evaluated to EC2 procedures.</p>
+        </div>
+      </div>
+      <div class="how-step step-report">
+        <div class="how-num">3</div>
+        <div class="how-body">
+          <h3>Report</h3>
+          <p>Interactive verification with full substituted workings and printable PDF.</p>
+        </div>
+      </div>
     </section>
 
-    <div id="elements" aria-live="polite"><p class="empty">Loading…</p></div>
+    <section class="elements-section">
+      <div class="section-head">
+        <h2>Structural elements</h2>
+        <p class="lede">Choose an element to check against <em>How to Design Concrete Structures using Eurocode 2</em>.</p>
+      </div>
+
+      <div id="elements" aria-live="polite">
+        <p class="empty">Loading…</p>
+      </div>
+    </section>
 
     <p class="notice">This is a learning and preliminary-checking tool. A qualified structural engineer should
       verify the inputs and results before anything is built.</p>
