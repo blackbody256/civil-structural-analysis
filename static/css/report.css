@@ -1,5 +1,11 @@
 /* Report page */
 
+/* embedded mode inside an iframe */
+html.embed .topbar,
+html.embed .report-head .actions a { display: none !important; }
+html.embed body { background: transparent; }
+html.embed .page { max-width: 100%; padding: 10px 16px; margin: 0; }
+
 .report-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 26px; }
 .report-head .context { grid-column: 1 / -1; }
 .report-head h1 { margin: 0; }

@@ -1,9 +1,10 @@
-import { el, getJSON, keysFor, postJSON, store } from "./common.js";
+import { downloadBlob, el, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
 import { BeamCanvas, DEFAULT_LOAD } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { beamSectionFromInputs, drawBeamSection } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
 import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
+import { buildAnalysisView } from "./beam-analysis-view.js";
 
 const KEYS = keysFor("beam");
 const PROJECT = { engineer: "", date: "" };
@@ -84,10 +85,93 @@ let model = { supports: [], loads: [], segments: [] };
 let selected = null;
 let lastAnalysis = null;
 
+const TAB_NAMES = ["analysis", "design", "report"];
+let currentTab = "analysis";
+let analysisDone = false;
+let designDone = false;
+let analysisDirty = false;
+
 const shape = () => form.querySelector('input[name="section.shape"]:checked')?.value || "rectangular";
 const valueOf = (name) => form.elements[name]?.value;
 const length = () => Number(valueOf("span.l")) || 0;
 const r3 = (x) => Number(Number(x).toFixed(3));
+
+function updateTabStates() {
+  const direct = valueOf("actions.mode") === "direct";
+  const canDesign = analysisDone || direct;
+  $("tab-design").setAttribute("aria-disabled", String(!canDesign));
+  $("tab-report").setAttribute("aria-disabled", String(!designDone));
+}
+
+function switchTab(name) {
+  if (!TAB_NAMES.includes(name)) return;
+  const tabBtn = $(`tab-${name}`);
+  if (tabBtn.getAttribute("aria-disabled") === "true") return;
+
+  currentTab = name;
+  for (const t of TAB_NAMES) {
+    $(`tab-${t}`).setAttribute("aria-selected", String(t === name));
+    $(`panel-${t}`).classList.toggle("is-active", t === name);
+  }
+  if (history.replaceState) {
+    history.replaceState(null, "", `#${name}`);
+  } else {
+    location.hash = name;
+  }
+  if (name === "report") {
+    const frame = $("report-frame");
+    if (!frame.src || !frame.src.includes("/beam/report?embed=1")) {
+      frame.src = "/beam/report?embed=1";
+    }
+    resizeReportFrame();
+  }
+}
+
+function setupTabs() {
+  for (const t of TAB_NAMES) {
+    $(`tab-${t}`).addEventListener("click", () => switchTab(t));
+    $(`tab-${t}`).addEventListener("keydown", (e) => {
+      let target = null;
+      const enabledTabs = TAB_NAMES.filter((name) => $(`tab-${name}`).getAttribute("aria-disabled") !== "true");
+      const idx = enabledTabs.indexOf(t);
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        target = enabledTabs[(idx + 1) % enabledTabs.length];
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        target = enabledTabs[(idx - 1 + enabledTabs.length) % enabledTabs.length];
+      } else if (e.key === "Home") {
+        target = enabledTabs[0];
+      } else if (e.key === "End") {
+        target = enabledTabs[enabledTabs.length - 1];
+      }
+      if (target && target !== t) {
+        e.preventDefault();
+        $(`tab-${target}`).focus();
+        switchTab(target);
+      }
+    });
+  }
+  window.addEventListener("hashchange", () => {
+    const hash = location.hash.replace("#", "");
+    if (TAB_NAMES.includes(hash)) switchTab(hash);
+  });
+}
+
+function handleErrors(errs) {
+  errors.show(errs);
+  const keys = Object.keys(errs || {});
+  if (keys.length > 0) {
+    const k = keys[0];
+    const input = form.querySelector(`[name="${k}"]`) || form.querySelector(`[data-path^="${k}"]`);
+    if (input) {
+      const panel = input.closest('[role="tabpanel"]');
+      if (panel) {
+        const tabName = panel.id.replace("panel-", "");
+        switchTab(tabName);
+      }
+      input.focus();
+    }
+  }
+}
 
 function populate() {
   for (const select of form.querySelectorAll("select[data-options]")) {
@@ -279,7 +363,7 @@ function pick(sel, fromCanvas = true) {
 
 function focusItem(sel) {
   const section = form.querySelector(`details[data-section="${sel.kind === "support" ? "span" : "actions"}"]`);
-  section.open = true;
+  if (section) section.open = true;
   const table = sel.kind === "support" ? "supports-table" : "loads-table";
   const row = $(table).tBodies[0].rows[sel.index];
   const input = row?.querySelector(sel.kind === "support" ? "input" : "td:nth-child(2) input");
@@ -324,6 +408,22 @@ export function fill(data) {
   syncVisibility();
   if (data.durability?.cement_group) form.elements["durability.cement_group"].value = data.durability.cement_group;
   renderTables();
+
+  // Reset tab states & results
+  analysisDone = false;
+  designDone = false;
+  analysisDirty = false;
+  $("analysis-note").textContent = "";
+  $("analysis-results-area").replaceChildren();
+  $("design-results-area").replaceChildren();
+  $("adjust-design-values").checked = false;
+  $("dv-ms").readOnly = true;
+  $("dv-mh").readOnly = true;
+  $("dv-ved").readOnly = true;
+  $("dv-ms").value = "";
+  $("dv-mh").value = "";
+  $("dv-ved").value = "";
+  updateTabStates();
   refresh();
 }
 
@@ -421,7 +521,8 @@ async function runAnalysis() {
   const env = a.envelope, ld = res.data.loads;
   $("st-w").textContent = `${ld.w.toFixed(2)} kN/m`;
   $("st-m").textContent = `${env.sagging.M.toFixed(1)} / ${(-env.hogging.M).toFixed(1)}`;
-  $("st-v").textContent = `${env.shear.V.toFixed(1)} kN`;
+  const shearV = env.shear?.V != null ? env.shear.V : (env.V?.V != null ? env.V.V : 0);
+  $("st-v").textContent = `${shearV.toFixed(1)} kN`;
   $("analysis-reactions").replaceChildren(el("table", { class: "mini" },
     el("thead", {}, el("tr", {}, el("th", {}, "Support"), el("th", {}, "Ry (kN)"), el("th", {}, "M (kNm)"))),
     el("tbody", {}, a.reactions.map((r) => el("tr", {}, el("td", {}, `Node ${r.node} · ${r.x} m`),
@@ -433,6 +534,210 @@ async function runAnalysis() {
     : "";
   canvas.setModel({ ...canvas.model, w: ld.w });
   drawSectionPreview(data, res.data.section);
+}
+
+// ------------------------------------------------------------------ Analysis & Design Actions
+
+async function performAnalysis() {
+  errors.clear();
+  const btn = $("btn-analyse");
+  btn.disabled = true;
+  try {
+    const data = serialize();
+    const res = await postJSON("/api/beam/analysis", data);
+    if (!res.ok) {
+      if (res.status === 400 && res.data?.errors) {
+        handleErrors(res.data.errors);
+      } else {
+        $("form-message").textContent = `Server error (${res.status})`;
+      }
+      return;
+    }
+    lastAnalysis = res.data;
+    analysisDone = true;
+    analysisDirty = false;
+    $("analysis-note").textContent = "";
+    updateTabStates();
+
+    // Populate design values box
+    const env = res.data.analysis.envelope;
+    const sag = env.sagging?.M != null ? Math.abs(env.sagging.M) : 0;
+    const hog = env.hogging?.M != null ? Math.abs(env.hogging.M) : 0;
+    const shr = env.shear?.V != null ? Math.abs(env.shear.V) : (env.V?.V != null ? Math.abs(env.V.V) : 0);
+    $("dv-ms").value = sag.toFixed(1);
+    $("dv-mh").value = hog.toFixed(1);
+    $("dv-ved").value = shr.toFixed(1);
+
+    // Render analysis view
+    const view = buildAnalysisView(res.data, {
+      showContinue: true,
+      onContinue: () => switchTab("design"),
+    });
+    $("analysis-results-area").replaceChildren(view);
+  } catch (e) {
+    $("form-message").textContent = "Could not reach the analysis server.";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function setupAdjustDesignValues() {
+  $("adjust-design-values").addEventListener("change", (e) => {
+    const adjust = e.target.checked;
+    $("dv-ms").readOnly = !adjust;
+    $("dv-mh").readOnly = !adjust;
+    $("dv-ved").readOnly = !adjust;
+    form.elements["actions.mode"].value = adjust ? "direct" : "analysis";
+    if (adjust) {
+      form.elements["actions.M_sag"].value = $("dv-ms").value;
+      form.elements["actions.M_hog"].value = $("dv-mh").value;
+      form.elements["actions.VEd"].value = $("dv-ved").value;
+    } else if (lastAnalysis) {
+      const env = lastAnalysis.analysis.envelope;
+      const sag = env.sagging?.M != null ? Math.abs(env.sagging.M) : 0;
+      const hog = env.hogging?.M != null ? Math.abs(env.hogging.M) : 0;
+      const shr = env.shear?.V != null ? Math.abs(env.shear.V) : (env.V?.V != null ? Math.abs(env.V.V) : 0);
+      $("dv-ms").value = sag.toFixed(1);
+      $("dv-mh").value = hog.toFixed(1);
+      $("dv-ved").value = shr.toFixed(1);
+    }
+    updateTabStates();
+    refresh();
+  });
+
+  for (const id of ["dv-ms", "dv-mh", "dv-ved"]) {
+    $(id).addEventListener("input", () => {
+      if ($("adjust-design-values").checked) {
+        form.elements["actions.M_sag"].value = $("dv-ms").value;
+        form.elements["actions.M_hog"].value = $("dv-mh").value;
+        form.elements["actions.VEd"].value = $("dv-ved").value;
+      }
+    });
+  }
+}
+
+async function performDesignChecks() {
+  errors.clear();
+  const btn = $("btn-run-design");
+  btn.disabled = true;
+  try {
+    const data = serialize();
+    const res = await postJSON("/api/beam/check", data);
+    if (!res.ok) {
+      if (res.status === 400 && res.data?.errors) {
+        handleErrors(res.data.errors);
+      } else {
+        $("form-message").textContent = `Server error (${res.status})`;
+      }
+      return;
+    }
+    store.set(KEYS.input, data);
+    store.setSession(KEYS.result, { input: data, result: res.data });
+    designDone = true;
+    updateTabStates();
+    renderDesignResults(res.data);
+    $("report-frame").src = "/beam/report?embed=1";
+  } catch {
+    $("form-message").textContent = "Could not reach the server.";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderDesignResults(result) {
+  const verdict = result.summary.verdict;
+  const isPass = verdict === "pass";
+  const failCount = result.summary.counts?.fail ?? 0;
+  const totalChecks = result.checks.length;
+
+  const titleText = isPass
+    ? `Adequate: all ${totalChecks} checks pass`
+    : `Not adequate: ${failCount} check${failCount > 1 ? "s" : ""} fail`;
+
+  const counts = el("div", { class: "design-counts" },
+    `${result.summary.counts.pass} passed · ${result.summary.counts.fail} failed`
+    + (result.summary.counts.warn ? ` · ${result.summary.counts.warn} warning${result.summary.counts.warn > 1 ? "s" : ""}` : "")
+  );
+
+  let rowIndex = 0;
+  const groupNodes = [];
+  (result.groups || []).forEach((grp) => {
+    const checks = result.checks.filter((c) => c.group === grp);
+    if (!checks.length) return;
+    const rows = checks.map((c) => {
+      const idx = rowIndex++;
+      const row = el("div", { class: `design-check-row check-row-animated ${c.status === "fail" ? "is-fail" : ""}` },
+        statusDot(c.status),
+        el("span", { class: "check-title" }, c.title),
+        el("span", { class: "check-res" }, c.result || "")
+      );
+      row.style.animationDelay = `${idx * 25}ms`;
+      return row;
+    });
+    groupNodes.push(el("div", { class: "design-checks-group" },
+      el("div", { class: "design-group-title" }, grp),
+      ...rows
+    ));
+  });
+
+  const continueBtn = el("div", { class: "tab-continue" },
+    el("button", { type: "button", class: "btn primary", onclick: () => switchTab("report") }, "Continue to report →")
+  );
+
+  const block = el("div", { class: "design-results-block" },
+    el("div", { class: `design-verdict-head ${verdict}` }, titleText),
+    counts,
+    ...groupNodes,
+    continueBtn
+  );
+  $("design-results-area").replaceChildren(block);
+}
+
+function resizeReportFrame() {
+  try {
+    const frame = $("report-frame");
+    if (frame?.contentDocument?.documentElement) {
+      frame.style.height = (frame.contentDocument.documentElement.scrollHeight + 30) + "px";
+    }
+  } catch (e) {}
+}
+
+function setupReportTab() {
+  $("btn-pdf").addEventListener("click", async () => {
+    const btn = $("btn-pdf");
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/beam/report.pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(serialize()),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || "EC2-beam-check.pdf";
+      downloadBlob(await res.blob(), name);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $("btn-print").addEventListener("click", () => {
+    const frame = $("report-frame");
+    if (frame?.contentWindow) frame.contentWindow.print();
+  });
+
+  $("report-frame").addEventListener("load", () => {
+    resizeReportFrame();
+    try {
+      const win = $("report-frame").contentWindow;
+      if (win) {
+        win.addEventListener("resize", resizeReportFrame);
+        new win.ResizeObserver(resizeReportFrame).observe(win.document.body);
+      }
+    } catch (e) {}
+  });
+  window.addEventListener("resize", resizeReportFrame);
 }
 
 // ------------------------------------------------------------------ init
@@ -502,18 +807,29 @@ async function init() {
   meta = await getJSON("/api/meta");
   populate();
   setupCanvas();
+  setupTabs();
+  setupAdjustDesignValues();
+  setupReportTab();
   setupSections(form, "ec2.beam.form.open.v2");
   fill(store.get(KEYS.input) || structuredClone(EXAMPLES.analysis));
   const serverErrors = store.getSession(KEYS.errors);
-  if (serverErrors) { errors.show(serverErrors); store.setSession(KEYS.errors, null); }
+  if (serverErrors) { handleErrors(serverErrors); store.setSession(KEYS.errors, null); }
 
   let timer = null;
   form.addEventListener("input", (e) => {
+    if (e.target.closest("#panel-analysis") && analysisDone) {
+      analysisDirty = true;
+      $("analysis-note").textContent = "Inputs changed: analyse again";
+    }
     if (e.target.dataset.path) { onTableInput(e); return; }
     clearTimeout(timer);
     timer = setTimeout(refresh, 90);
   });
   form.addEventListener("change", (e) => {
+    if (e.target.closest("#panel-analysis") && analysisDone) {
+      analysisDirty = true;
+      $("analysis-note").textContent = "Inputs changed: analyse again";
+    }
     if (e.target.dataset.path) {
       if (e.target.tagName === "SELECT") onTableInput(e);
       return;
@@ -528,6 +844,10 @@ async function init() {
     }
     refresh();
   });
+
+  $("btn-analyse").addEventListener("click", performAnalysis);
+  $("btn-run-design").addEventListener("click", performDesignChecks);
+
   $("add-support").addEventListener("click", () => {
     const L = length();
     const xs = model.supports.map((sp) => sp.x);
@@ -557,11 +877,14 @@ async function init() {
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    errors.clear();
-    store.set(KEYS.input, serialize());
-    store.setSession(KEYS.result, null);
-    window.location.href = "/beam/run";
+    performDesignChecks();
   });
+
+  // Check initial hash
+  const initialHash = location.hash.replace("#", "");
+  if (TAB_NAMES.includes(initialHash)) {
+    switchTab(initialHash);
+  }
 }
 
 init().catch((err) => {

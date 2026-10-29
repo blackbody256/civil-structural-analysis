@@ -25,42 +25,20 @@
         The loads are analysed first; every moment and shear the analysis finds is then designed for.</p>
     </div>
 
+    <nav class="tabs" role="tablist" aria-label="Workflow tabs">
+      <button type="button" role="tab" id="tab-analysis" aria-selected="true" aria-controls="panel-analysis">
+        <span class="step-num">1</span> Analysis
+      </button>
+      <button type="button" role="tab" id="tab-design" aria-selected="false" aria-controls="panel-design" aria-disabled="true">
+        <span class="step-num">2</span> Design
+      </button>
+      <button type="button" role="tab" id="tab-report" aria-selected="false" aria-controls="panel-report" aria-disabled="true">
+        <span class="step-num">3</span> Report
+      </button>
+    </nav>
+
     <form id="beam-form" class="form-layout" novalidate autocomplete="off">
       <div class="form-main">
-        <fieldset class="type-choice" aria-label="Section type">
-          <label class="type-card">
-            <input type="radio" name="section.shape" value="rectangular">
-            <svg viewBox="0 0 76 56" aria-hidden="true"><rect x="26" y="6" width="24" height="44" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span><span class="tt">Rectangular</span><br><span class="td">Downstand beam on its own, or any beam where the slab is ignored</span></span>
-          </label>
-          <label class="type-card">
-            <input type="radio" name="section.shape" value="flanged">
-            <svg viewBox="0 0 76 56" aria-hidden="true"><path d="M4 6h68v12H50v32H26V18H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            <span><span class="tt">Flanged</span><br><span class="td">T or L beam cast with the slab, which acts as the flange</span></span>
-          </label>
-        </fieldset>
-
-        <section class="panel model-panel" aria-label="Beam model">
-          <div class="panel-head"><h3>Beam model</h3><span class="hint" id="canvas-hint">Click the beam to place; type the value in the box; drag to move; double-click to edit</span></div>
-          <div class="canvas-tools" role="toolbar" aria-label="Drawing tools">
-            <button type="button" data-tool="select" aria-pressed="true" title="Select and drag">Select</button>
-            <span class="sep" aria-hidden="true"></span>
-            <button type="button" data-tool="pin" title="Pinned support">Pin</button>
-            <button type="button" data-tool="roller" title="Roller support">Roller</button>
-            <button type="button" data-tool="fixed" title="Fixed support">Fixed</button>
-            <span class="sep" aria-hidden="true"></span>
-            <button type="button" data-tool="point" title="Point load">Point load</button>
-            <button type="button" data-tool="udl" title="Uniform load over part of the beam">Uniform load</button>
-            <button type="button" data-tool="linear" title="Linearly varying load">Varying load</button>
-            <button type="button" data-tool="moment" title="Applied moment">Moment</button>
-            <span class="spacer"></span>
-            <button type="button" id="canvas-delete" disabled title="Delete the selected item (Delete key)">Delete</button>
-          </div>
-          <div class="canvas-host" id="beam-canvas" tabindex="0" aria-label="Beam drawing: supports and loads"></div>
-          <div class="live-head"><span>Shear force and bending moment, from the analysis</span><span class="hint" id="analysis-hint">live</span></div>
-          <div class="live-diagrams" id="preview-analysis"></div>
-        </section>
-
         <div class="form-tools">
           <span>Click a section to edit it.</span>
           <span class="spacer"></span>
@@ -68,273 +46,384 @@
           <button type="button" class="btn quiet small" id="collapse-all">Collapse all</button>
         </div>
 
-        <details class="section" data-section="project">
-          <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
-            <div class="fields">
-              <div class="field"><label for="p-name">Project</label>
-                <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="Campus block A"></div></div>
-              <div class="field"><label for="p-ref">Element reference</label>
-                <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="B1 first floor"></div></div>
-              <div class="field"><label for="p-eng">Engineer</label>
-                <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
-              <div class="field"><label for="p-date">Date</label>
-                <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
-            </div>
-          </div>
-        </details>
+        <!-- TAB 1: ANALYSIS -->
+        <div role="tabpanel" id="panel-analysis" class="tab-panel is-active" aria-labelledby="tab-analysis">
+          <fieldset class="type-choice" aria-label="Section type">
+            <label class="type-card">
+              <input type="radio" name="section.shape" value="rectangular">
+              <svg viewBox="0 0 76 56" aria-hidden="true"><rect x="26" y="6" width="24" height="44" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span><span class="tt">Rectangular</span><br><span class="td">Downstand beam on its own, or any beam where the slab is ignored</span></span>
+            </label>
+            <label class="type-card">
+              <input type="radio" name="section.shape" value="flanged">
+              <svg viewBox="0 0 76 56" aria-hidden="true"><path d="M4 6h68v12H50v32H26V18H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+              <span><span class="tt">Flanged</span><br><span class="td">T or L beam cast with the slab, which acts as the flange</span></span>
+            </label>
+          </fieldset>
 
-        <details class="section" data-section="materials">
-          <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
+          <details class="section" data-section="geometry" open>
+            <summary><span class="s-title">Section size</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="g-b" id="g-b-label">Width b</label>
+                  <div class="control"><input id="g-b" name="section.b" type="number" step="5" min="100" max="2000" required><span class="unit">mm</span></div></div>
+                <div class="field"><label for="g-h">Overall depth h</label>
+                  <div class="control"><input id="g-h" name="section.h" type="number" step="5" min="150" max="3000" required><span class="unit">mm</span></div></div>
+                <div class="field flanged-only"><label for="g-flange">Flange</label>
+                  <div class="control"><select id="g-flange" name="section.flange">
+                    <option value="T">T beam: slab on both sides</option><option value="L">L beam: slab on one side (edge beam)</option></select></div></div>
+                <div class="field flanged-only"><label for="g-hf">Flange (slab) thickness h<sub>f</sub></label>
+                  <div class="control"><input id="g-hf" name="section.hf" type="number" step="5" min="50" max="1000"><span class="unit">mm</span></div></div>
+              </div>
+            </div>
+          </details>
+
+          <section class="panel model-panel" aria-label="Beam model">
+            <div class="panel-head"><h3>Beam model</h3><span class="hint" id="canvas-hint">Click the beam to place; type the value in the box; drag to move; double-click to edit</span></div>
+            <div class="canvas-tools" role="toolbar" aria-label="Drawing tools">
+              <button type="button" data-tool="select" aria-pressed="true" title="Select and drag">Select</button>
+              <span class="sep" aria-hidden="true"></span>
+              <button type="button" data-tool="pin" title="Pinned support">Pin</button>
+              <button type="button" data-tool="roller" title="Roller support">Roller</button>
+              <button type="button" data-tool="fixed" title="Fixed support">Fixed</button>
+              <span class="sep" aria-hidden="true"></span>
+              <button type="button" data-tool="point" title="Point load">Point load</button>
+              <button type="button" data-tool="udl" title="Uniform load over part of the beam">Uniform load</button>
+              <button type="button" data-tool="linear" title="Linearly varying load">Varying load</button>
+              <button type="button" data-tool="moment" title="Applied moment">Moment</button>
+              <span class="spacer"></span>
+              <button type="button" id="canvas-delete" disabled title="Delete the selected item (Delete key)">Delete</button>
+            </div>
+            <div class="canvas-host" id="beam-canvas" tabindex="0" aria-label="Beam drawing: supports and loads"></div>
+            <div class="live-head"><span>Shear force and bending moment, from the analysis</span><span class="hint" id="analysis-hint">live</span></div>
+            <div class="live-diagrams" id="preview-analysis"></div>
+          </section>
+
+          <details class="section" data-section="span" open>
+            <summary><span class="s-title">Span and supports</span><span class="s-sum" data-sum="span"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="g-l">Beam length L</label>
+                  <div class="control"><input id="g-l" name="span.l" type="number" step="0.1" min="0.5" max="60" required><span class="unit">m</span></div></div>
+                <div class="field" style="grid-column: span 2"><label for="g-preset">Supports</label>
+                  <div class="control"><select id="g-preset" name="span.preset">
+                    <option value="simple">Simply supported</option>
+                    <option value="cantilever">Cantilever, fixed at the left</option>
+                    <option value="propped">Propped cantilever (fixed and roller)</option>
+                    <option value="fixed">Fixed at both ends</option>
+                    <option value="two">Two equal spans</option>
+                    <option value="three">Three equal spans</option>
+                    <option value="custom">As drawn (custom)</option></select></div>
+                  <span class="help">Choosing a layout places the supports; drag them on the drawing to change it</span></div>
+              </div>
+              <div class="field"><span class="label">Supports along the beam</span>
+                <span data-path="span.supports" hidden></span>
+                <table class="grid-table" id="supports-table">
+                  <thead><tr><th>#</th><th>x (m)</th><th>Type</th><th></th></tr></thead>
+                  <tbody></tbody>
+                </table>
+                <button type="button" class="inline-link" id="add-support">+ Add support</button></div>
+              <details class="more" id="stiffness-more">
+                <summary><span>More options: stiffness for the analysis (E and I)</span></summary>
+                <div class="fields">
+                  <div class="field"><label for="s-em">Elastic modulus</label>
+                    <div class="control"><select id="s-em" name="stiffness.E_method">
+                      <option value="concrete">Ecm of the concrete class</option><option value="enter">Enter E</option></select></div>
+                    <span class="help" id="e-help"></span></div>
+                  <div class="field e-enter"><label for="s-e">E</label>
+                    <div class="control"><input id="s-e" name="stiffness.E" type="number" step="1" min="1" max="300"><span class="unit">GPa</span></div></div>
+                  <div class="field"><label for="s-im">Second moment of area</label>
+                    <div class="control"><select id="s-im" name="stiffness.I_method">
+                      <option value="section">Gross section, uniform</option><option value="enter">Enter I along the beam</option></select></div>
+                    <span class="help" id="i-help"></span></div>
+                </div>
+                <div class="field i-enter"><span class="label">I along the beam</span>
+                  <span data-path="stiffness.segments" hidden></span>
+                  <table class="grid-table" id="segments-table">
+                    <thead><tr><th>From x (m)</th><th>To x (m)</th><th>I (×10⁶ mm⁴)</th><th></th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                  <button type="button" class="inline-link" id="add-segment">+ Add part</button></div>
+              </details>
+            </div>
+          </details>
+
+          <details class="section" data-section="actions" open>
+            <summary><span class="s-title">Loads</span><span class="s-sum" data-sum="actions"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field" style="grid-column: 1 / -1"><label for="a-mode">Loading</label>
+                  <div class="control"><select id="a-mode" name="actions.mode">
+                    <option value="analysis">Analyse the loads (matrix stiffness method)</option>
+                    <option value="direct">MEd and VEd from my own analysis</option></select></div></div>
+              </div>
+
+              <div class="analysis-only s-group">
+                <div class="group-title">Uniform loads on the whole beam</div>
+                <div class="fields">
+                  <div class="field"><label for="a-gk">Permanent g<sub>k</sub></label>
+                    <div class="control"><input id="a-gk" name="actions.gk" type="number" step="0.5" min="0" max="10000"><span class="unit">kN/m</span></div>
+                    <span class="help">Finishes and walls carried; not the beam itself</span></div>
+                  <div class="field"><label for="a-qk">Variable q<sub>k</sub></label>
+                    <div class="control"><input id="a-qk" name="actions.qk" type="number" step="0.5" min="0" max="10000"><span class="unit">kN/m</span></div></div>
+                  <div class="field"><label for="a-cat">Variable load category</label>
+                    <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
+                    <span class="help">ψ<sub>2</sub> for the quasi-permanent load</span></div>
+                </div>
+                <label class="check"><input type="checkbox" name="actions.self_weight"> <span>Add the beam's self-weight to g<sub>k</sub> (25 kN/m³)</span></label>
+              </div>
+
+              <div class="analysis-only s-group">
+                <label class="check group-title"><input type="checkbox" name="actions.slab.on" id="a-slab"> <span>Slab on top of the beam: work out its load on the beam</span></label>
+                <div class="slab-only">
+                  <div class="fields">
+                    <div class="field" style="grid-column: span 2"><label for="sl-type">Slab</label>
+                      <div class="control"><select id="sl-type" name="actions.slab.type">
+                        <option value="one_way">One-way slab (tributary width)</option>
+                        <option value="two_way_long">Two-way slab, beam along the long side Ly</option>
+                        <option value="two_way_short">Two-way slab, beam along the short side Lx</option></select></div></div>
+                    <div class="field"><label for="sl-gk">Slab g<sub>k</sub></label>
+                      <div class="control"><input id="sl-gk" name="actions.slab.gk" type="number" step="0.25" min="0" max="100"><span class="unit">kN/m²</span></div>
+                      <span class="help">Including the slab's own weight</span></div>
+                    <div class="field"><label for="sl-qk">Slab q<sub>k</sub></label>
+                      <div class="control"><input id="sl-qk" name="actions.slab.qk" type="number" step="0.25" min="0" max="100"><span class="unit">kN/m²</span></div></div>
+                    <div class="field one-way"><label for="sl-trib">Tributary width b<sub>trib</sub></label>
+                      <div class="control"><input id="sl-trib" name="actions.slab.trib" type="number" step="0.1" min="0.1" max="50"><span class="unit">m</span></div>
+                      <span class="help">Half the span of the slab on each side, added</span></div>
+                    <div class="field two-way"><label for="sl-lx">Short side L<sub>x</sub></label>
+                      <div class="control"><input id="sl-lx" name="actions.slab.lx" type="number" step="0.1" min="0.5" max="50"><span class="unit">m</span></div></div>
+                    <div class="field two-way"><label for="sl-ly">Long side L<sub>y</sub></label>
+                      <div class="control"><input id="sl-ly" name="actions.slab.ly" type="number" step="0.1" min="0.5" max="50"><span class="unit">m</span></div></div>
+                    <div class="field two-way"><label for="sl-sides">Slab panels</label>
+                      <div class="control"><select id="sl-sides" name="actions.slab.sides">
+                        <option value="1">One side (edge beam)</option><option value="2">Both sides (internal beam)</option></select></div></div>
+                  </div>
+                  <p class="formula" id="slab-formula"></p>
+                </div>
+              </div>
+
+              <div class="analysis-only s-group">
+                <div class="group-title">Further loads <span class="muted">(also placed from the drawing)</span></div>
+                <span data-path="actions.loads" hidden></span>
+                <div class="table-scroll">
+                  <table class="grid-table" id="loads-table">
+                    <thead><tr><th>Type</th><th>Value</th><th>Case</th><th>x or from (m)</th><th>to (m)</th><th>End value</th><th></th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <button type="button" class="inline-link" id="add-load">+ Add load</button>
+                <p class="help-line">Downward loads positive; moments clockwise positive. Design values are used as entered; permanent and variable loads are multiplied by 1.35 and 1.5.</p>
+              </div>
+
+              <div class="fields direct-only">
+                <div class="field"><label for="a-ms">Sagging moment M<sup>+</sup><sub>Ed</sub></label>
+                  <div class="control"><input id="a-ms" name="actions.M_sag" type="number" step="1" min="0" max="1000000"><span class="unit">kNm</span></div></div>
+                <div class="field"><label for="a-mh">Hogging moment M<sup>−</sup><sub>Ed</sub></label>
+                  <div class="control"><input id="a-mh" name="actions.M_hog" type="number" step="1" min="0" max="1000000"><span class="unit">kNm</span></div>
+                  <span class="help">Enter 0 where there is none</span></div>
+                <div class="field"><label for="a-ved">Design shear V<sub>Ed</sub></label>
+                  <div class="control"><input id="a-ved" name="actions.VEd" type="number" step="1" min="0" max="1000000"><span class="unit">kN</span></div></div>
+              </div>
+            </div>
+          </details>
+
+          <div class="panel" style="margin-top: 14px;">
             <div class="fields">
-              <div class="field"><label for="m-concrete">Concrete class</label>
+              <div class="field"><label for="m-concrete">Concrete class (sets E<sub>cm</sub> for the analysis)</label>
                 <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
                 <span class="help" id="concrete-help"></span></div>
-              <div class="field"><label for="m-fyk">Rebar yield strength f<sub>yk</sub></label>
-                <div class="control"><input id="m-fyk" name="materials.fyk" type="number" step="10" min="200" max="700" required><span class="unit">MPa</span></div>
-                <span class="help">B500 is 500 MPa. Eurocode 2 covers 400–600.</span></div>
-              <div class="field"><label for="m-duct">Ductility class</label>
-                <div class="control"><select id="m-duct" name="materials.ductility">
-                  <option value="A">A (normal)</option><option value="B">B (high)</option><option value="C">C (very high)</option></select></div></div>
-              <div class="field"><label for="m-dg">Largest aggregate d<sub>g</sub></label>
-                <div class="control"><input id="m-dg" name="materials.dg" type="number" step="1" min="5" max="63" required><span class="unit">mm</span></div></div>
-            </div>
-            <details class="more">
-              <summary><span>More options: National Annex factors</span></summary>
-              <div class="fields">
-                <div class="field"><label for="m-gc">γ<sub>c</sub> concrete</label>
-                  <div class="control"><input id="m-gc" name="materials.gamma_c" type="number" step="0.05" min="1" max="2"></div></div>
-                <div class="field"><label for="m-gs">γ<sub>s</sub> reinforcement</label>
-                  <div class="control"><input id="m-gs" name="materials.gamma_s" type="number" step="0.05" min="1" max="1.5"></div></div>
-                <div class="field"><label for="m-acc">α<sub>cc</sub></label>
-                  <div class="control"><input id="m-acc" name="materials.alpha_cc" type="number" step="0.05" min="0.8" max="1"></div>
-                  <span class="help">UK values: 1.5, 1.15, 0.85</span></div>
-              </div>
-            </details>
-          </div>
-        </details>
-
-        <details class="section" data-section="geometry">
-          <summary><span class="s-title">Section</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
-            <div class="fields">
-              <div class="field"><label for="g-b" id="g-b-label">Width b</label>
-                <div class="control"><input id="g-b" name="section.b" type="number" step="5" min="100" max="2000" required><span class="unit">mm</span></div></div>
-              <div class="field"><label for="g-h">Overall depth h</label>
-                <div class="control"><input id="g-h" name="section.h" type="number" step="5" min="150" max="3000" required><span class="unit">mm</span></div></div>
-              <div class="field flanged-only"><label for="g-flange">Flange</label>
-                <div class="control"><select id="g-flange" name="section.flange">
-                  <option value="T">T beam: slab on both sides</option><option value="L">L beam: slab on one side (edge beam)</option></select></div></div>
-              <div class="field flanged-only"><label for="g-hf">Flange (slab) thickness h<sub>f</sub></label>
-                <div class="control"><input id="g-hf" name="section.hf" type="number" step="5" min="50" max="1000"><span class="unit">mm</span></div></div>
-              <div class="field flanged-only"><label for="g-beffm">Effective flange width</label>
-                <div class="control"><select id="g-beffm" name="section.beff_method">
-                  <option value="calculate">From the beam spacing</option><option value="enter">Enter beff</option></select></div></div>
-              <div class="field flanged-only beff-enter"><label for="g-beff">b<sub>eff</sub></label>
-                <div class="control"><input id="g-beff" name="section.beff" type="number" step="10" min="100" max="20000"><span class="unit">mm</span></div></div>
-              <div class="field flanged-only beff-calc"><label for="g-b1">b<sub>1</sub>, half the gap to the next web</label>
-                <div class="control"><input id="g-b1" name="section.b1" type="number" step="10" min="0" max="20000"><span class="unit">mm</span></div></div>
-              <div class="field flanged-only beff-calc t-only"><label for="g-b2">b<sub>2</sub>, other side</label>
-                <div class="control"><input id="g-b2" name="section.b2" type="number" step="10" min="0" max="20000"><span class="unit">mm</span></div></div>
             </div>
           </div>
-        </details>
 
-        <details class="section" data-section="span" open>
-          <summary><span class="s-title">Span and supports</span><span class="s-sum" data-sum="span"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
-            <div class="fields">
-              <div class="field"><label for="g-l">Beam length L</label>
-                <div class="control"><input id="g-l" name="span.l" type="number" step="0.1" min="0.5" max="60" required><span class="unit">m</span></div></div>
-              <div class="field" style="grid-column: span 2"><label for="g-preset">Supports</label>
-                <div class="control"><select id="g-preset" name="span.preset">
-                  <option value="simple">Simply supported</option>
-                  <option value="cantilever">Cantilever, fixed at the left</option>
-                  <option value="propped">Propped cantilever (fixed and roller)</option>
-                  <option value="fixed">Fixed at both ends</option>
-                  <option value="two">Two equal spans</option>
-                  <option value="three">Three equal spans</option>
-                  <option value="custom">As drawn (custom)</option></select></div>
-                <span class="help">Choosing a layout places the supports; drag them on the drawing to change it</span></div>
-            </div>
-            <div class="field"><span class="label">Supports along the beam</span>
-              <span data-path="span.supports" hidden></span>
-              <table class="grid-table" id="supports-table">
-                <thead><tr><th>#</th><th>x (m)</th><th>Type</th><th></th></tr></thead>
-                <tbody></tbody>
-              </table>
-              <button type="button" class="inline-link" id="add-support">+ Add support</button></div>
-            <details class="more" id="stiffness-more">
-              <summary><span>More options: stiffness for the analysis (E and I)</span></summary>
-              <div class="fields">
-                <div class="field"><label for="s-em">Elastic modulus</label>
-                  <div class="control"><select id="s-em" name="stiffness.E_method">
-                    <option value="concrete">Ecm of the concrete class</option><option value="enter">Enter E</option></select></div>
-                  <span class="help" id="e-help"></span></div>
-                <div class="field e-enter"><label for="s-e">E</label>
-                  <div class="control"><input id="s-e" name="stiffness.E" type="number" step="1" min="1" max="300"><span class="unit">GPa</span></div></div>
-                <div class="field"><label for="s-im">Second moment of area</label>
-                  <div class="control"><select id="s-im" name="stiffness.I_method">
-                    <option value="section">Gross section, uniform</option><option value="enter">Enter I along the beam</option></select></div>
-                  <span class="help" id="i-help"></span></div>
-              </div>
-              <div class="field i-enter"><span class="label">I along the beam</span>
-                <span data-path="stiffness.segments" hidden></span>
-                <table class="grid-table" id="segments-table">
-                  <thead><tr><th>From x (m)</th><th>To x (m)</th><th>I (×10⁶ mm⁴)</th><th></th></tr></thead>
-                  <tbody></tbody>
-                </table>
-                <button type="button" class="inline-link" id="add-segment">+ Add part</button></div>
-            </details>
+          <div class="analysis-action-bar">
+            <button type="button" class="btn primary" id="btn-analyse">Analyse</button>
+            <span class="hint" id="analysis-note"></span>
           </div>
-        </details>
 
-        <details class="section" data-section="reinforcement">
-          <summary><span class="s-title">Reinforcement</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
+          <div id="analysis-results-area"></div>
+        </div>
+
+        <!-- TAB 2: DESIGN -->
+        <div role="tabpanel" id="panel-design" class="tab-panel" aria-labelledby="tab-design">
+          <section class="panel design-values-box">
+            <div class="panel-head">
+              <h3>Design values from the analysis</h3>
+              <label class="check" style="font-weight: normal; font-size: 13.5px; margin: 0;">
+                <input type="checkbox" id="adjust-design-values">
+                <span>Adjust these design values</span>
+              </label>
+            </div>
             <div class="fields">
-              <div class="field"><label for="r-bn">Bottom bars</label>
-                <div class="control"><input id="r-bn" name="reinforcement.bottom_n" type="number" step="1" min="2" max="20" required aria-label="Number of bottom bars">
-                  <select name="reinforcement.bottom_dia" data-options="bars" aria-label="Bottom bar size"></select></div>
-                <span class="help">Tension steel for sagging</span></div>
-              <div class="field"><label for="r-tn">Top bars</label>
-                <div class="control"><input id="r-tn" name="reinforcement.top_n" type="number" step="1" min="2" max="20" required aria-label="Number of top bars">
-                  <select name="reinforcement.top_dia" data-options="bars" aria-label="Top bar size"></select></div>
-                <span class="help">Tension steel for hogging</span></div>
-              <div class="field"><label for="r-link">Links</label>
-                <div class="control"><select id="r-link" name="reinforcement.link_dia" data-options="links"></select>
-                  <select name="reinforcement.legs" aria-label="Number of legs">
-                    <option value="2">2 legs</option><option value="3">3 legs</option><option value="4">4 legs</option>
-                    <option value="5">5 legs</option><option value="6">6 legs</option></select></div>
-                <span class="help">Spacing is calculated from the shear</span></div>
-              <div class="field"><label for="r-cover">Nominal cover c<sub>nom</sub></label>
-                <div class="control"><input id="r-cover" name="reinforcement.cover" type="number" step="5" min="0" max="150" required><span class="unit">mm</span></div>
-                <span class="help">To the links</span></div>
-            </div>
-            <details class="more">
-              <summary><span>More options: layers, Δc<sub>dev</sub></span></summary>
-              <div class="fields">
-                <div class="field"><label for="r-bl">Bottom bars in</label>
-                  <div class="control"><select id="r-bl" name="reinforcement.bottom_layers">
-                    <option value="1">One layer</option><option value="2">Two layers</option></select></div></div>
-                <div class="field"><label for="r-tl">Top bars in</label>
-                  <div class="control"><select id="r-tl" name="reinforcement.top_layers">
-                    <option value="1">One layer</option><option value="2">Two layers</option></select></div></div>
-                <div class="field"><label for="r-dc">Allowance Δc<sub>dev</sub></label>
-                  <div class="control"><select id="r-dc" name="reinforcement.delta_c_dev">
-                    <option value="10">10 mm (normal)</option><option value="5">5 mm (with QA)</option><option value="0">0 mm (precast QA)</option></select></div></div>
-              </div>
-            </details>
-          </div>
-        </details>
-
-        <details class="section" data-section="actions" open>
-          <summary><span class="s-title">Loads</span><span class="s-sum" data-sum="actions"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
-            <div class="fields">
-              <div class="field" style="grid-column: 1 / -1"><label for="a-mode">Loading</label>
-                <div class="control"><select id="a-mode" name="actions.mode">
-                  <option value="analysis">Analyse the loads (matrix stiffness method)</option>
-                  <option value="direct">MEd and VEd from my own analysis</option></select></div></div>
-            </div>
-
-            <div class="analysis-only s-group">
-              <div class="group-title">Uniform loads on the whole beam</div>
-              <div class="fields">
-                <div class="field"><label for="a-gk">Permanent g<sub>k</sub></label>
-                  <div class="control"><input id="a-gk" name="actions.gk" type="number" step="0.5" min="0" max="10000"><span class="unit">kN/m</span></div>
-                  <span class="help">Finishes and walls carried; not the beam itself</span></div>
-                <div class="field"><label for="a-qk">Variable q<sub>k</sub></label>
-                  <div class="control"><input id="a-qk" name="actions.qk" type="number" step="0.5" min="0" max="10000"><span class="unit">kN/m</span></div></div>
-                <div class="field"><label for="a-cat">Variable load category</label>
-                  <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
-                  <span class="help">ψ<sub>2</sub> for the quasi-permanent load</span></div>
-              </div>
-              <label class="check"><input type="checkbox" name="actions.self_weight"> <span>Add the beam's self-weight to g<sub>k</sub> (25 kN/m³)</span></label>
-            </div>
-
-            <div class="analysis-only s-group">
-              <label class="check group-title"><input type="checkbox" name="actions.slab.on" id="a-slab"> <span>Slab on top of the beam: work out its load on the beam</span></label>
-              <div class="slab-only">
-                <div class="fields">
-                  <div class="field" style="grid-column: span 2"><label for="sl-type">Slab</label>
-                    <div class="control"><select id="sl-type" name="actions.slab.type">
-                      <option value="one_way">One-way slab (tributary width)</option>
-                      <option value="two_way_long">Two-way slab, beam along the long side Ly</option>
-                      <option value="two_way_short">Two-way slab, beam along the short side Lx</option></select></div></div>
-                  <div class="field"><label for="sl-gk">Slab g<sub>k</sub></label>
-                    <div class="control"><input id="sl-gk" name="actions.slab.gk" type="number" step="0.25" min="0" max="100"><span class="unit">kN/m²</span></div>
-                    <span class="help">Including the slab's own weight</span></div>
-                  <div class="field"><label for="sl-qk">Slab q<sub>k</sub></label>
-                    <div class="control"><input id="sl-qk" name="actions.slab.qk" type="number" step="0.25" min="0" max="100"><span class="unit">kN/m²</span></div></div>
-                  <div class="field one-way"><label for="sl-trib">Tributary width b<sub>trib</sub></label>
-                    <div class="control"><input id="sl-trib" name="actions.slab.trib" type="number" step="0.1" min="0.1" max="50"><span class="unit">m</span></div>
-                    <span class="help">Half the span of the slab on each side, added</span></div>
-                  <div class="field two-way"><label for="sl-lx">Short side L<sub>x</sub></label>
-                    <div class="control"><input id="sl-lx" name="actions.slab.lx" type="number" step="0.1" min="0.5" max="50"><span class="unit">m</span></div></div>
-                  <div class="field two-way"><label for="sl-ly">Long side L<sub>y</sub></label>
-                    <div class="control"><input id="sl-ly" name="actions.slab.ly" type="number" step="0.1" min="0.5" max="50"><span class="unit">m</span></div></div>
-                  <div class="field two-way"><label for="sl-sides">Slab panels</label>
-                    <div class="control"><select id="sl-sides" name="actions.slab.sides">
-                      <option value="1">One side (edge beam)</option><option value="2">Both sides (internal beam)</option></select></div></div>
+              <div class="field">
+                <label for="dv-ms">Sagging moment M<sup>+</sup><sub>Ed</sub></label>
+                <div class="control">
+                  <input id="dv-ms" type="number" step="0.1" min="0" max="1000000" readonly>
+                  <span class="unit">kNm</span>
                 </div>
-                <p class="formula" id="slab-formula"></p>
+              </div>
+              <div class="field">
+                <label for="dv-mh">Hogging moment M<sup>−</sup><sub>Ed</sub></label>
+                <div class="control">
+                  <input id="dv-mh" type="number" step="0.1" min="0" max="1000000" readonly>
+                  <span class="unit">kNm</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="dv-ved">Design shear V<sub>Ed</sub></label>
+                <div class="control">
+                  <input id="dv-ved" type="number" step="0.1" min="0" max="1000000" readonly>
+                  <span class="unit">kN</span>
+                </div>
               </div>
             </div>
+          </section>
 
-            <div class="analysis-only s-group">
-              <div class="group-title">Further loads <span class="muted">(also placed from the drawing)</span></div>
-              <span data-path="actions.loads" hidden></span>
-              <div class="table-scroll">
-                <table class="grid-table" id="loads-table">
-                  <thead><tr><th>Type</th><th>Value</th><th>Case</th><th>x or from (m)</th><th>to (m)</th><th>End value</th><th></th></tr></thead>
-                  <tbody></tbody>
-                </table>
+          <details class="section flanged-only" data-section="section-details" open>
+            <summary><span class="s-title">Section details</span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field flanged-only"><label for="g-beffm">Effective flange width</label>
+                  <div class="control"><select id="g-beffm" name="section.beff_method">
+                    <option value="calculate">From the beam spacing</option><option value="enter">Enter beff</option></select></div></div>
+                <div class="field flanged-only beff-enter"><label for="g-beff">b<sub>eff</sub></label>
+                  <div class="control"><input id="g-beff" name="section.beff" type="number" step="10" min="100" max="20000"><span class="unit">mm</span></div></div>
+                <div class="field flanged-only beff-calc"><label for="g-b1">b<sub>1</sub>, half the gap to the next web</label>
+                  <div class="control"><input id="g-b1" name="section.b1" type="number" step="10" min="0" max="20000"><span class="unit">mm</span></div></div>
+                <div class="field flanged-only beff-calc t-only"><label for="g-b2">b<sub>2</sub>, other side</label>
+                  <div class="control"><input id="g-b2" name="section.b2" type="number" step="10" min="0" max="20000"><span class="unit">mm</span></div></div>
               </div>
-              <button type="button" class="inline-link" id="add-load">+ Add load</button>
-              <p class="help-line">Downward loads positive; moments clockwise positive. Design values are used as entered; permanent and variable loads are multiplied by 1.35 and 1.5.</p>
             </div>
+          </details>
 
-            <div class="fields direct-only">
-              <div class="field"><label for="a-ms">Sagging moment M<sup>+</sup><sub>Ed</sub></label>
-                <div class="control"><input id="a-ms" name="actions.M_sag" type="number" step="1" min="0" max="1000000"><span class="unit">kNm</span></div></div>
-              <div class="field"><label for="a-mh">Hogging moment M<sup>−</sup><sub>Ed</sub></label>
-                <div class="control"><input id="a-mh" name="actions.M_hog" type="number" step="1" min="0" max="1000000"><span class="unit">kNm</span></div>
-                <span class="help">Enter 0 where there is none</span></div>
-              <div class="field"><label for="a-ved">Design shear V<sub>Ed</sub></label>
-                <div class="control"><input id="a-ved" name="actions.VEd" type="number" step="1" min="0" max="1000000"><span class="unit">kN</span></div></div>
+          <details class="section" data-section="materials" open>
+            <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="m-fyk">Rebar yield strength f<sub>yk</sub></label>
+                  <div class="control"><input id="m-fyk" name="materials.fyk" type="number" step="10" min="200" max="700" required><span class="unit">MPa</span></div>
+                  <span class="help">B500 is 500 MPa. Eurocode 2 covers 400–600.</span></div>
+                <div class="field"><label for="m-duct">Ductility class</label>
+                  <div class="control"><select id="m-duct" name="materials.ductility">
+                    <option value="A">A (normal)</option><option value="B">B (high)</option><option value="C">C (very high)</option></select></div></div>
+                <div class="field"><label for="m-dg">Largest aggregate d<sub>g</sub></label>
+                  <div class="control"><input id="m-dg" name="materials.dg" type="number" step="1" min="5" max="63" required><span class="unit">mm</span></div></div>
+              </div>
+              <details class="more">
+                <summary><span>More options: National Annex factors</span></summary>
+                <div class="fields">
+                  <div class="field"><label for="m-gc">γ<sub>c</sub> concrete</label>
+                    <div class="control"><input id="m-gc" name="materials.gamma_c" type="number" step="0.05" min="1" max="2"></div></div>
+                  <div class="field"><label for="m-gs">γ<sub>s</sub> reinforcement</label>
+                    <div class="control"><input id="m-gs" name="materials.gamma_s" type="number" step="0.05" min="1" max="1.5"></div></div>
+                  <div class="field"><label for="m-acc">α<sub>cc</sub></label>
+                    <div class="control"><input id="m-acc" name="materials.alpha_cc" type="number" step="0.05" min="0.8" max="1"></div>
+                    <span class="help">UK values: 1.5, 1.15, 0.85</span></div>
+                </div>
+              </details>
             </div>
+          </details>
 
-            <details class="more">
-              <summary><span>More options: partitions, K′</span></summary>
+          <details class="section" data-section="reinforcement" open>
+            <summary><span class="s-title">Reinforcement</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="r-bn">Bottom bars</label>
+                  <div class="control"><input id="r-bn" name="reinforcement.bottom_n" type="number" step="1" min="2" max="20" required aria-label="Number of bottom bars">
+                    <select name="reinforcement.bottom_dia" data-options="bars" aria-label="Bottom bar size"></select></div>
+                  <span class="help">Tension steel for sagging</span></div>
+                <div class="field"><label for="r-tn">Top bars</label>
+                  <div class="control"><input id="r-tn" name="reinforcement.top_n" type="number" step="1" min="2" max="20" required aria-label="Number of top bars">
+                    <select name="reinforcement.top_dia" data-options="bars" aria-label="Top bar size"></select></div>
+                  <span class="help">Tension steel for hogging</span></div>
+                <div class="field"><label for="r-link">Links</label>
+                  <div class="control"><select id="r-link" name="reinforcement.link_dia" data-options="links"></select>
+                    <select name="reinforcement.legs" aria-label="Number of legs">
+                      <option value="2">2 legs</option><option value="3">3 legs</option><option value="4">4 legs</option>
+                      <option value="5">5 legs</option><option value="6">6 legs</option></select></div>
+                  <span class="help">Spacing is calculated from the shear</span></div>
+                <div class="field"><label for="r-cover">Nominal cover c<sub>nom</sub></label>
+                  <div class="control"><input id="r-cover" name="reinforcement.cover" type="number" step="5" min="0" max="150" required><span class="unit">mm</span></div>
+                  <span class="help">To the links</span></div>
+              </div>
+              <details class="more">
+                <summary><span>More options: layers, Δc<sub>dev</sub></span></summary>
+                <div class="fields">
+                  <div class="field"><label for="r-bl">Bottom bars in</label>
+                    <div class="control"><select id="r-bl" name="reinforcement.bottom_layers">
+                      <option value="1">One layer</option><option value="2">Two layers</option></select></div></div>
+                  <div class="field"><label for="r-tl">Top bars in</label>
+                    <div class="control"><select id="r-tl" name="reinforcement.top_layers">
+                      <option value="1">One layer</option><option value="2">Two layers</option></select></div></div>
+                  <div class="field"><label for="r-dc">Allowance Δc<sub>dev</sub></label>
+                    <div class="control"><select id="r-dc" name="reinforcement.delta_c_dev">
+                      <option value="10">10 mm (normal)</option><option value="5">5 mm (with QA)</option><option value="0">0 mm (precast QA)</option></select></div></div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="section" data-section="durability" open>
+            <summary><span class="s-title">Durability and fire</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field" style="grid-column: span 2"><label for="d-exp">Exposure</label>
+                  <div class="control"><select id="d-exp" name="durability.exposure" data-options="exposure"></select></div>
+                  <span class="help" id="exposure-help"></span></div>
+                <div class="field"><label for="d-cem">Cement type</label>
+                  <div class="control"><select id="d-cem" name="durability.cement_group"></select></div></div>
+                <div class="field"><label for="d-fire">Fire resistance</label>
+                  <div class="control"><select id="d-fire" name="durability.fire_period" data-options="fire"></select></div>
+                  <span class="help">Beam exposed to fire on three sides</span></div>
+              </div>
+            </div>
+          </details>
+
+          <details class="section" data-section="options">
+            <summary><span class="s-title">More options: partitions, K′</span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
               <label class="check"><input type="checkbox" name="actions.partitions"> <span>The beam carries brittle partitions (spans over 7 m reduce l/d)</span></label>
               <label class="check"><input type="checkbox" name="actions.kprime_limit"> <span>Limit K′ to 0.168 to keep the section ductile (UK practice)</span></label>
-            </details>
-          </div>
-        </details>
-
-        <details class="section" data-section="durability">
-          <summary><span class="s-title">Durability and fire</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
-            <div class="fields">
-              <div class="field" style="grid-column: span 2"><label for="d-exp">Exposure</label>
-                <div class="control"><select id="d-exp" name="durability.exposure" data-options="exposure"></select></div>
-                <span class="help" id="exposure-help"></span></div>
-              <div class="field"><label for="d-cem">Cement type</label>
-                <div class="control"><select id="d-cem" name="durability.cement_group"></select></div></div>
-              <div class="field"><label for="d-fire">Fire resistance</label>
-                <div class="control"><select id="d-fire" name="durability.fire_period" data-options="fire"></select></div>
-                <span class="help">Beam exposed to fire on three sides</span></div>
             </div>
+          </details>
+
+          <details class="section" data-section="project">
+            <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="p-name">Project</label>
+                  <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="Campus block A"></div></div>
+                <div class="field"><label for="p-ref">Element reference</label>
+                  <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="B1 first floor"></div></div>
+                <div class="field"><label for="p-eng">Engineer</label>
+                  <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
+                <div class="field"><label for="p-date">Date</label>
+                  <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
+              </div>
+            </div>
+          </details>
+
+          <div class="design-action-bar">
+            <button type="button" class="btn primary" id="btn-run-design">Run design checks</button>
           </div>
-        </details>
+
+          <div id="design-results-area"></div>
+        </div>
+
+        <!-- TAB 3: REPORT -->
+        <div role="tabpanel" id="panel-report" class="tab-panel" aria-labelledby="tab-report">
+          <div class="report-actions-bar">
+            <button type="button" class="btn primary" id="btn-pdf">Download PDF report</button>
+            <button type="button" class="btn" id="btn-print">Print</button>
+            <a class="btn" href="/beam/report" target="_blank" rel="noopener">Open in a new tab</a>
+          </div>
+          <iframe class="report-frame" id="report-frame" title="Embedded beam report"></iframe>
+        </div>
 
         <div class="form-bar">
           <button type="button" class="btn small" id="files-button" popovertarget="files-menu">Examples and files <span class="caret"></span></button>
           <span class="spacer"></span>
           <span class="form-message" id="form-message" role="alert"></span>
-          <button type="submit" class="btn primary">Run checks</button>
+          <button type="submit" class="btn primary">Run design checks</button>
         </div>
       </div>
 

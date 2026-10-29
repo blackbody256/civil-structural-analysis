@@ -274,3 +274,24 @@ def test_beam_api_and_pdf(beam):
     bad = client.post("/api/beam/analysis", json={**beam, "span": {"l": 6, "supports": [{"x": 3, "type": "roller"}]}})
     assert bad.status_code == 400 and "span.supports" in bad.get_json()["errors"]
     assert client.post("/api/slab/check", json={}).status_code == 404
+
+
+def test_analysis_does_not_need_valid_design_inputs():
+    from app import app
+    client = app.test_client()
+    bad_design = copy.deepcopy(CLIENT)
+    bad_design["reinforcement"]["bottom_n"] = 20
+    bad_design["reinforcement"]["bottom_dia"] = 40
+
+    # analyse_input works
+    plots = analyse_input(bad_design)
+    assert plots["analysis"]["envelope"]["hogging"]["M"] == pytest.approx(-337.92, abs=0.01)
+
+    # POST /api/beam/analysis returns 200
+    res_analysis = client.post("/api/beam/analysis", json=bad_design)
+    assert res_analysis.status_code == 200
+
+    # POST /api/beam/check returns 400 with "reinforcement.bottom_n" in errors
+    res_check = client.post("/api/beam/check", json=bad_design)
+    assert res_check.status_code == 400
+    assert "reinforcement.bottom_n" in res_check.get_json()["errors"]

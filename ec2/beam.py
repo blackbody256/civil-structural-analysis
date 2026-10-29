@@ -1229,7 +1229,16 @@ def check_beam(data):
 
 def analyse_input(data):
     """Loading and analysis only, without the design checks (for the live preview)."""
-    inp = parse_input(data)
+    d = _upgrade(data)
+    d["reinforcement"] = {
+        "bottom_n": 2, "bottom_dia": 10, "top_n": 2, "top_dia": 10, "link_dia": 8, "legs": 2,
+        "cover": 25, "delta_c_dev": 10, "bottom_layers": 1, "top_layers": 1
+    }
+    d["durability"] = {"exposure": "XC1", "cement_group": "All", "fire_period": "none"}
+    mat = d.setdefault("materials", {})
+    conc = mat.get("concrete", "C30/37") if isinstance(mat, dict) else "C30/37"
+    d["materials"] = {"concrete": conc, "fyk": 500, "ductility": "B", "dg": 20}
+    inp = parse_input(d)
     geo = geometry(inp)
     act = design_actions(inp, geo)
     plots = _plots(inp, geo, act)

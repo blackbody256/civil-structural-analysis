@@ -1,24 +1,8 @@
 // Beam report: cross-section, the structural analysis (as in the matrix stiffness method) and the design path.
 import { el, fmt, worst } from "./common.js";
 import { drawBeamSection } from "./drawings.js";
-import { renderFigure } from "./figure-spec.js";
+import { buildAnalysisView, num, table } from "./beam-analysis-view.js";
 import { arrow, figure, node, block, targetStatus } from "./report-parts.js";
-
-const num = (v, nd = 2) => (v === null || v === undefined ? "—" : Number(v).toFixed(nd).replace("-", "−"));
-
-function table(head, rows, caption) {
-  return el("div", { class: "data-wrap" },
-    el("table", { class: "data" },
-      el("thead", {}, el("tr", {}, head.map((h, i) => el("th", { class: i ? "num" : "" }, h)))),
-      el("tbody", {}, rows.map((r) => el("tr", {}, r.map((c, i) => el("td", { class: i ? "num" : "" }, c)))))),
-    caption ? el("p", { class: "data-note" }, caption) : null);
-}
-
-function spec(name, fig, label) {
-  const box = el("div");
-  queueMicrotask(() => renderFigure(box, fig, label));
-  return box;
-}
 
 function designValues(result) {
   const d = result.derived;
@@ -53,31 +37,9 @@ export function figures(state) {
   const figs = result.plots.figures || {};
   const a = result.plots.analysis;
   if (!a || !figs.diagrams) return top;
-  const wide = (title, body, caption) => {
-    const f = figure(title, body, caption);
-    f.classList.add("wide");
-    return f;
-  };
   return el("div", {}, top,
     el("h2", {}, "Structural analysis"),
-    el("p", { class: "lede", style: "font-size:14px;margin:6px 0 12px" },
-      "Positive shear and hogging moments are drawn above the x-axis; negative shear and sagging moments below it."),
-    el("div", { class: "figures" },
-      wide("Beam, loads and stiffness", spec("loading", figs.loading, "Beam and loads"),
-        "Design loads, the dimensions between supports and loads, and the second moment of area of each part."),
-      wide("Analytical model", spec("model", figs.model, "Analytical model"),
-        "Nodes circled, elements boxed. Free degrees of freedom (blue) are numbered first, restrained ones (green, crossed) after them."),
-      wide("Support reactions", spec("reactions", figs.reactions, "Support reactions"), null),
-      wide("Shear force and bending moment diagrams", spec("diagrams", figs.diagrams, "Shear force and bending moment"),
-        "Positive shear and hogging moments are drawn above the x-axis; negative shear and sagging moments below it."),
-      wide("Deflected shape", spec("deflection", figs.deflection, "Deflected shape"), null),
-      figure("Member end forces", table(["Element", "Nodes", "V1 (kN)", "M1 (kNm)", "V2 (kN)", "M2 (kNm)"],
-        a.elements.map((e) => [String(e.e), `${e.start}–${e.end}`, ...e.Q.map((v) => num(v))]),
-        "Shears upwards and moments anticlockwise on the element ends."), null),
-      figure("Joint displacements", table(["Node", "x (m)", "DOFs", "v (mm)", "θ (rad)"],
-        a.nodes.map((n) => [String(n.n), num(n.x), n.dofs.join(", "), n.fix[0] ? "0" : num(n.v_mm, 4),
-          n.fix[1] ? "0" : num(n.theta, 6)]),
-        "Translations upwards and rotations anticlockwise."), null)));
+    buildAnalysisView({ analysis: a, figures: figs, loads: result.plots.loads }, { showContinue: false }));
 }
 
 function faceNode(title, s, check) {

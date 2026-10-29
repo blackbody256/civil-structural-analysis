@@ -10,6 +10,10 @@ const TITLE = ELEMENT_TITLES[element];
 const root = document.getElementById("report");
 const RATED = new Set(["pass", "fail", "warn"]);
 
+if (new URLSearchParams(location.search).get("embed") === "1") {
+  document.documentElement.classList.add("embed");
+}
+
 /** Open the collapsed group holding a check, scroll to it and mark it briefly. */
 function reveal(id) {
   const row = document.getElementById(id);
