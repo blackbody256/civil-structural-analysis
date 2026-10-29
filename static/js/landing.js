@@ -1,3 +1,4 @@
+import { el, getJSON } from "./common.js";
 import { drawBeamModel } from "./beam-canvas.js";
 import { beamSectionFromInputs, drawBeamSection, drawElevation, drawSection, s, sectionFromInputs } from "./drawings.js";
 
