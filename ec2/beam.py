@@ -81,6 +81,13 @@ class BeamInput:
     cement_group: str
     fire_period: str
     analysis_loads: list | None = None
+    has_slab: bool = False
+    slab_type: str = "one_way"
+    slab_gk: float = 0.0
+    slab_qk: float = 0.0
+    slab_lx: float = 0.0
+    slab_ly: float = 0.0
+    slab_trib: float = 0.0
 
 
 def parse_input(data):
@@ -182,6 +189,13 @@ def parse_input(data):
         m_ed = r.number("actions.MEd", lo=0.001, hi=1e6)
         v_ed = r.number("actions.VEd", lo=0, hi=1e6)
     self_weight = r.flag("actions.self_weight", default=True)
+    has_slab = r.flag("actions.has_slab", default=False)
+    slab_type = r.choice("actions.slab_type", ("one_way", "two_way_long", "two_way_short"), default="one_way")
+    slab_gk = r.number("actions.slab_gk", lo=0, hi=1000, default=0.0) if has_slab else 0.0
+    slab_qk = r.number("actions.slab_qk", lo=0, hi=1000, default=0.0) if has_slab else 0.0
+    slab_lx = r.number("actions.slab_lx", lo=0, hi=100, default=0.0) if has_slab else 0.0
+    slab_ly = r.number("actions.slab_ly", lo=0, hi=100, default=0.0) if has_slab else 0.0
+    slab_trib = r.number("actions.slab_trib", lo=0, hi=100, default=0.0) if has_slab else 0.0
     partitions = r.flag("actions.partitions")
     kprime_limit = r.flag("actions.kprime_limit", default=True)
 
@@ -216,6 +230,8 @@ def parse_input(data):
         m_ed=None if m_ed is None else m_ed * 1e6, v_ed=None if v_ed is None else v_ed * 1e3,
         partitions=partitions, kprime_limit=kprime_limit, exposure=exposure, cement_group=cement_group,
         fire_period=fire_period, analysis_loads=analysis_loads,
+        has_slab=has_slab, slab_type=slab_type, slab_gk=slab_gk, slab_qk=slab_qk,
+        slab_lx=slab_lx, slab_ly=slab_ly, slab_trib=slab_trib,
     )
 
 
@@ -315,6 +331,38 @@ def design_actions(inp, geo):
     area = inp.b * (inp.h - (inp.hf or 0)) if inp.shape == "flanged" else inp.b * inp.h
     sw = CONCRETE_DENSITY * area / 1e6 if inp.self_weight else 0.0
 
+    # Slab load calculation if slab is placed on top of beam
+    slab_info = None
+    w_slab_moment = 0.0
+    w_slab_shear = 0.0
+    if inp.has_slab:
+        w_slab_area = 1.35 * (inp.slab_gk or 0.0) + 1.5 * (inp.slab_qk or 0.0)
+        lx = inp.slab_lx if inp.slab_lx and inp.slab_lx > 0 else l
+        ly = inp.slab_ly if inp.slab_ly and inp.slab_ly > 0 else l
+        if inp.slab_type == "one_way":
+            b_trib = inp.slab_trib if inp.slab_trib and inp.slab_trib > 0 else (inp.slab_lx / 2.0 if inp.slab_lx and inp.slab_lx > 0 else l / 2.0)
+            w_slab_moment = w_slab_area * b_trib
+            w_slab_shear = w_slab_area * b_trib
+            slab_desc = f"One-way slab (tributary width btrib = {b_trib:.2f} m): w = wslab × btrib"
+        elif inp.slab_type == "two_way_long":
+            r_ratio = min(1.0, max(0.01, lx / ly))
+            w_slab_moment = w_slab_area * (lx / 6.0) * (3.0 - r_ratio**2)
+            w_slab_shear = w_slab_area * (lx / 4.0) * (2.0 - r_ratio)
+            slab_desc = f"Two-way slab on long beam Ly={ly:.2f} m (Lx={lx:.2f} m): weq,moment = wslab × (Lx/6)·[3 - (Lx/Ly)²], weq,shear = wslab × (Lx/4)·[2 - Lx/Ly]"
+        else:  # two_way_short
+            w_slab_moment = w_slab_area * (lx / 3.0)
+            w_slab_shear = w_slab_area * (lx / 4.0)
+            slab_desc = f"Two-way slab on short beam Lx={lx:.2f} m: weq,moment = wslab × (Lx/3), weq,shear = wslab × (Lx/4)"
+        slab_info = {
+            "w_slab_area": w_slab_area,
+            "w_slab_moment": w_slab_moment,
+            "w_slab_shear": w_slab_shear,
+            "desc": slab_desc,
+            "type": inp.slab_type,
+            "lx": lx,
+            "ly": ly
+        }
+
     if inp.mode == "analysis":
         E_kpa = inp.concrete.Ecm * 1e6
         b_m = inp.b / 1000.0
@@ -337,10 +385,14 @@ def design_actions(inp, geo):
                 I_m4 = b_m * h_m**3 / 12.0
 
         sw_uls = 1.35 * sw if inp.self_weight else 0.0
+        loads_to_solve = list(inp.analysis_loads or [])
+        if inp.has_slab and w_slab_moment > 0:
+            loads_to_solve.append({"type": "udl", "w": w_slab_moment, "l1": 0.0, "l2": l})
+
         analysis_res = solve_beam(
             span_m=l,
             system=inp.system,
-            loads=inp.analysis_loads or [],
+            loads=loads_to_solve,
             E_kpa=E_kpa,
             I_m4=I_m4,
             self_weight=sw_uls
@@ -352,35 +404,41 @@ def design_actions(inp, geo):
             m_kNm = analysis_res["max_sagging_kNm"] if analysis_res["max_sagging_kNm"] > 0 else analysis_res["abs_max_M_kNm"]
         v_kN = analysis_res["abs_max_V_kN"]
 
+        # Ensure that if non-zero M and V were obtained from analysis, we use them
+        if m_kNm == 0.0 and analysis_res["abs_max_M_kNm"] > 0:
+            m_kNm = analysis_res["abs_max_M_kNm"]
+        if v_kN == 0.0 and analysis_res["abs_max_V_kN"] > 0:
+            v_kN = analysis_res["abs_max_V_kN"]
+
         out.update(
-            sw=sw, sw_uls=sw_uls, MEd=m_kNm * 1e6, VEd=v_kN * 1e3, w=None, qp_ratio=None,
-            analysis_res=analysis_res, E_kpa=E_kpa, I_m4=I_m4
+            sw=sw, sw_uls=sw_uls, MEd=m_kNm * 1e6, VEd=v_kN * 1e3, w=w_slab_moment if inp.has_slab else None,
+            qp_ratio=None, analysis_res=analysis_res, E_kpa=E_kpa, I_m4=I_m4, slab_info=slab_info
         )
         return out
-    gk = inp.gk + sw
+    gk = (inp.gk or 0.0) + sw
     psi0, _, psi2 = psi_factors(inp.category)
-    if inp.combination == "6.10":
-        G, Q, governing = 1.35 * gk, 1.5 * inp.qk, "6.10"
-    else:
-        a = (1.35 * gk, 1.5 * psi0 * inp.qk)
-        b = (0.925 * 1.35 * gk, 1.5 * inp.qk)
-        (G, Q), governing = (a, "6.10a") if sum(a) >= sum(b) else (b, "6.10b")
-    w = G + Q
+    # Eurocode combination: strictly G = 1.35 gk and Q = 1.5 qk (0.925 factor removed)
+    G = 1.35 * gk
+    Q = 1.5 * (inp.qk or 0.0)
+    governing = "6.10"
+    w = G + Q + w_slab_moment
+    w_shear = G + Q + w_slab_shear
     if inp.system == "simple":
-        m, v, how = w * l**2 / 8, w * l / 2, ("M = w·l²/8", "V = w·l/2")
+        m, v, how = w * l**2 / 8, w_shear * l / 2, ("M = w·l²/8", "V = w·l/2")
     elif inp.system == "cantilever":
-        m, v, how = w * l**2 / 2, w * l, ("M = w·l²/2", "V = w·l")
+        m, v, how = w * l**2 / 2, w_shear * l, ("M = w·l²/2", "V = w·l")
     elif inp.location == "span":
         cg, cq = tables.BEAM_SPAN_MOMENT[inp.system]
-        m, how_m = (cg * G + cq * Q) * l**2, f"M = ({cg:.3f}·G + {cq:.3f}·Q)·l²"
+        m, how_m = (cg * G + cq * Q + cg * w_slab_moment) * l**2, f"M = ({cg:.3f}·G + {cq:.3f}·Q)·l²"
         cv = tables.BEAM_SUPPORT_SHEAR[inp.system]
-        v, how = cv * w * l, (how_m, f"V = {cv:.2f}·(G + Q)·l")
+        v, how = cv * w_shear * l, (how_m, f"V = {cv:.2f}·w·l")
     else:
         cm = tables.BEAM_SUPPORT_MOMENT[inp.system]
         cv = tables.BEAM_SUPPORT_SHEAR[inp.system]
-        m, v, how = cm * w * l**2, cv * w * l, (f"M = {cm:.3f}·(G + Q)·l²", f"V = {cv:.2f}·(G + Q)·l")
-    out.update(sw=sw, gk=gk, qk=inp.qk, G=G, Q=Q, w=w, governing=governing, psi0=psi0, psi2=psi2,
-               MEd=m * 1e6, VEd=v * 1e3, how=how, qp_ratio=(gk + psi2 * inp.qk) / w)
+        m, v, how = cm * w * l**2, cv * w_shear * l, (f"M = {cm:.3f}·w·l²", f"V = {cv:.2f}·w·l")
+    out.update(sw=sw, gk=gk, qk=inp.qk or 0.0, G=G, Q=Q, w=w, governing=governing, psi0=psi0, psi2=psi2,
+               MEd=m * 1e6, VEd=v * 1e3, how=how, qp_ratio=(gk + psi2 * (inp.qk or 0.0)) / w if w else 0.0,
+               slab_info=slab_info)
     return out
 
 
@@ -441,15 +499,14 @@ def _actions_checks(inp, geo, act):
     sw_text = f" + {act['sw']:.2f}" if inp.self_weight else ""
     lines += [f"gk = {inp.gk:g}{sw_text} = {act['gk']:.2f} kN/m, "
               f"qk = {inp.qk:g} kN/m, ψ0 = {act['psi0']:g}, ψ2 = {act['psi2']:g}"]
-    if act["governing"] == "6.10":
-        lines.append(f"G = 1.35·gk = {act['G']:.2f}, Q = 1.5·qk = {act['Q']:.2f} kN/m")
-    elif act["governing"] == "6.10a":
-        lines.append(f"Less favourable combination is 6.10a: G = 1.35·gk = {act['G']:.2f}, "
-                     f"Q = 1.5·ψ0·qk = {act['Q']:.2f} kN/m")
-    else:
-        lines.append(f"Less favourable combination is 6.10b: G = 0.925 × 1.35·gk = {act['G']:.2f}, "
-                     f"Q = 1.5·qk = {act['Q']:.2f} kN/m")
-    lines += [f"w = G + Q = {act['w']:.2f} kN/m",
+    if act.get("slab_info"):
+        si = act["slab_info"]
+        lines.append(f"Slab load transfer: {si['desc']}")
+        lines.append(f"Slab area design load (ULS): wslab = 1.35·gk,slab + 1.5·qk,slab = {si['w_slab_area']:.2f} kN/m²")
+        lines.append(f"Equivalent UDL from slab: weq,moment = {si['w_slab_moment']:.2f} kN/m, weq,shear = {si['w_slab_shear']:.2f} kN/m")
+    lines.append(f"G = 1.35·gk = {act['G']:.2f}, Q = 1.5·qk = {act['Q']:.2f} kN/m")
+    slab_w_str = f" + {act['slab_info']['w_slab_moment']:.2f} (slab)" if act.get("slab_info") else ""
+    lines += [f"w = G + Q{slab_w_str} = {act['w']:.2f} kN/m",
               f"{act['how'][0]} = {kNm(act['MEd'])} kNm ({'hogging' if inp.location == 'support' else 'sagging'})",
               f"{act['how'][1]} = {kN(act['VEd'])} kN"]
     out.append(CheckResult("actions", GROUPS[3], "Design actions", INFO,
@@ -757,11 +814,11 @@ def _longitudinal_shear(inp, geo, act, res):
 def _steel_stress(inp, act, res, geo):
     """Service stress in the tension steel, used for deflection and crack control."""
     ratio = res["As"] / geo.As
-    if act["qp_ratio"] is None:
+    if act["qp_ratio"] is None or act["qp_ratio"] <= 0:
         return 310 * ratio, [f"σs ≈ 310·As,req/As,prov = 310 × {res['As']:.0f}/{geo.As:.0f} = {310 * ratio:.0f} MPa "
                              f"(loads not given)"]
     su = inp.steel.fyd * act["qp_ratio"]
-    s = su * ratio / act["delta"]
+    s = max(10.0, su * ratio / act["delta"])
     return s, [f"σsu = fyd·(gk + ψ2·qk)/w = {inp.steel.fyd:.1f} × ({act['gk']:.2f} + {act['psi2']:g} × {act['qk']:g})"
                f" / {act['w']:.2f} = {su:.0f} MPa",
                f"σs = σsu·(As,req/As,prov)/δ = {su:.0f} × {res['As']:.0f}/{geo.As:.0f} / {act['delta']:g} = {s:.0f} MPa"]
@@ -978,7 +1035,14 @@ def check_beam(data):
             displacements=ares["displacements"],
             member_forces=ares["member_forces"],
             max_deflection_mm=ares["max_deflection_mm"],
-            key_points=ares["key_points"]
+            key_points=ares["key_points"],
+            analysis_res={
+                "abs_max_M_kNm": ares["abs_max_M_kNm"],
+                "abs_max_V_kN": ares["abs_max_V_kN"],
+                "max_sagging_kNm": ares["max_sagging_kNm"],
+                "max_hogging_kNm": ares["max_hogging_kNm"],
+                "max_deflection_mm": ares["max_deflection_mm"],
+            }
         )
     return {
         "element": "beam",

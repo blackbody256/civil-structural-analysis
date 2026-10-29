@@ -29,20 +29,20 @@ def beam():
 def test_hand_calculated_simply_supported_beam(beam):
     report = check_beam(beam)
     d = report["derived"]
-    # gk = 15 + 25×0.3×0.5 = 18.75; 6.10b governs: w = 0.925×1.35×18.75 + 1.5×10 = 38.41 kN/m
-    assert d["w"] == pytest.approx(38.414, abs=0.01)
-    assert d["MEd"] == pytest.approx(38.414 * 36 / 8, abs=0.05)        # wl²/8
-    assert d["VEd"] == pytest.approx(38.414 * 3, abs=0.05)             # wl/2
+    # gk = 15 + 25×0.3×0.5 = 18.75; G = 1.35×gk, Q = 1.5×10: w = 1.35×18.75 + 1.5×10 = 40.3125 kN/m
+    assert d["w"] == pytest.approx(40.3125, abs=0.01)
+    assert d["MEd"] == pytest.approx(40.3125 * 36 / 8, abs=0.05)       # wl²/8 = 181.41
+    assert d["VEd"] == pytest.approx(40.3125 * 3, abs=0.05)            # wl/2 = 120.94
     # d = 500 − 30 − 8 − 10 = 452; K = M/(b d² fck)
     assert d["d"] == pytest.approx(452)
-    assert d["K"] == pytest.approx(172.86e6 / (300 * 452**2 * 30), rel=1e-3)
+    assert d["K"] == pytest.approx(181.40625e6 / (300 * 452**2 * 30), rel=1e-3)
     z = 452 / 2 * (1 + math.sqrt(1 - 3.53 * d["K"]))
     assert d["z"] == pytest.approx(z, rel=1e-6)
-    assert d["As_req"] == pytest.approx(172.86e6 / (500 / 1.15 * z), rel=1e-3)
+    assert d["As_req"] == pytest.approx(181.40625e6 / (500 / 1.15 * z), rel=1e-3)
     # links: ρw,min governs (0.263 mm²/mm), 101/0.263 = 382 > 0.75d = 339 → 325 mm
     assert d["links"]["near"] == 325
     checks = by_id(report)
-    assert checks["deflection"]["limit"] == pytest.approx(25.95, abs=0.1)
+    assert checks["deflection"]["limit"] == pytest.approx(25.46, abs=0.1)
     assert report["summary"]["verdict"] == "pass"
 
 
@@ -198,4 +198,76 @@ def test_beam_analysis_mode(beam):
     assert pdf.status_code == 200
     assert pdf.mimetype == "application/pdf"
     assert pdf.data.startswith(b"%PDF")
+
+
+def test_slab_to_beam_loading(beam):
+    """Test one-way and two-way slab equivalent UDL calculations."""
+    # 1. One-way slab
+    b_oneway = copy.deepcopy(beam)
+    b_oneway["actions"]["has_slab"] = True
+    b_oneway["actions"]["slab_type"] = "one_way"
+    b_oneway["actions"]["slab_gk"] = 4.0
+    b_oneway["actions"]["slab_qk"] = 3.0
+    b_oneway["actions"]["slab_trib"] = 2.5
+    b_oneway["actions"]["self_weight"] = False
+    b_oneway["actions"]["gk"] = 0.0
+    b_oneway["actions"]["qk"] = 0.0
+
+    rep1 = check_beam(b_oneway)
+    w_slab1 = 1.35 * 4.0 + 1.5 * 3.0  # 5.4 + 4.5 = 9.9 kN/m²
+    expected_w1 = w_slab1 * 2.5       # 24.75 kN/m
+    assert rep1["derived"]["w"] == pytest.approx(expected_w1, rel=1e-3)
+    assert rep1["derived"]["MEd"] == pytest.approx(expected_w1 * 36 / 8, rel=1e-3)
+
+    # 2. Two-way slab onto long beam Ly
+    b_twoway = copy.deepcopy(beam)
+    b_twoway["actions"]["has_slab"] = True
+    b_twoway["actions"]["slab_type"] = "two_way_long"
+    b_twoway["actions"]["slab_gk"] = 5.0
+    b_twoway["actions"]["slab_qk"] = 3.0
+    b_twoway["actions"]["slab_lx"] = 4.0
+    b_twoway["actions"]["slab_ly"] = 6.0
+    b_twoway["actions"]["self_weight"] = False
+    b_twoway["actions"]["gk"] = 0.0
+    b_twoway["actions"]["qk"] = 0.0
+
+    rep2 = check_beam(b_twoway)
+    w_slab2 = 1.35 * 5.0 + 1.5 * 3.0  # 6.75 + 4.5 = 11.25 kN/m²
+    r = 4.0 / 6.0
+    expected_weq_m = w_slab2 * (4.0 / 6.0) * (3.0 - r**2)   # 11.25 * (2/3) * (3 - 4/9) = 19.1667 kN/m
+    expected_weq_v = w_slab2 * (4.0 / 4.0) * (2.0 - r)      # 11.25 * 1 * (4/3) = 15.0 kN/m
+    assert rep2["derived"]["w"] == pytest.approx(expected_weq_m, rel=1e-3)
+    assert rep2["derived"]["MEd"] == pytest.approx(expected_weq_m * 36 / 8, rel=1e-3)
+    assert rep2["derived"]["VEd"] == pytest.approx(expected_weq_v * 6.0 / 2, rel=1e-3)
+
+
+def test_textbook_beam_in_check_pipeline(beam):
+    """Test textbook 20 m beam runs through check_beam pipeline with non-zero actions."""
+    textbook_beam = copy.deepcopy(beam)
+    textbook_beam["span"]["l"] = 20.0
+    textbook_beam["span"]["system"] = "end"
+    textbook_beam["span"]["location"] = "span"
+    textbook_beam["section"]["b"] = 400
+    textbook_beam["section"]["h"] = 750
+    textbook_beam["reinforcement"]["tension_n"] = 5
+    textbook_beam["reinforcement"]["tension_dia"] = 25
+    textbook_beam["reinforcement"]["compression_n"] = 2
+    textbook_beam["reinforcement"]["compression_dia"] = 16
+    textbook_beam["reinforcement"]["link_dia"] = 10
+    textbook_beam["actions"] = {
+        "mode": "analysis",
+        "self_weight": False,
+        "loads": [
+            {"type": "linear", "w1": 30.0, "w2": 0.0, "l1": 0.0, "l2": 6.0},
+            {"type": "point", "W": 200.0, "x": 6.0},
+            {"type": "moment", "M0": 90.0, "x": 10.0},
+            {"type": "point", "W": 150.0, "x": 15.0}
+        ]
+    }
+    report = check_beam(textbook_beam)
+    # Ensure critical MEd and VEd are non-zero and used for section checks
+    assert report["derived"]["MEd"] > 0
+    assert report["derived"]["VEd"] > 0
+    assert report["derived"]["analysis_res"]["abs_max_M_kNm"] > 250.0
+    assert report["derived"]["analysis_res"]["abs_max_V_kN"] > 140.0
 

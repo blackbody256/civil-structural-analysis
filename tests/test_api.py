@@ -42,7 +42,7 @@ def test_pdf_download(client, example):
 
 def test_helpers(client):
     combo = client.post("/api/helpers/combination", json={"gk": 1000, "qk": 500, "category": "B"}).get_json()
-    assert combo["value"] == pytest.approx(0.925 * 1.35 * 1000 + 1.5 * 500)
+    assert combo["value"] == pytest.approx(1.35 * 1000 + 1.5 * 500)
     creep = client.post("/api/helpers/creep", json={"concrete": "C30/37", "b": 300, "h": 300, "rh": 50, "t0": 28,
                                                     "cement": "R", "moment_ratio": 0.7}).get_json()
     assert creep["h0"] == 150 and creep["phi_inf"] == pytest.approx(2.40, abs=0.01)

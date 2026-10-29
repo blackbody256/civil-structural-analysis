@@ -212,6 +212,54 @@
                 <button type="button" class="btn small" id="add-load-btn" style="cursor: pointer;">+ Add load</button>
               </div>
             </div>
+
+            <div class="slab-section not-direct" style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 10px; background: var(--surface-2);">
+              <label class="check" style="font-weight: 600; margin-bottom: 8px;">
+                <input type="checkbox" id="a-has-slab" name="actions.has_slab">
+                <span>Slab on top of beam (calculate load w from slab)</span>
+              </label>
+              <div id="slab-options" style="display: none; gap: 10px; margin-top: 8px;">
+                <div class="fields" style="margin-bottom: 0;">
+                  <div class="field" style="grid-column: 1 / -1">
+                    <label for="a-slab-type">Slab type</label>
+                    <div class="control">
+                      <select id="a-slab-type" name="actions.slab_type">
+                        <option value="one_way">One-way slab (tributary width)</option>
+                        <option value="two_way_long">Two-way slab onto long beam (Ly)</option>
+                        <option value="two_way_short">Two-way slab onto short beam (Lx)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="a-slab-gk">Slab dead load g<sub>k,slab</sub></label>
+                    <div class="control"><input id="a-slab-gk" name="actions.slab_gk" type="number" step="0.2" min="0" max="1000" value="4.0"><span class="unit">kN/m²</span></div>
+                    <span class="help">Self-weight of slab + finishes</span>
+                  </div>
+                  <div class="field">
+                    <label for="a-slab-qk">Slab live load q<sub>k,slab</sub></label>
+                    <div class="control"><input id="a-slab-qk" name="actions.slab_qk" type="number" step="0.2" min="0" max="1000" value="3.0"><span class="unit">kN/m²</span></div>
+                  </div>
+                  <div class="field slab-oneway-only">
+                    <label for="a-slab-trib">Tributary width b<sub>trib</sub></label>
+                    <div class="control"><input id="a-slab-trib" name="actions.slab_trib" type="number" step="0.1" min="0" max="100" value="3.0"><span class="unit">m</span></div>
+                    <span class="help">Defaults to half beam spacing or Lx/2</span>
+                  </div>
+                  <div class="field slab-twoway-only" style="display: none;">
+                    <label for="a-slab-lx">Short span L<sub>x</sub></label>
+                    <div class="control"><input id="a-slab-lx" name="actions.slab_lx" type="number" step="0.1" min="0.1" max="100" value="4.0"><span class="unit">m</span></div>
+                  </div>
+                  <div class="field slab-twoway-only" style="display: none;">
+                    <label for="a-slab-ly">Long span L<sub>y</sub></label>
+                    <div class="control"><input id="a-slab-ly" name="actions.slab_ly" type="number" step="0.1" min="0.1" max="100" value="6.0"><span class="unit">m</span></div>
+                  </div>
+                </div>
+                <div id="slab-calc-preview" style="font-size: 12.5px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; color: var(--text-2);">
+                  <div id="slab-calc-formula" style="font-family: var(--font-mono); color: var(--accent); font-weight: 600;">w_slab = 1.35·gk + 1.5·qk</div>
+                  <div id="slab-calc-results" style="margin-top: 4px;">Equivalent UDL: weq,moment = ... kN/m</div>
+                </div>
+              </div>
+            </div>
+
             <label class="check not-direct"><input type="checkbox" name="actions.self_weight"> <span>Add the beam's self-weight (25 kN/m³)</span></label>
             <details class="more">
               <summary>More options: load category, combination, partitions</summary>
@@ -274,6 +322,8 @@
     <button type="button" role="menuitem" data-example="pass">Passing rectangular beam<span class="sub">300 × 500, 6 m simply supported, 4H20. All checks pass</span></button>
     <button type="button" role="menuitem" data-example="flanged">Passing T beam<span class="sub">300 × 550 web, 150 slab, 7 m end span, 4H25. All checks pass</span></button>
     <button type="button" role="menuitem" data-example="fail">Failing cantilever<span class="sub">250 × 450, 3 m, C25/30, 3H20. Six checks fail</span></button>
+    <button type="button" role="menuitem" data-example="analysis">Matrix beam analysis sample<span class="sub">20 m continuous beam: 30 kN/m linear, 200 kN, 90 kNm, 150 kN</span></button>
+    <button type="button" role="menuitem" data-example="slab">Beam carrying slab<span class="sub">Two-way slab on long beam Ly=6m, Lx=4m with equivalent UDL</span></button>
     <hr>
     <button type="button" role="menuitem" id="import">Open inputs file (JSON)…</button>
     <button type="button" role="menuitem" id="reset">Reset to the passing example</button>

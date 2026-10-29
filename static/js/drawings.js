@@ -565,6 +565,21 @@ export function drawBeamElevation(target, e, opts = {}) {
         const x = X(ld.x || 0);
         svg.append(s("circle", { cx: x, cy: beamY - 20, r: 10, fill: "none", stroke: LOAD, "stroke-width": 1.5 }));
         svg.append(text(x, top - 8, `${ld.M0 || 0} kNm`, { "text-anchor": "middle", "font-weight": 700, "font-size": 11 }));
+      } else if (ld.type === "linear") {
+        const x1 = X(ld.l1 || 0), x2 = X(ld.l2 || e.l);
+        const w1 = ld.w1 ?? 0, w2 = ld.w2 ?? 0;
+        const maxW = Math.max(Math.abs(w1), Math.abs(w2), 1e-3);
+        const yTop1 = beamY - 12 - (Math.abs(w1) / maxW) * 26;
+        const yTop2 = beamY - 12 - (Math.abs(w2) / maxW) * 26;
+        svg.append(s("line", { x1, y1: yTop1, x2, y2: yTop2, stroke: LOAD, "stroke-width": 1.4 }));
+        for (let i = 0; i <= 6; i++) {
+          const t = i / 6;
+          const xi = x1 + (x2 - x1) * t;
+          const yi = yTop1 + (yTop2 - yTop1) * t;
+          svg.append(s("line", { x1: xi, y1: yi, x2: xi, y2: beamY - 10, stroke: LOAD, "stroke-width": 1 }));
+          svg.append(s("path", { d: `M${xi - 3} ${beamY - 15} L${xi + 3} ${beamY - 15} L${xi} ${beamY - 9} Z`, fill: LOAD }));
+        }
+        svg.append(text((x1 + x2) / 2, Math.min(yTop1, yTop2) - 6, `${w1} → ${w2} kN/m`, { "text-anchor": "middle", "font-weight": 700, "font-size": 10.5 }));
       }
     }
   } else if (e.w) {
@@ -590,9 +605,9 @@ export function drawBeamElevation(target, e, opts = {}) {
     svg.append(text(left - 8, base + 4, name, { "text-anchor": "end", "font-size": 12, fill: MUTED, "font-weight": 700 }));
     svg.append(text(right + 6, base - 4, unit, { "font-size": 10.5, fill: MUTED }));
   };
-  // sagging moments are drawn below the axis, on the tension side
+  // Positive values are drawn below the axis, negative values above (tension convention for M & V)
   diagram(e.M, 196, 52, ACCENT, "M", "kNm");
-  diagram(e.V.map((v) => -v), 322, 36, MUTED, "V", "kN");
+  diagram(e.V, 322, 36, MUTED, "V", "kN");
   if (hasDelta) {
     diagram(e.delta, 415, 26, "#D97706", "δ", "mm");
     const maxD = Math.max(...e.delta.map(Math.abs));

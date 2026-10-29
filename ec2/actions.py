@@ -3,7 +3,7 @@ from .tables import PSI, PSI_CATEGORIES, PSI_LABELS
 
 GAMMA_G = 1.35
 GAMMA_Q = 1.5
-XI = 0.925  # ξ, UK National Annex
+XI = 1.0  # 0.925 reduction removed; strictly G = 1.35gk, Q = 1.5qk
 
 
 def psi_factors(category):
@@ -19,8 +19,7 @@ def categories():
 def uls_combination(gk, qk, category="B", expression="6.10ab"):
     """Design load for one variable action.
 
-    expression '6.10' uses 1.35Gk + 1.5Qk; '6.10ab' takes the less favourable of
-    Exp (6.10a) 1.35Gk + 1.5ψ0Qk and Exp (6.10b) 0.925·1.35Gk + 1.5Qk.
+    Strictly uses G = 1.35Gk and Q = 1.5Qk (0.925 factor removed).
     """
     psi0, _, psi2 = psi_factors(category)
     quasi_permanent = gk + psi2 * qk
@@ -35,7 +34,7 @@ def uls_combination(gk, qk, category="B", expression="6.10ab"):
         governing = "6.10a" if a >= b else "6.10b"
         working = [
             f"Exp (6.10a): 1.35 × {gk:g} + 1.5 × {psi0:g} × {qk:g} = {a:.1f} kN",
-            f"Exp (6.10b): 0.925 × 1.35 × {gk:g} + 1.5 × {qk:g} = {b:.1f} kN",
+            f"Exp (6.10b): 1.35 × {gk:g} + 1.5 × {qk:g} = {b:.1f} kN",
             f"Less favourable: Exp ({governing}) = {value:.1f} kN",
         ]
     working.append(f"Quasi-permanent: {gk:g} + {psi2:g} × {qk:g} = {quasi_permanent:.1f} kN")

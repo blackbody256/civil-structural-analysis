@@ -280,14 +280,14 @@ class BeamAnalysis:
                         if x_loc >= l2s:
                             c = l2s - l1s
                             Wa = (w1 + w2) * c / 2.0
-                            xa = l1s + c * (2.0 * w1 + w2) / (3.0 * (w1 + w2)) if abs(w1 + w2) > 1e-12 else l1s
+                            xa = l1s + c * (w1 + 2.0 * w2) / (3.0 * (w1 + w2)) if abs(w1 + w2) > 1e-12 else l1s
                             V -= Wa
                             M -= Wa * (x_loc - xa)
                         elif x_loc > l1s:
                             dx = x_loc - l1s
                             w_at_x = w1 + (w2 - w1) * (dx / (l2s - l1s))
                             V -= (w1 + w_at_x) * dx / 2.0
-                            M -= (w1 + w_at_x) * dx / 2.0 * (dx / 3.0)
+                            M -= (dx**2 / 6.0) * (2.0 * w1 + w_at_x)
 
                 x_all.append(float(x_glob))
                 v_all.append(float(V))
@@ -325,19 +325,20 @@ class BeamAnalysis:
         return filtered_idxs
 
 
-def solve_beam(span_m, system="simple", loads=None, E_kpa=33e6, I_m4=0.003, self_weight=0.0, num_points=60):
+def solve_beam(span_m, system="simple", loads=None, supports=None, E_kpa=33e6, I_m4=0.003, self_weight=0.0, num_points=60):
     """High-level beam solver integrating with EC2 concrete design.
 
     Parameters:
       span_m: total beam span in metres (or list of span lengths for continuous beams)
-      system: "simple", "cantilever", "end", "interior"
+      system: "simple", "cantilever", "end", "interior", or "custom"
       loads: list of load dicts:
          - {'type': 'point', 'W': kN, 'x': m}
          - {'type': 'udl', 'w': kN/m, 'l1': m, 'l2': m}
          - {'type': 'moment', 'M0': kNm, 'x': m}
          - {'type': 'linear', 'w1': kN/m, 'w2': kN/m, 'l1': m, 'l2': m}
-      E_kpa: Elastic modulus in kPa (kN/m²)
-      I_m4: Second moment of area in m⁴
+      supports: custom supports (dict of {node_or_x: [fix_v, fix_m]} or list of dicts)
+      E_kpa: Elastic modulus in kPa (kN/m²), scalar or list/dict
+      I_m4: Second moment of area in m⁴, scalar or list/dict
       self_weight: Self weight UDL in kN/m (positive, acting downwards)
     """
     if isinstance(span_m, (int, float)):
@@ -352,13 +353,26 @@ def solve_beam(span_m, system="simple", loads=None, E_kpa=33e6, I_m4=0.003, self
     x_nodes = [0.0]
     curr_x = 0.0
     support_xs = [0.0]
+    span_bounds = []
     for s in spans:
+        x_start_span = curr_x
         n_sub = max(4, int(math.ceil(s / 1.0)))
         for j in range(1, n_sub):
             x_nodes.append(round(curr_x + j * (s / n_sub), 4))
         curr_x += s
         x_nodes.append(round(curr_x, 4))
         support_xs.append(round(curr_x, 4))
+        span_bounds.append((x_start_span, curr_x))
+
+    if supports is not None:
+        if isinstance(supports, dict):
+            for k in supports.keys():
+                if isinstance(k, (int, float)):
+                    x_nodes.append(round(float(k), 4))
+        elif isinstance(supports, list):
+            for sp in supports:
+                if isinstance(sp, dict) and "x" in sp:
+                    x_nodes.append(round(float(sp["x"]), 4))
 
     for ld in loads:
         ltype = ld.get("type")
@@ -384,16 +398,51 @@ def solve_beam(span_m, system="simple", loads=None, E_kpa=33e6, I_m4=0.003, self
     a.total_dofs = 2 * a.num_nodes
     a.num_elements = len(x_nodes) - 1
 
+    def _resolve_prop(prop, x_mid):
+        if isinstance(prop, (int, float)):
+            return float(prop)
+        if isinstance(prop, (list, tuple)):
+            if len(prop) == 0:
+                return 1.0
+            if isinstance(prop[0], dict):
+                for item in prop:
+                    x1 = float(item.get("l1", item.get("x1", 0.0)))
+                    x2 = float(item.get("l2", item.get("x2", total_len)))
+                    if x1 <= x_mid <= x2:
+                        return float(item.get("val", item.get("value", item.get("I", item.get("E", 1.0)))))
+                return float(prop[-1].get("val", prop[-1].get("value", prop[-1].get("I", prop[-1].get("E", 1.0)))))
+            for s_idx, (sx0, sx1) in enumerate(span_bounds):
+                if sx0 <= x_mid <= sx1:
+                    return float(prop[min(s_idx, len(prop) - 1)])
+            return float(prop[0])
+        return float(prop)
+
     for i in range(a.num_elements):
         a.elements[i] = (i, i + 1)
-        a.E[i] = float(E_kpa)
-        a.I[i] = float(I_m4)
+        x_mid = 0.5 * (x_nodes[i] + x_nodes[i + 1])
+        a.E[i] = _resolve_prop(E_kpa, x_mid)
+        a.I[i] = _resolve_prop(I_m4, x_mid)
         a.L[i] = float(x_nodes[i + 1] - x_nodes[i])
 
     # Assign boundary conditions
     # 0 = free, 1 = fixed
     # [fix_vert, fix_rot]
-    if system == "cantilever":
+    if supports is not None:
+        if isinstance(supports, dict):
+            for k, val in supports.items():
+                if isinstance(k, (int, np.integer)) and int(k) in a.nodes:
+                    a.supports[int(k)] = [int(val[0]), int(val[1])]
+                else:
+                    x_val = float(k)
+                    best_n = min(a.nodes.keys(), key=lambda n: abs(a.nodes[n] - x_val))
+                    a.supports[best_n] = [int(val[0]), int(val[1])]
+        elif isinstance(supports, list):
+            for sp in supports:
+                if isinstance(sp, dict):
+                    x_val = float(sp.get("x", 0.0))
+                    best_n = min(a.nodes.keys(), key=lambda n: abs(a.nodes[n] - x_val))
+                    a.supports[best_n] = [int(sp.get("fix_v", 1)), int(sp.get("fix_m", 0))]
+    elif system == "cantilever":
         # Fixed at node 0, all others free
         a.supports[0] = [1, 1]
     elif system == "simple":

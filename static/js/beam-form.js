@@ -39,19 +39,38 @@ export const EXAMPLES = {
     durability: { exposure: "XC3/4-XF1", cement_group: "All except IVB", fire_period: "R90" },
   },
   analysis: {
-    project: { name: "Campus science block", ref: "B2 transfer beam", ...PROJECT },
-    section: { shape: "rectangular", flange: "T", b: 350, h: 600, hf: 150, beff_method: "calculate", beff: 1500, b1: 1350, b2: 1350 },
+    project: { name: "Matrix analysis example", ref: "20m continuous beam with linear load", ...PROJECT },
+    section: { shape: "rectangular", flange: "T", b: 400, h: 750, hf: 150, beff_method: "calculate", beff: 1500, b1: 1350, b2: 1350 },
     materials: { concrete: "C30/37", ...MATERIALS },
-    span: { l: 8.0, system: "simple", location: "span" },
+    span: { l: 20.0, system: "end", location: "span" },
     reinforcement: { tension_n: 4, tension_dia: 25, layers: 1, compression_n: 2, compression_dia: 16, link_dia: 10, legs: 2,
       cover: 35, delta_c_dev: 10 },
     actions: {
       mode: "analysis",
       loads: [
-        { type: "point", W: 60, x: 4.0 },
-        { type: "udl", w: 12, l1: 0.0, l2: 8.0 }
+        { type: "linear", w1: 30, w2: 0, l1: 0.0, l2: 6.0 },
+        { type: "point", W: 200, x: 6.0 },
+        { type: "moment", M0: 90, x: 10.0 },
+        { type: "point", W: 150, x: 15.0 }
       ],
-      MEd: 250, VEd: 120, ...OPTIONS
+      self_weight: false,
+      has_slab: false,
+      MEd: 251.1, VEd: 146.3, ...OPTIONS
+    },
+    durability: { exposure: "XC1", cement_group: "All", fire_period: "R60" },
+  },
+  slab: {
+    project: { name: "Campus science block", ref: "B1 with two-way slab on Ly", ...PROJECT },
+    section: { shape: "flanged", flange: "T", b: 300, h: 550, hf: 150, beff_method: "calculate", beff: 1500, b1: 1350, b2: 1350 },
+    materials: { concrete: "C30/37", ...MATERIALS },
+    span: { l: 6.0, system: "simple", location: "span" },
+    reinforcement: { tension_n: 4, tension_dia: 20, layers: 1, compression_n: 2, compression_dia: 12, link_dia: 8, legs: 2,
+      cover: 30, delta_c_dev: 10 },
+    actions: {
+      mode: "loads", gk: 5, qk: 2.5,
+      has_slab: true, slab_type: "two_way_long",
+      slab_gk: 4.0, slab_qk: 3.0, slab_lx: 4.0, slab_ly: 6.0, slab_trib: 3.0,
+      self_weight: true, ...OPTIONS
     },
     durability: { exposure: "XC1", cement_group: "All", fire_period: "R60" },
   },
@@ -130,6 +149,42 @@ function syncVisibility() {
   }
   const conc = meta.concrete.find((c) => c.name === valueOf("materials.concrete"));
   if (conc) $("concrete-help").textContent = `fck ${conc.fck} MPa, fctm ${conc.fctm} MPa, Ecm ${conc.Ecm} GPa`;
+
+  const hasSlab = form.elements["actions.has_slab"]?.checked || false;
+  const slabOpts = $("slab-options");
+  if (slabOpts) {
+    slabOpts.style.display = hasSlab ? "grid" : "none";
+    const slabType = valueOf("actions.slab_type") || "one_way";
+    form.querySelectorAll(".slab-oneway-only").forEach((el) => { el.style.display = slabType === "one_way" ? "block" : "none"; });
+    form.querySelectorAll(".slab-twoway-only").forEach((el) => { el.style.display = slabType.startsWith("two_way") ? "block" : "none"; });
+
+    const sgk = parseFloat(valueOf("actions.slab_gk")) || 0;
+    const sqk = parseFloat(valueOf("actions.slab_qk")) || 0;
+    const wSlab = 1.35 * sgk + 1.5 * sqk;
+    const lx = parseFloat(valueOf("actions.slab_lx")) || (parseFloat(valueOf("span.l")) || 4.0);
+    const ly = parseFloat(valueOf("actions.slab_ly")) || (parseFloat(valueOf("span.l")) || 6.0);
+    const trib = parseFloat(valueOf("actions.slab_trib")) || (lx / 2.0);
+
+    let weqM = 0, weqV = 0, formulaStr = "";
+    if (slabType === "one_way") {
+      weqM = wSlab * trib;
+      weqV = wSlab * trib;
+      formulaStr = `w_slab = 1.35·${sgk.toFixed(1)} + 1.5·${sqk.toFixed(1)} = ${wSlab.toFixed(2)} kN/m² | w = w_slab × b_trib (${trib.toFixed(2)} m)`;
+    } else if (slabType === "two_way_long") {
+      const r = Math.min(1.0, Math.max(0.01, lx / ly));
+      weqM = wSlab * (lx / 6.0) * (3.0 - r * r);
+      weqV = wSlab * (lx / 4.0) * (2.0 - r);
+      formulaStr = `w_eq,M = w_slab × (Lx/6)·[3 - (Lx/Ly)²] | w_eq,V = w_slab × (Lx/4)·[2 - Lx/Ly]`;
+    } else {
+      weqM = wSlab * (lx / 3.0);
+      weqV = wSlab * (lx / 4.0);
+      formulaStr = `w_eq,M = w_slab × (Lx/3) | w_eq,V = w_slab × (Lx/4)`;
+    }
+    const fEl = $("slab-calc-formula");
+    if (fEl) fEl.textContent = formulaStr;
+    const rEl = $("slab-calc-results");
+    if (rEl) rEl.textContent = `w_slab = ${wSlab.toFixed(2)} kN/m² → Equivalent UDL: Moment weq = ${weqM.toFixed(2)} kN/m, Shear weq = ${weqV.toFixed(2)} kN/m`;
+  }
 }
 
 // ------------------------------------------------------------------ loads table
@@ -325,15 +380,29 @@ function effectiveWidth(d) {
     .reduce((sum, bi) => sum + Math.min(0.2 * (bi || 0) + 0.1 * l0, 0.2 * l0, bi || 0), s.b);
 }
 
-/** Design load w for the drawing, by the same combination as the server. */
+/** Design load w for the drawing, strictly G = 1.35 gk and Q = 1.5 qk without 0.925. */
 function designLoad(d) {
   const a = d.actions, s = d.section;
-  if (a.mode === "direct" || !(a.gk >= 0) || !(a.qk >= 0)) return null;
+  if (a.mode === "direct") return null;
   const web = s.shape === "flanged" ? s.b * (s.h - (s.hf || 0)) : s.b * s.h;
-  const gk = a.gk + (a.self_weight && web > 0 ? (25 * web) / 1e6 : 0);
-  if (a.combination === "6.10") return 1.35 * gk + 1.5 * a.qk;
-  const psi0 = meta.psi_categories.find((c) => c.id === a.category)?.psi[0] ?? 0.7;
-  return Math.max(1.35 * gk + 1.5 * psi0 * a.qk, 0.925 * 1.35 * gk + 1.5 * a.qk);
+  const sw = a.self_weight && web > 0 ? (25 * web) / 1e6 : 0;
+  const gk = (a.gk || 0) + sw;
+  let w = 1.35 * gk + 1.5 * (a.qk || 0);
+  if (a.has_slab) {
+    const wSlab = 1.35 * (a.slab_gk || 0) + 1.5 * (a.slab_qk || 0);
+    const lx = a.slab_lx || d.span.l || 4.0;
+    const ly = a.slab_ly || d.span.l || 6.0;
+    if (a.slab_type === "one_way") {
+      const trib = a.slab_trib || (lx / 2.0);
+      w += wSlab * trib;
+    } else if (a.slab_type === "two_way_long") {
+      const r = Math.min(1.0, Math.max(0.01, lx / ly));
+      w += wSlab * (lx / 6.0) * (3.0 - r * r);
+    } else {
+      w += wSlab * (lx / 3.0);
+    }
+  }
+  return w > 0 ? w : null;
 }
 
 function refresh() {

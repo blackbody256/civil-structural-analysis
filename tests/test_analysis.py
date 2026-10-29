@@ -137,3 +137,66 @@ def test_partial_udl_and_moment():
     assert res["abs_max_M_kNm"] > 0
     assert res["abs_max_V_kN"] > 0
     assert len(res["key_points"]) > 0
+
+
+def test_textbook_sample_stepped_continuous_beam():
+    """Verify exact match with the textbook problem in the client's uploaded images:
+
+    20 m beam with:
+    - Span 1: x in [0, 6], 1.5 I = 0.0087 m⁴, triangular load 30 kN/m -> 0 kN/m
+    - Span 2: x in [6, 10], 1.0 I = 0.0058 m⁴
+    - Span 3: x in [10, 20], 1.0 I = 0.0058 m⁴
+    - Supports: Node 1 (x=0) Fixed [1, 1], Node 3 (x=10) Roller [1, 0], Node 4 (x=20) Roller [1, 0]
+    - Nodal load: 200 kN at x=6, 90 kNm CCW moment at x=10
+    - Point load: 150 kN at x=15
+
+    Reactions:
+      R_y1 = 146.33 kN, M_1 = 281.19 kNm
+      R_y3 = 243.46 kN
+      R_y4 = 50.21 kN
+    Bending moments:
+      M(0) = -281.19 kNm, M(6) = 236.79 kNm, M(10-) = -337.89 kNm, M(15) = 251.06 kNm
+    """
+    res = solve_beam(
+        span_m=[6.0, 4.0, 10.0],
+        supports={0.0: [1, 1], 10.0: [1, 0], 20.0: [1, 0]},
+        E_kpa=28e6,
+        I_m4=[1.5 * 5.8e-3, 5.8e-3, 5.8e-3],
+        loads=[
+            {"type": "linear", "w1": 30.0, "w2": 0.0, "l1": 0.0, "l2": 6.0},
+            {"type": "point", "W": 200.0, "x": 6.0},
+            {"type": "moment", "M0": 90.0, "x": 10.0},
+            {"type": "point", "W": 150.0, "x": 15.0}
+        ]
+    )
+
+    rx_by_x = {round(r["x"], 1): r for r in res["reactions"]}
+    assert rx_by_x[0.0]["Ry"] == pytest.approx(-146.33, abs=0.05)
+    assert rx_by_x[0.0]["M"] == pytest.approx(-281.19, abs=0.05)
+    assert rx_by_x[10.0]["Ry"] == pytest.approx(-243.46, abs=0.05)
+    assert rx_by_x[20.0]["Ry"] == pytest.approx(-50.21, abs=0.05)
+
+    # Diagram values at key sections
+    x_arr = np.array(res["x"])
+    m_arr = np.array(res["M"])
+    v_arr = np.array(res["V"])
+
+    def val_at(target_x):
+        idx = int(np.argmin(np.abs(x_arr - target_x)))
+        return float(v_arr[idx]), float(m_arr[idx])
+
+    v0, m0 = val_at(0.0)
+    assert v0 == pytest.approx(146.33, abs=0.1)
+    assert m0 == pytest.approx(-281.19, abs=0.1)
+
+    v6, m6 = val_at(6.0)
+    assert m6 == pytest.approx(236.79, abs=0.1)
+
+    v10, m10 = val_at(10.0)
+    assert m10 == pytest.approx(-337.89, abs=0.5)
+
+    v15, m15 = val_at(15.0)
+    assert m15 == pytest.approx(251.06, abs=0.1)
+
+    v20, m20 = val_at(20.0)
+    assert m20 == pytest.approx(0.0, abs=0.05)
