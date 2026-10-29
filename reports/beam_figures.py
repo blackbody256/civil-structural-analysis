@@ -7,8 +7,8 @@ palette: static/js/figure-spec.js for the page and reports/beam_pdf.py for the P
 
 Figures follow the textbook presentation of the matrix stiffness method: the beam with its
 loads and dimensions, the analytical model with numbered nodes, elements and degrees of
-freedom, the support reactions, and the shear force and bending moment diagrams. As the client
-asked, positive shears and moments are drawn below the axis and negative ones above.
+freedom, the support reactions, and the shear force and bending moment diagrams. Positive
+shear and hogging moments are drawn above the x-axis; negative shear and sagging moments below it.
 """
 import math
 
@@ -284,9 +284,13 @@ def reactions_figure(data):
     return fig.spec()
 
 
-def _diagram(fig, xs, values, X, base, depth, colour, events, unit_title, top, zeros=None, design=()):
+def _diagram(fig, xs, values, X, base, depth, colour, events, unit_title, top, zeros=None, design=(),
+             positive_down=True):
     vmax = max((abs(v) for v in values), default=0.0) or 1.0
-    Y = lambda v: base + v / vmax * depth            # positive values below the axis
+    if positive_down:
+        Y = lambda v: base + v / vmax * depth
+    else:
+        Y = lambda v: base - v / vmax * depth
     pts = [(X(xs[0]), base)] + [(X(x), Y(v)) for x, v in zip(xs, values)] + [(X(xs[-1]), base)]
     fig.poly(pts, c=colour, f=colour, fo=0.16, sw=0.1, closed=True)
     fig.poly(pts[1:-1], c=colour, sw=2.0)
@@ -295,7 +299,8 @@ def _diagram(fig, xs, values, X, base, depth, colour, events, unit_title, top, z
     placed = []
 
     def place(x, v, anchor):
-        y = Y(v) + (19 if v >= 0 else -8)
+        below = Y(v) >= base
+        y = Y(v) + (19 if below else -8)
         tx = X(x) + {"s": 5, "e": -5, "m": 0}[anchor]
         label = _fmt(v)
         width = 9 * len(label)
@@ -303,7 +308,7 @@ def _diagram(fig, xs, values, X, base, depth, colour, events, unit_title, top, z
         for _ in range(4):
             if not any(abs(y - py) < 17 and x_lo < px2 and x_lo + width > px1 for px1, px2, py in placed):
                 break
-            y += 17 if v >= 0 else -17
+            y += 17 if below else -17
         placed.append((x_lo, x_lo + width, y))
         bold = any(abs(abs(v) - d) < 0.006 for d in design if d)
         fig.text(tx, y, label, colour if not bold else "ink", 15, anchor, bold)
@@ -324,7 +329,7 @@ def _diagram(fig, xs, values, X, base, depth, colour, events, unit_title, top, z
 
 
 def diagrams_figure(data):
-    """Shear force and bending moment diagrams, positive below the axis."""
+    """Shear force and bending moment diagrams. Positive shear and hogging moments are drawn above the x-axis; negative shear and sagging moments below it."""
     fig = Fig(600)
     X = _scale(data["length"])
     xs = _key_xs(data)
@@ -332,9 +337,9 @@ def diagrams_figure(data):
         fig.line(X(x), 46, X(x), 560, "rule", 1.0, [5, 5])
     design = data.get("design") or {}
     _diagram(fig, data["x"], data["V"], X, 150, 82, "sfd", data["events"]["V"], "Shear force (kN)", 28,
-             design=(design.get("V"),))
+             design=(design.get("V"),), positive_down=False)
     _diagram(fig, data["x"], data["M"], X, 420, 96, "bmd", data["events"]["M"], "Bending moment (kN·m)", 300,
-             zeros=data["events"]["zeros"], design=(design.get("sag"), design.get("hog")))
+             zeros=data["events"]["zeros"], design=(design.get("sag"), design.get("hog")), positive_down=True)
     last = -1e9
     for x in xs:
         if X(x) - last > 30:

@@ -127,8 +127,8 @@ def analysis_section(report):
                              Paragraph(caption, st["muted"])])
 
     flow = [CondPageBreak(120 * mm), Paragraph("2. Structural analysis", st["h1"]),
-            Paragraph("Matrix stiffness analysis of the beam under the design loads. Positive shear forces and "
-                      "sagging moments are drawn below the axis, negative ones above.", st["body"]),
+            Paragraph("Matrix stiffness analysis of the beam under the design loads. Positive shear and "
+                      "hogging moments are drawn above the x-axis; negative shear and sagging moments below it.", st["body"]),
             block("Beam, loads and stiffness", figs["loading"], "Design loads on the beam, with the dimensions "
                   "between supports and loads, and the second moment of area of each part."),
             block("Analytical model", figs["model"], "Nodes are circled and elements boxed. Degrees of freedom: "

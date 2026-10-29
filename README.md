@@ -71,8 +71,9 @@ The check then works in three steps:
    beam. The analytical model is numbered as in the textbook method (nodes at the ends, supports and
    changes of stiffness; free degrees of freedom first), and the report shows the beam with its loads and
    dimensions, the analytical model, the support reactions, the shear force and bending moment diagrams
-   (positive values below the axis) and the deflected shape, with tables of reactions, member end forces
-   and joint displacements. The live diagrams on the input page come from the same analysis.
+   and the deflected shape, with tables of reactions, member end forces and joint displacements. Positive
+   shear and hogging moments are drawn above the x-axis; negative shear and sagging moments below it. The
+   live diagrams on the input page come from the same analysis.
 3. **Design.** Every critical value from the analysis is designed for: the largest sagging moment with
    the bottom bars, the largest hogging moment with the top bars, and the largest shear. A value that is
    zero is not designed for.
