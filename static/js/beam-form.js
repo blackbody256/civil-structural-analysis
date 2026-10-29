@@ -38,6 +38,23 @@ export const EXAMPLES = {
     actions: { mode: "loads", gk: 20, qk: 15, MEd: 150, VEd: 100, ...OPTIONS, category: "C" },
     durability: { exposure: "XC3/4-XF1", cement_group: "All except IVB", fire_period: "R90" },
   },
+  analysis: {
+    project: { name: "Campus science block", ref: "B2 transfer beam", ...PROJECT },
+    section: { shape: "rectangular", flange: "T", b: 350, h: 600, hf: 150, beff_method: "calculate", beff: 1500, b1: 1350, b2: 1350 },
+    materials: { concrete: "C30/37", ...MATERIALS },
+    span: { l: 8.0, system: "simple", location: "span" },
+    reinforcement: { tension_n: 4, tension_dia: 25, layers: 1, compression_n: 2, compression_dia: 16, link_dia: 10, legs: 2,
+      cover: 35, delta_c_dev: 10 },
+    actions: {
+      mode: "analysis",
+      loads: [
+        { type: "point", W: 60, x: 4.0 },
+        { type: "udl", w: 12, l1: 0.0, l2: 8.0 }
+      ],
+      MEd: 250, VEd: 120, ...OPTIONS
+    },
+    durability: { exposure: "XC1", cement_group: "All", fire_period: "R60" },
+  },
 };
 
 const SYSTEMS = { simple: "simply supported", end: "end span", interior: "interior span", cantilever: "cantilever" };
@@ -82,9 +99,11 @@ function syncVisibility() {
   }
   $("g-b-label").textContent = flanged ? "Web width bw" : "Width b";
 
-  const direct = valueOf("actions.mode") === "direct";
-  show(".loads-only", !direct);
-  show(".direct-only", direct);
+  const mode = valueOf("actions.mode") || "loads";
+  show(".loads-only", mode === "loads");
+  show(".direct-only", mode === "direct");
+  show(".analysis-only", mode === "analysis");
+  show(".not-direct", mode !== "direct");
 
   // a simply supported span has no support moment; a cantilever is checked at its root
   const system = valueOf("span.system");
@@ -113,6 +132,127 @@ function syncVisibility() {
   if (conc) $("concrete-help").textContent = `fck ${conc.fck} MPa, fctm ${conc.fctm} MPa, Ecm ${conc.Ecm} GPa`;
 }
 
+// ------------------------------------------------------------------ loads table
+
+let analysisLoads = [
+  { type: "point", W: 50, x: 3.0 },
+  { type: "udl", w: 12, l1: 0.0, l2: 6.0 }
+];
+
+function renderLoadsTable() {
+  const tbody = $("loads-body");
+  if (!tbody) return;
+  tbody.replaceChildren();
+
+  analysisLoads.forEach((ld, idx) => {
+    const tr = document.createElement("tr");
+
+    // Type select
+    const tdType = document.createElement("td");
+    const cType = document.createElement("div");
+    cType.className = "control";
+    const sType = document.createElement("select");
+    sType.innerHTML = `
+      <option value="point">Point load (kN)</option>
+      <option value="udl">Partial UDL (kN/m)</option>
+      <option value="moment">Moment (kNm)</option>
+      <option value="linear">Varying (kN/m)</option>
+    `;
+    sType.value = ld.type || "point";
+    sType.addEventListener("change", () => {
+      ld.type = sType.value;
+      renderLoadsTable();
+      refresh();
+    });
+    cType.appendChild(sType);
+    tdType.appendChild(cType);
+
+    // Magnitude
+    const tdMag = document.createElement("td");
+    const cMag = document.createElement("div");
+    cMag.className = "control";
+    const iMag = document.createElement("input");
+    iMag.type = "number";
+    iMag.step = "0.5";
+    iMag.placeholder = ld.type === "linear" ? "Start w₁" : (ld.type === "moment" ? "M₀" : "Load");
+    iMag.value = ld.type === "linear" ? (ld.w1 ?? 0) : (ld.type === "udl" ? (ld.w ?? 0) : (ld.type === "moment" ? (ld.M0 ?? 0) : (ld.W ?? 0)));
+    iMag.addEventListener("input", () => {
+      const val = parseFloat(iMag.value) || 0;
+      if (ld.type === "linear") ld.w1 = val;
+      else if (ld.type === "udl") ld.w = val;
+      else if (ld.type === "moment") ld.M0 = val;
+      else ld.W = val;
+      refresh();
+    });
+    cMag.appendChild(iMag);
+    tdMag.appendChild(cMag);
+
+    // Position x1
+    const tdX1 = document.createElement("td");
+    const cX1 = document.createElement("div");
+    cX1.className = "control";
+    const iX1 = document.createElement("input");
+    iX1.type = "number";
+    iX1.step = "0.1";
+    iX1.placeholder = (ld.type === "udl" || ld.type === "linear") ? "Start x₁" : "Position x";
+    iX1.value = (ld.type === "udl" || ld.type === "linear") ? (ld.l1 ?? 0) : (ld.x ?? 0);
+    iX1.addEventListener("input", () => {
+      const val = parseFloat(iX1.value) || 0;
+      if (ld.type === "udl" || ld.type === "linear") ld.l1 = val;
+      else ld.x = val;
+      refresh();
+    });
+    cX1.appendChild(iX1);
+    tdX1.appendChild(cX1);
+
+    // End x2 or w2
+    const tdX2 = document.createElement("td");
+    const cX2 = document.createElement("div");
+    cX2.className = "control";
+    const iX2 = document.createElement("input");
+    iX2.type = "number";
+    iX2.step = "0.1";
+    if (ld.type === "linear") {
+      iX2.placeholder = "End w₂";
+      iX2.value = ld.w2 ?? 0;
+      iX2.addEventListener("input", () => {
+        ld.w2 = parseFloat(iX2.value) || 0;
+        refresh();
+      });
+    } else if (ld.type === "udl") {
+      iX2.placeholder = "End x₂";
+      iX2.value = ld.l2 ?? (parseFloat(valueOf("span.l")) || 6.0);
+      iX2.addEventListener("input", () => {
+        ld.l2 = parseFloat(iX2.value) || 0;
+        refresh();
+      });
+    } else {
+      iX2.disabled = true;
+      iX2.placeholder = "—";
+      iX2.value = "";
+    }
+    cX2.appendChild(iX2);
+    tdX2.appendChild(cX2);
+
+    // Remove button
+    const tdDel = document.createElement("td");
+    const bDel = document.createElement("button");
+    bDel.type = "button";
+    bDel.className = "btn-icon";
+    bDel.textContent = "×";
+    bDel.title = "Delete load";
+    bDel.addEventListener("click", () => {
+      analysisLoads.splice(idx, 1);
+      renderLoadsTable();
+      refresh();
+    });
+    tdDel.appendChild(bDel);
+
+    tr.append(tdType, tdMag, tdX1, tdX2, tdDel);
+    tbody.appendChild(tr);
+  });
+}
+
 // ------------------------------------------------------------------ serialise / fill
 
 export function serialize() {
@@ -125,6 +265,9 @@ export function serialize() {
     else if (NUMERIC.test(path)) setPath(data, path, Number(input.value));
     else setPath(data, path, input.value);
   }
+  if (data.actions && data.actions.mode === "analysis") {
+    data.actions.loads = analysisLoads.map((ld) => ({ ...ld }));
+  }
   return data;
 }
 
@@ -135,6 +278,10 @@ export function fill(data) {
     else if (input.type === "checkbox") { if (value !== undefined) input.checked = Boolean(value); }
     else if (value !== undefined) input.value = value === null ? "" : String(value);
   }
+  if (data.actions?.loads && Array.isArray(data.actions.loads)) {
+    analysisLoads = data.actions.loads.map((ld) => ({ ...ld }));
+  }
+  renderLoadsTable();
   syncVisibility();
   if (data.durability?.cement_group) form.elements["durability.cement_group"].value = data.durability.cement_group;
   refresh();
@@ -149,15 +296,18 @@ function summaries(d) {
   const size = s.shape === "flanged"
     ? `${s.flange} beam, web ${f(s.b)} × ${f(s.h)} mm, hf ${f(s.hf)} mm`
     : `${f(s.b)} × ${f(s.h)} mm`;
+  const actText = a.mode === "direct"
+    ? `MEd ${f(a.MEd, " kNm")} · VEd ${f(a.VEd, " kN")}`
+    : (a.mode === "analysis"
+      ? `FEA analysis: ${analysisLoads.length} load${analysisLoads.length === 1 ? "" : "s"}${a.self_weight ? " + sw" : ""}`
+      : `gk ${f(a.gk)}${a.self_weight ? " + self-weight" : ""} · qk ${f(a.qk)} kN/m · category ${a.category}`);
   return {
     project: [d.project.name, d.project.ref].filter(Boolean).join(" · ") || "Optional",
     materials: `${d.materials.concrete} · fyk ${f(d.materials.fyk)} MPa · class ${d.materials.ductility} · dg ${f(d.materials.dg)} mm`,
     geometry: `${size} · ${f(sp.l)} m ${SYSTEMS[sp.system]} · ${top ? "at the support" : "mid-span"}`,
     reinforcement: `${f(re.tension_n)}H${re.tension_dia} ${top ? "top" : "bottom"} · ${f(re.compression_n)}H${re.compression_dia} `
       + `${top ? "bottom" : "top"} · H${re.link_dia} links, ${re.legs} legs · cover ${f(re.cover)} mm`,
-    actions: a.mode === "direct"
-      ? `MEd ${f(a.MEd)} kNm · VEd ${f(a.VEd)} kN`
-      : `gk ${f(a.gk)}${a.self_weight ? " + self-weight" : ""} · qk ${f(a.qk)} kN/m · category ${a.category}`,
+    actions: actText,
     durability: `${(meta.exposure_all.find((r) => r.id === du.exposure) || {}).classes || du.exposure} · `
       + `${du.fire_period === "none" ? "no fire period" : `fire ${du.fire_period}`}`,
   };
@@ -202,8 +352,15 @@ function refresh() {
   $("st-gap").textContent = sec ? `${sec.clear.toFixed(0)} mm` : "—";
 
   const w = designLoad(d);
-  drawBeamElevation($("preview-elevation"), { l: d.span.l > 0 ? d.span.l : 6, system: d.span.system, w });
-  $("elev-hint").textContent = w ? "ULS design load" : "actions from your analysis";
+  drawBeamElevation($("preview-elevation"), {
+    l: d.span.l > 0 ? d.span.l : 6,
+    system: d.span.system,
+    w,
+    loads: d.actions?.mode === "analysis" ? analysisLoads : null
+  });
+  $("elev-hint").textContent = d.actions?.mode === "analysis"
+    ? "Matrix FEA applied loads"
+    : (w ? "ULS design load" : "actions from your analysis");
 }
 
 // ------------------------------------------------------------------ init
@@ -212,6 +369,12 @@ async function init() {
   meta = await getJSON("/api/meta");
   populate();
   setupSections(form, "ec2.beam.form.open");
+  $("add-load-btn")?.addEventListener("click", () => {
+    const span = parseFloat(valueOf("span.l")) || 6.0;
+    analysisLoads.push({ type: "point", W: 40, x: +(span / 2).toFixed(2) });
+    renderLoadsTable();
+    refresh();
+  });
   fill(store.get(KEYS.input) || structuredClone(EXAMPLES.pass));
   const serverErrors = store.getSession(KEYS.errors);
   if (serverErrors) { errors.show(serverErrors); store.setSession(KEYS.errors, null); }

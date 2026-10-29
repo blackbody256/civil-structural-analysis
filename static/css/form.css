@@ -121,3 +121,12 @@ details.more > .fields { margin-top: 14px; }
 .s-body > .check, details.more > .check { margin-top: 2px; }
 details.more > .check + .check { margin-top: 10px; }
 details.more > .fields + .check { margin-top: 14px; }
+
+/* Analysis loads table */
+.loads-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.loads-table th { text-align: left; padding: 6px 8px; font-weight: 600; color: var(--text-2); border-bottom: 1px solid var(--line-strong); }
+.loads-table td { padding: 4px 6px; }
+.loads-table .control { height: 34px; }
+.btn-icon { border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); border-radius: var(--radius); width: 34px; height: 34px; cursor: pointer; display: grid; place-items: center; font-size: 16px; font-weight: 700; }
+.btn-icon:hover { color: var(--fail); border-color: var(--fail); background: var(--surface-2); }
+

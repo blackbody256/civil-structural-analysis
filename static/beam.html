@@ -178,6 +178,7 @@
               <div class="field" style="grid-column: 1 / -1"><label for="a-mode">Loading</label>
                 <div class="control"><select id="a-mode" name="actions.mode">
                   <option value="loads">Uniform loads gk and qk</option>
+                  <option value="analysis">Matrix beam analysis (FEA loads)</option>
                   <option value="direct">MEd and VEd from my own analysis</option></select></div></div>
               <div class="field loads-only"><label for="a-gk">Permanent g<sub>k</sub></label>
                 <div class="control"><input id="a-gk" name="actions.gk" type="number" step="0.5" min="0" max="10000"><span class="unit">kN/m</span></div>
@@ -190,7 +191,28 @@
                 <div class="control"><input id="a-ved" name="actions.VEd" type="number" step="1" min="0" max="1000000"><span class="unit">kN</span></div>
                 <span class="help">At the face of the support</span></div>
             </div>
-            <label class="check loads-only"><input type="checkbox" name="actions.self_weight"> <span>Add the beam's self-weight to g<sub>k</sub> (25 kN/m³)</span></label>
+            <div class="analysis-only" style="display: grid; gap: 8px;">
+              <span class="label" style="font-size: 13.5px; font-weight: 500; color: var(--text-2);">Span loads (Point loads, partial UDLs, moments, varying loads)</span>
+              <div style="overflow-x: auto;">
+                <table class="loads-table" id="loads-table" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+                  <thead>
+                    <tr>
+                      <th style="width: 28%; text-align: left; padding: 6px 8px; color: var(--text-2); border-bottom: 1px solid var(--line-strong);">Type</th>
+                      <th style="width: 22%; text-align: left; padding: 6px 8px; color: var(--text-2); border-bottom: 1px solid var(--line-strong);">Magnitude</th>
+                      <th style="width: 22%; text-align: left; padding: 6px 8px; color: var(--text-2); border-bottom: 1px solid var(--line-strong);">Position x₁ (m)</th>
+                      <th style="width: 22%; text-align: left; padding: 6px 8px; color: var(--text-2); border-bottom: 1px solid var(--line-strong);">End x₂ / w₂</th>
+                      <th style="width: 6%; border-bottom: 1px solid var(--line-strong);"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="loads-body">
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <button type="button" class="btn small" id="add-load-btn" style="cursor: pointer;">+ Add load</button>
+              </div>
+            </div>
+            <label class="check not-direct"><input type="checkbox" name="actions.self_weight"> <span>Add the beam's self-weight (25 kN/m³)</span></label>
             <details class="more">
               <summary>More options: load category, combination, partitions</summary>
               <div class="fields">

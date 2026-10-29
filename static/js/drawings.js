@@ -517,8 +517,9 @@ export function drawBeamSection(target, sec, opts = {}) {
 
 /** Beam elevation: supports, loading, bending moment and shear along the span. */
 export function drawBeamElevation(target, e, opts = {}) {
+  const hasDelta = e.delta && e.delta.length > 0;
   const W = opts.width || 560;
-  const H = opts.height || (e.M ? 390 : 200);
+  const H = opts.height || (hasDelta ? 470 : (e.M ? 390 : 200));
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Beam elevation" });
   const left = 46, right = W - 40;
   const X = (x) => left + (x / e.l) * (right - left);
@@ -543,7 +544,30 @@ export function drawBeamElevation(target, e, opts = {}) {
       svg.append(s("line", { x1: right, y1: beamY, x2: right + 34, y2: beamY, ...dashed }));
     }
   }
-  if (e.w) {
+  if (e.loads && Array.isArray(e.loads) && e.loads.length > 0) {
+    const top = beamY - 38;
+    for (const ld of e.loads) {
+      if (ld.type === "point") {
+        const x = X(ld.x || 0);
+        svg.append(s("line", { x1: x, y1: top, x2: x, y2: beamY - 12, stroke: LOAD, "stroke-width": 2 }));
+        svg.append(s("path", { d: `M${x - 4.5} ${beamY - 18} L${x + 4.5} ${beamY - 18} L${x} ${beamY - 9} Z`, fill: LOAD }));
+        svg.append(text(x, top - 8, `${ld.W || 0} kN`, { "text-anchor": "middle", "font-weight": 700, "font-size": 11 }));
+      } else if (ld.type === "udl") {
+        const x1 = X(ld.l1 || 0), x2 = X(ld.l2 || e.l);
+        svg.append(s("line", { x1, y1: top + 10, x2, y2: top + 10, stroke: LOAD, "stroke-width": 1.4 }));
+        for (let i = 0; i <= 6; i++) {
+          const xi = x1 + ((x2 - x1) * i) / 6;
+          svg.append(s("line", { x1: xi, y1: top + 10, x2: xi, y2: beamY - 10, stroke: LOAD, "stroke-width": 1 }));
+          svg.append(s("path", { d: `M${xi - 3} ${beamY - 15} L${xi + 3} ${beamY - 15} L${xi} ${beamY - 9} Z`, fill: LOAD }));
+        }
+        svg.append(text((x1 + x2) / 2, top + 2, `${ld.w || 0} kN/m`, { "text-anchor": "middle", "font-weight": 700, "font-size": 10.5 }));
+      } else if (ld.type === "moment") {
+        const x = X(ld.x || 0);
+        svg.append(s("circle", { cx: x, cy: beamY - 20, r: 10, fill: "none", stroke: LOAD, "stroke-width": 1.5 }));
+        svg.append(text(x, top - 8, `${ld.M0 || 0} kNm`, { "text-anchor": "middle", "font-weight": 700, "font-size": 11 }));
+      }
+    }
+  } else if (e.w) {
     const top = beamY - 38;
     svg.append(s("line", { x1: left, y1: top, x2: right, y2: top, stroke: LOAD, "stroke-width": 1.4 }));
     for (let i = 0; i <= 12; i++) {
@@ -569,6 +593,11 @@ export function drawBeamElevation(target, e, opts = {}) {
   // sagging moments are drawn below the axis, on the tension side
   diagram(e.M, 196, 52, ACCENT, "M", "kNm");
   diagram(e.V.map((v) => -v), 322, 36, MUTED, "V", "kN");
+  if (hasDelta) {
+    diagram(e.delta, 415, 26, "#D97706", "δ", "mm");
+    const maxD = Math.max(...e.delta.map(Math.abs));
+    svg.append(symText(right + 6, 415 + 16, ["δ", sub("max"), ` = ${maxD.toFixed(2)} mm`], { "text-anchor": "end", "font-weight": 700, fill: "#D97706", "font-size": 11.5 }));
+  }
   const xd = X(e.x_design);
   svg.append(s("line", { x1: xd, y1: beamY + 10, x2: xd, y2: H - 12, stroke: LOAD, "stroke-width": 1.2, "stroke-dasharray": "4 3" }));
   const anchor = xd > (left + right) / 2 ? "end" : "start";
@@ -578,7 +607,7 @@ export function drawBeamElevation(target, e, opts = {}) {
   const iv = e.V.reduce((best, v, i) => (Math.abs(v) > Math.abs(e.V[best]) + 1e-9 ? i : best), 0);
   const xv = X(e.x[iv]);
   const vAnchor = xv > (left + right) / 2 ? "end" : "start";
-  svg.append(symText(xv + (vAnchor === "end" ? -6 : 6), H - 14, ["V", sub("Ed"), ` = ${e.VEd.toFixed(1)} kN`], { "text-anchor": vAnchor, "font-size": 12 }));
+  svg.append(symText(xv + (vAnchor === "end" ? -6 : 6), (hasDelta ? 362 : H - 14), ["V", sub("Ed"), ` = ${e.VEd.toFixed(1)} kN`], { "text-anchor": vAnchor, "font-size": 12 }));
   target.replaceChildren(svg);
   return svg;
 }

@@ -15,10 +15,38 @@ export function figures(state) {
     });
     drawBeamElevation(elevationBox, result.plots.elevation);
   });
-  return el("div", { class: "figures" },
+
+  const figList = [
     figure("Cross-section", sectionBox, "To scale. Parts outlined in red failed a check; point at a row below to find its part."),
-    figure("Loading, bending moment and shear", elevationBox,
-      "Sagging moments are drawn below the axis. The dashed line marks the section checked."));
+    figure("Loading, bending moment, shear and deflection", elevationBox,
+      "Sagging moments and downward deflections are drawn below the axis. The dashed line marks the section checked.")
+  ];
+
+  if (result.derived.reactions && result.derived.reactions.length > 0) {
+    const rxBox = el("div", { style: "padding: 4px 6px;" });
+    const table = el("table", { class: "calc-sheet", style: "width: 100%; border-collapse: collapse; margin-top: 4px;" },
+      el("thead", {},
+        el("tr", {},
+          el("th", { style: "text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line-strong);" }, "Support"),
+          el("th", { style: "text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line-strong);" }, "x (m)"),
+          el("th", { style: "text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line-strong);" }, "Reaction Ry (kN)"),
+          el("th", { style: "text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line-strong);" }, "Reaction M (kNm)")
+        )
+      ),
+      el("tbody", {},
+        ...result.derived.reactions.map((r) => el("tr", {},
+          el("td", { style: "padding: 6px 8px; font-weight: 500;" }, `Node ${r.node}`),
+          el("td", { style: "text-align: right; padding: 6px 8px; font-family: var(--font-mono);" }, `${r.x.toFixed(2)}`),
+          el("td", { style: "text-align: right; padding: 6px 8px; font-family: var(--font-mono); font-weight: 600;" }, `${Math.abs(r.Ry).toFixed(1)}`),
+          el("td", { style: "text-align: right; padding: 6px 8px; font-family: var(--font-mono);" }, `${Math.abs(r.M).toFixed(1)}`)
+        ))
+      )
+    );
+    rxBox.appendChild(table);
+    figList.push(figure("Support Reactions (Matrix Stiffness Analysis)", rxBox, "Computed from the global stiffness matrix Ku = F."));
+  }
+
+  return el("div", { class: "figures" }, ...figList);
 }
 
 export function designPath(result) {
