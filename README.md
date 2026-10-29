@@ -6,7 +6,7 @@ UK National Annex values the guide uses. There is no login and nothing leaves yo
 
 * **Backend:** Python (Flask). The engineering lives in `ec2/`; the PDF report is built in `reports/`.
 * **Frontend:** plain HTML, CSS and JavaScript with hand-drawn SVG, so it works offline.
-* **Look:** a warm "Stone & Petrol" palette with light and dark themes (the menu at the top right follows
+* **Look:** a colourful and modern interface with light and dark themes (the menu at the top right follows
   your system by default), set in IBM Plex Sans and IBM Plex Mono, bundled under the SIL Open Font License.
 
 ## Run it
@@ -21,20 +21,13 @@ Then open <http://127.0.0.1:5000>.
 
 ## How it works
 
-1. **Choose element**: the landing page lists every element in the guide. **Column** and **beam** are
-   available now; wall, slab, flat slab, pad foundation and retaining wall are planned.
-2. **Inputs**: each group of inputs sits in a collapsible section that shows a one-line summary when
-   closed. Rarely used inputs sit under "More options". The cross-section and elevation are drawn to scale
-   as you type. Examples, opening a saved inputs file and reset share one menu.
-3. **Running checks**: an animated run through every test in the guide's order, with ✓/✕ per test.
-4. **Report**: the verdict and the governing check first, a list of what needs attention and the
-   utilisations from highest down, then the drawings and the design path, then the full calculation sheet
-   in collapsible groups. The **Export** menu downloads the PDF report or the inputs (JSON), or prints the page.
-
-The report has no reference column and no references to the guide's figures and tables: each check shows
-its formula with the numbers substituted. The PDF is set in Times New Roman 12 pt. If Times New Roman is not
-installed (`ttf-mscorefonts-installer` on Ubuntu), the bundled Liberation Serif is used; it has the same
-metrics. The web report uses the same face for the calculation sheet, inputs and assumptions.
+1. **Home page**: a colourful hero band with a soft multi-stop gradient (light `#E0E7FF` → `#EDE9FE` → `#F0F9FF`; dark `#06080E` → `#0A0F1E` → `#0F0A1E`) and an animated SVG beam model drawing showing loads dropping, support reactions counting up, and shear force and bending moment diagrams tracing left-to-right. Active element cards (Beam and Column) feature unique accent colours, check chips, and hover effects, alongside planned elements as colorful tiles.
+2. **Three-step workflow**:
+   - **1 Analyse**: draw supports and loads on the beam canvas; solve member stiffness, support reactions, and envelope values.
+   - **2 Design**: specify concrete, reinforcement, and durability; evaluate all checks against Eurocode 2 rules.
+   - **3 Report**: inspect the verification summary, review substituted calculations, and export a clean PDF.
+3. **Interactive canvas editor**: click on the beam or double-click an existing load or support to open an inline floating editor to change values and positions with instant updates.
+4. **Report & Export**: the verdict and governing checks first, followed by drawings, design path, and full calculation sheets with substituted numbers. The PDF report features clean running headers ("Beam check to Eurocode 2") with no project name or reference in the header.
 
 ## Column (Chapter 5)
 
@@ -54,33 +47,32 @@ only) or biaxial (moments about both axes). The link spacing is calculated, not 
 
 ## Beam (Chapter 4)
 
-The user first chooses a **rectangular** or **flanged** (T or L) section, then draws the beam: its length,
-its supports (pinned, roller or fixed, anywhere along it) and its loads. On the drawing canvas a tool is
-picked and the beam clicked to place a support, point load, part-length uniform load, varying load or
-moment; items can be dragged, their ends stretched, and deleted. The same supports and loads appear in
-tables for exact values.
+The beam module is split into three guided workflow tabs:
 
-The check then works in three steps:
+### 1. Analysis Tab
+The user chooses a **rectangular** or **flanged** (T or L) section, sets the section size and concrete class (which sets $E_{cm}$), and draws the beam model.
+* **Canvas Tools & Inline Editor**: place pinned, roller, or fixed supports, point loads, uniform loads, varying loads, or applied moments. Clicking the beam places an item and opens an inline floating editor (`CanvasEditor`); double-clicking an item re-opens the editor for quick value adjustments. Items can also be dragged or edited via the data tables.
+* **Loads & Slab Distribution**: line load $w = 1.35\cdot g_k + 1.5\cdot q_k$ from self-weight, uniform loads, and optional slab load (one-way via tributary width; two-way via equivalent uniform loads for bending and shear).
+* **Matrix Stiffness Solver**: clicking "Analyse" runs `ec2/analysis.py` (decoupled from design inputs so incomplete reinforcement does not block analysis).
+* **Diagram Conventions**: Positive shear and hogging moments are drawn above the x-axis; negative shear and sagging moments below it.
+* **Analytical Model Display**: nodes circled in orange, elements in teal, free DOFs in indigo, and restrained DOFs in violet.
+* **Results Block**: envelope metrics ($M^+_{Ed}$, $M^-_{Ed}$, $|V|$, $\delta_{max}$, $w$), all 5 analytical figures (loading, model, reactions, diagrams, deflection), and tables for reactions, member end forces, and joint displacements.
 
-1. **Loading.** The design line load w = 1.35·gk + 1.5·qk (no 0.925 reduction) from the uniform loads,
-   the beam's self-weight and, with "Slab on top of the beam", the slab: a one-way slab through its
-   tributary width (w = wslab × btrib), a two-way slab through the equivalent uniform loads for bending,
-   wslab × (Lx/6)·[3 − (Lx/Ly)²], and for shear, wslab × (Lx/4)·[2 − Lx/Ly], on the long beam (Lx/3 and
-   Lx/4 on the short beam). Further loads are entered as design values or as gk or qk, which are factored.
-2. **Analysis.** The client's matrix stiffness solver (`ec2/analysis.py`, from BeamViz Pro) analyses the
-   beam. The analytical model is numbered as in the textbook method (nodes at the ends, supports and
-   changes of stiffness; free degrees of freedom first), and the report shows the beam with its loads and
-   dimensions, the analytical model, the support reactions, the shear force and bending moment diagrams
-   and the deflected shape, with tables of reactions, member end forces and joint displacements. Positive
-   shear and hogging moments are drawn above the x-axis; negative shear and sagging moments below it. The
-   live diagrams on the input page come from the same analysis.
-3. **Design.** Every critical value from the analysis is designed for: the largest sagging moment with
-   the bottom bars, the largest hogging moment with the top bars, and the largest shear. A value that is
-   zero is not designed for.
+### 2. Design Tab
+Enabled once an analysis succeeds (or when entering actions directly).
+* **Design Values from Analysis**: read-only summary of $M^+_{Ed}$, $M^-_{Ed}$, and $V_{Ed}$. Ticking "Adjust these design values" unlocks the fields and switches to direct mode.
+* **Design Inputs**: flange parameters ($b_{eff}$ calculation or manual entry), reinforcement (bottom, top, and link sizing and layers), durability and fire resistance, and options (partitions, $K'$ limit).
+* **Checks & Verdict**: clicking "Run design checks" validates the beam against Eurocode 2 with animated result rows grouped by check type, highlighting failing checks.
 
-The default example is the client's: a 20 m beam fixed at one end on two rollers, with a 30 kN/m varying
-load, 200 kN and 150 kN point loads and a 90 kN·m moment, E = 28 GPa and 1.5I over the first 6 m. It gives
-the reactions 146.33 kN and 281.19 kN·m, 243.46 kN and 50.21 kN.
+### 3. Report Tab
+Enabled after design checks pass.
+* Embeds the full calculation report inside an auto-resizing clean iframe (`?embed=1` hides the top bar and inputs link).
+* Action buttons for **Download PDF report** (`/api/beam/report.pdf`), **Print**, and **Open in a new tab** (`/beam/report`).
+
+### Examples
+The **Examples and files** menu provides:
+1. **Client's example (correct)**: 20 m beam, fixed and two rollers, varying load ($30 \to 0$ kN/m), 200 kN and 150 kN point loads, 90 kN·m moment, $E = 28$ GPa and $1.5I$ over the first 6 m. Reactions: 146.33 kN and 281.19 kN·m at node 1, 243.46 kN at node 3, 50.21 kN at node 4. All 17 checks pass.
+2. **Client's example with mistakes (wrong)**: Same beam and loads, but with a 300 × 500 mm section, C25/30 concrete, 2H16 top and bottom bars, H6 links, XC3/4 exposure, and R90 fire period. Exactly 6 checks fail (`cover_durability`, `tension_sag`, `tension_hog`, `deflection`, `cracking_bottom`, `cracking_top`).
 
 | Group | Check |
 |---|---|
@@ -92,11 +84,6 @@ the reactions 146.33 kN and 281.19 kN·m, 243.46 kN and 50.21 kN.
 | Shear | Concrete strut capacity; link spacing calculated from Asw/s with ρw,min and 0.75d; spacing of link legs; longitudinal shear in the flange |
 | Deflection | For every span: basic span/depth ratio × F1 × F2 × F3 against the actual l/d (K from the span's end conditions); the elastic deflection for information |
 | Detailing | As,min of each tension face, As,max, clear spacing of the bottom and top bars, crack control |
-
-The numeric tables from the guide (concrete properties, ψ factors, effective length, biaxial exponent,
-K′, strut capacity, minimum shear ratio, crack control, lap lengths) are NumPy arrays in `ec2/tables.py`.
-The tests check them against the formulas they come from. The column section model reproduces the guide's
-design charts.
 
 ## Tests
 
@@ -123,14 +110,11 @@ static/             HTML pages, JS, and fonts (IBM Plex for the pages, Liberatio
   css/base.css      theme tokens (light and dark) and shared components
   css/landing.css · form.css · run.css · report.css   one stylesheet per page
   js/form-kit.js    shared input-page helpers; js/report-<element>.js  each element's drawings
-  js/beam-canvas.js the beam drawing canvas; js/figure-spec.js draws the analysis figures
+  js/beam-canvas.js the beam drawing canvas; js/canvas-editor.js on-canvas floating value editor
+  js/beam-analysis-view.js shared analysis results builder for form and report
+  js/figure-spec.js draws the analysis figures
 tests/              pytest suite
 ```
-
-To add an element (for example a slab), put its procedure in `ec2/<element>.py` and return the same
-report structure (`checks`, `summary`, `plots`), add a PDF module in `reports/` and register both in
-`ELEMENT_HANDLERS` in `app.py`. Then add `static/<element>.html`, a `report-<element>.js` for its drawings,
-and mark it `active` in `ec2/elements.py`. The run and report pages serve every element.
 
 ## Limits
 
