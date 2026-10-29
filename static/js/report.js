@@ -41,7 +41,7 @@ function header(state) {
   }
   const exportBtn = el("button", { type: "button", class: "btn", popovertarget: "export-menu" }, "Export ", el("span", { class: "caret" }));
   return el("div", { class: "report-head" },
-    el("p", { class: "context" }, [TITLE, p.ref, p.name].filter(Boolean).join(" · ")),
+    el("p", { class: "context" }, TITLE),
     el("div", {}, title,
       el("p", { class: "meta" }, [p.engineer, p.date || new Date().toISOString().slice(0, 10),
         "BS EN 1992-1-1 with the UK National Annex"].filter(Boolean).join(" · "))),
@@ -168,7 +168,7 @@ function calcGroups(result) {
 
 function render(state, parts) {
   const { result } = state;
-  document.title = `${[TITLE, result.project.ref].filter(Boolean).join(" ")} · EC2 Checker`;
+  document.title = `${TITLE} report · EC2 Checker`;
   const crumb = document.getElementById("crumb-element");
   crumb.textContent = TITLE;
   crumb.href = `/${element}`;

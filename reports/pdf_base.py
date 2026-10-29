@@ -245,7 +245,7 @@ def build_report(report, element_title, drawings, caption, extra=None):
     st = styles()
     generated = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     project = report["project"]
-    header_right = " · ".join(x for x in (project.get("name"), project.get("ref")) if x) or f"{element_title} check"
+    header_right = f"{element_title} check to Eurocode 2"
 
     def decorate(canv, total):
         w, h = A4
