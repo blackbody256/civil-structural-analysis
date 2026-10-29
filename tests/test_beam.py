@@ -262,12 +262,26 @@ def test_textbook_beam_in_check_pipeline(beam):
             {"type": "point", "W": 200.0, "x": 6.0},
             {"type": "moment", "M0": 90.0, "x": 10.0},
             {"type": "point", "W": 150.0, "x": 15.0}
+        ],
+        "supports": [
+            {"x": 0.0, "fix_v": 1, "fix_m": 1},
+            {"x": 10.0, "fix_v": 1, "fix_m": 0},
+            {"x": 20.0, "fix_v": 1, "fix_m": 0}
+        ],
+        "inertia": [
+            {"x1": 0.0, "x2": 6.0, "I": 0.0087},
+            {"x1": 6.0, "x2": 20.0, "I": 0.0058}
         ]
     }
     report = check_beam(textbook_beam)
     # Ensure critical MEd and VEd are non-zero and used for section checks
-    assert report["derived"]["MEd"] > 0
-    assert report["derived"]["VEd"] > 0
-    assert report["derived"]["analysis_res"]["abs_max_M_kNm"] > 250.0
-    assert report["derived"]["analysis_res"]["abs_max_V_kN"] > 140.0
+    assert report["derived"]["MEd"] == pytest.approx(251.04, abs=0.1)
+    assert report["derived"]["VEd"] == pytest.approx(146.33, abs=0.1)
+    assert report["derived"]["analysis_res"]["abs_max_M_kNm"] == pytest.approx(337.92, abs=0.5)
+    assert report["derived"]["analysis_res"]["abs_max_V_kN"] == pytest.approx(146.33, abs=0.1)
+    rx = {round(r["x"], 1): r for r in report["derived"]["reactions"]}
+    assert rx[0.0]["Ry"] == pytest.approx(-146.33, abs=0.1)
+    assert rx[0.0]["M"] == pytest.approx(-281.19, abs=0.1)
+    assert rx[10.0]["Ry"] == pytest.approx(-243.46, abs=0.1)
+    assert rx[20.0]["Ry"] == pytest.approx(-50.21, abs=0.1)
 

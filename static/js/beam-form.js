@@ -53,6 +53,15 @@ export const EXAMPLES = {
         { type: "moment", M0: 90, x: 10.0 },
         { type: "point", W: 150, x: 15.0 }
       ],
+      supports: [
+        { x: 0.0, fix_v: 1, fix_m: 1 },
+        { x: 10.0, fix_v: 1, fix_m: 0 },
+        { x: 20.0, fix_v: 1, fix_m: 0 }
+      ],
+      inertia: [
+        { x1: 0.0, x2: 6.0, I: 0.0087 },
+        { x1: 6.0, x2: 20.0, I: 0.0058 }
+      ],
       self_weight: false,
       has_slab: false,
       MEd: 251.1, VEd: 146.3, ...OPTIONS
@@ -193,6 +202,8 @@ let analysisLoads = [
   { type: "point", W: 50, x: 3.0 },
   { type: "udl", w: 12, l1: 0.0, l2: 6.0 }
 ];
+let analysisSupports = null;
+let analysisInertia = null;
 
 function renderLoadsTable() {
   const tbody = $("loads-body");
@@ -322,6 +333,8 @@ export function serialize() {
   }
   if (data.actions && data.actions.mode === "analysis") {
     data.actions.loads = analysisLoads.map((ld) => ({ ...ld }));
+    if (analysisSupports) data.actions.supports = analysisSupports.map((sp) => ({ ...sp }));
+    if (analysisInertia) data.actions.inertia = analysisInertia.map((it) => ({ ...it }));
   }
   return data;
 }
@@ -336,6 +349,8 @@ export function fill(data) {
   if (data.actions?.loads && Array.isArray(data.actions.loads)) {
     analysisLoads = data.actions.loads.map((ld) => ({ ...ld }));
   }
+  analysisSupports = data.actions?.supports ? data.actions.supports.map((sp) => ({ ...sp })) : null;
+  analysisInertia = data.actions?.inertia ? data.actions.inertia.map((it) => ({ ...it })) : null;
   renderLoadsTable();
   syncVisibility();
   if (data.durability?.cement_group) form.elements["durability.cement_group"].value = data.durability.cement_group;

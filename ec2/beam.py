@@ -81,6 +81,8 @@ class BeamInput:
     cement_group: str
     fire_period: str
     analysis_loads: list | None = None
+    analysis_supports: list | None = None
+    analysis_inertia: list | None = None
     has_slab: bool = False
     slab_type: str = "one_way"
     slab_gk: float = 0.0
@@ -139,6 +141,8 @@ def parse_input(data):
     gk = qk = m_ed = v_ed = None
     category, combination = "B", "6.10ab"
     analysis_loads = []
+    analysis_supports = None
+    analysis_inertia = None
     if mode == "loads":
         gk = r.number("actions.gk", lo=0, hi=10000)
         qk = r.number("actions.qk", lo=0, hi=10000)
@@ -185,6 +189,18 @@ def parse_input(data):
                             "l1": max(0.0, min(l1_val, span)),
                             "l2": max(0.0, min(l2_val, span))
                         })
+        raw_supps = r.raw("actions.supports")
+        if isinstance(raw_supps, list) and len(raw_supps) > 0:
+            analysis_supports = [
+                {"x": float(sp["x"]), "fix_v": int(sp.get("fix_v", 1)), "fix_m": int(sp.get("fix_m", 0))}
+                for sp in raw_supps if isinstance(sp, dict) and "x" in sp
+            ]
+        raw_in = r.raw("actions.inertia")
+        if isinstance(raw_in, list) and len(raw_in) > 0:
+            analysis_inertia = [
+                {"x1": float(it.get("x1", 0.0)), "x2": float(it.get("x2", span)), "I": float(it["I"])}
+                for it in raw_in if isinstance(it, dict) and "I" in it
+            ]
     else:
         m_ed = r.number("actions.MEd", lo=0.001, hi=1e6)
         v_ed = r.number("actions.VEd", lo=0, hi=1e6)
@@ -230,6 +246,7 @@ def parse_input(data):
         m_ed=None if m_ed is None else m_ed * 1e6, v_ed=None if v_ed is None else v_ed * 1e3,
         partitions=partitions, kprime_limit=kprime_limit, exposure=exposure, cement_group=cement_group,
         fire_period=fire_period, analysis_loads=analysis_loads,
+        analysis_supports=analysis_supports, analysis_inertia=analysis_inertia,
         has_slab=has_slab, slab_type=slab_type, slab_gk=slab_gk, slab_qk=slab_qk,
         slab_lx=slab_lx, slab_ly=slab_ly, slab_trib=slab_trib,
     )
@@ -393,8 +410,9 @@ def design_actions(inp, geo):
             span_m=l,
             system=inp.system,
             loads=loads_to_solve,
+            supports=inp.analysis_supports,
             E_kpa=E_kpa,
-            I_m4=I_m4,
+            I_m4=inp.analysis_inertia or I_m4,
             self_weight=sw_uls
         )
 
