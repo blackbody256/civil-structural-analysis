@@ -113,6 +113,7 @@ details.more > .fields { margin-top: 14px; }
 .type-card:hover { border-color: var(--muted); }
 .type-card:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .type-card:has(input:focus-visible) { box-shadow: var(--ring); }
+.type-card.is-disabled, .type-card:has(input:disabled) { opacity: 0.55; cursor: not-allowed; border-color: var(--rule); }
 .type-card input { position: absolute; opacity: 0; pointer-events: none; }
 .type-card svg { width: 76px; height: 56px; }
 .type-card .tt { font-weight: 600; font-size: 15.5px; }

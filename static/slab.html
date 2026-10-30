@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slab · EC2 Checker</title>
+  <script>(function(){var p="system";try{p=localStorage.getItem("ec2.theme")||"system"}catch(e){}var d=p==="dark"||(p!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e6479'/%3E%3Crect x='6' y='12' width='20' height='8' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/form.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">EC2 Checker</span></a>
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Elements</a><span class="sep">/</span><span>Slab</span></nav>
+    <span class="spacer"></span>
+    <a class="link" href="/reference/guide.pdf#page=21" target="_blank" rel="noopener">Guide, chapter 3</a>
+    <span id="theme-slot"></span>
+  </header>
+
+  <main class="page wide">
+    <div class="page-head">
+      <h1>Slab</h1>
+      <p class="lede">Choose one-way or two-way solid slab, analyse the actions, then check bending, shear, deflection, fire and detailing per metre width.</p>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Workflow tabs">
+      <button type="button" role="tab" id="tab-analysis" aria-selected="true" aria-controls="panel-analysis">
+        <span class="step-num">1</span> Analysis
+      </button>
+      <button type="button" role="tab" id="tab-design" aria-selected="false" aria-controls="panel-design" aria-disabled="true">
+        <span class="step-num">2</span> Design
+      </button>
+      <button type="button" role="tab" id="tab-report" aria-selected="false" aria-controls="panel-report" aria-disabled="true">
+        <span class="step-num">3</span> Report
+      </button>
+    </nav>
+
+    <form id="slab-form" class="form-layout" novalidate autocomplete="off">
+      <div class="form-main">
+        <div class="form-tools">
+          <span>Click a section to edit it.</span>
+          <span class="spacer"></span>
+          <button type="button" class="btn quiet small" id="expand-all">Expand all</button>
+          <button type="button" class="btn quiet small" id="collapse-all">Collapse all</button>
+        </div>
+
+        <!-- TAB 1: ANALYSIS -->
+        <div role="tabpanel" id="panel-analysis" class="tab-panel is-active" aria-labelledby="tab-analysis">
+          <fieldset class="type-choice" aria-label="Slab type">
+            <label class="type-card">
+              <input type="radio" name="slab.type" value="one_way" checked>
+              <svg viewBox="0 0 76 56" aria-hidden="true"><rect x="10" y="20" width="56" height="16" fill="none" stroke="currentColor" stroke-width="2"/><line x1="20" y1="28" x2="56" y2="28" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"/><polygon points="56,25 61,28 56,31" fill="currentColor"/></svg>
+              <span><span class="tt">One-way solid slab</span><br><span class="td">Spans in one direction; analysed as a 1 m wide strip with pattern loading</span></span>
+            </label>
+            <label class="type-card">
+              <input type="radio" name="slab.type" value="two_way">
+              <svg viewBox="0 0 76 56" aria-hidden="true"><rect x="14" y="10" width="48" height="36" fill="none" stroke="currentColor" stroke-width="2"/><line x1="38" y1="16" x2="38" y2="40" stroke="currentColor" stroke-width="1.5"/><line x1="20" y1="28" x2="56" y2="28" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span><span class="tt">Two-way solid slab</span><br><span class="td">Rectangular panel supported on 4 edges; bending moment coefficients</span></span>
+            </label>
+            <label class="type-card is-disabled" aria-disabled="true">
+              <input type="radio" name="slab.type" value="ribbed" disabled>
+              <svg viewBox="0 0 76 56" aria-hidden="true"><path d="M8 16h60v8H56v16H44V24H32v16H20V24H8z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+              <span><span class="tt">Ribbed slab: coming later</span><br><span class="td">The client is gathering the data for ribbed slabs</span></span>
+            </label>
+          </fieldset>
+
+          <details class="section" data-section="geometry" open>
+            <summary><span class="s-title">Slab thickness & concrete</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="sl-h">Slab thickness h</label>
+                  <div class="control"><input id="sl-h" name="slab.h" type="number" step="5" min="50" max="1000" required><span class="unit">mm</span></div></div>
+                <div class="field"><label for="m-concrete">Concrete class (sets E<sub>cm</sub>)</label>
+                  <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
+                  <span class="help" id="concrete-help"></span></div>
+              </div>
+            </div>
+          </details>
+
+          <!-- ONE-WAY ONLY: SPAN, MODEL, SUPPORTS -->
+          <div class="one-way-only">
+            <details class="section" data-section="span" open>
+              <summary><span class="s-title">Span and supports (1 m strip)</span><span class="s-sum" data-sum="span"></span><span class="chev" aria-hidden="true"></span></summary>
+              <div class="s-body">
+                <div class="fields">
+                  <div class="field"><label for="g-l">Total strip length L</label>
+                    <div class="control"><input id="g-l" name="span.l" type="number" step="0.1" min="0.5" max="60" required><span class="unit">m</span></div></div>
+                  <div class="field" style="grid-column: span 2"><label for="g-preset">Support layout</label>
+                    <div class="control"><select id="g-preset" name="span.preset">
+                      <option value="simply_supported">Simply supported</option>
+                      <option value="two_spans">Two equal spans</option>
+                      <option value="three_spans">Three equal spans</option>
+                      <option value="cantilever">Cantilever, fixed at the left</option>
+                      <option value="custom">As drawn (custom)</option></select></div>
+                    <span class="help">Choosing a preset sets supports; drag them on the drawing to modify</span></div>
+                </div>
+
+                <section class="panel model-panel" aria-label="1 m strip model" style="margin: 12px 0;">
+                  <div class="panel-head"><h3>1 m wide strip model</h3><span class="hint" id="canvas-hint">Click the beam to place; drag to move; double-click to edit</span></div>
+                  <div class="canvas-tools" role="toolbar" aria-label="Drawing tools">
+                    <button type="button" data-tool="select" aria-pressed="true" title="Select and drag">Select</button>
+                    <span class="sep" aria-hidden="true"></span>
+                    <button type="button" data-tool="pin" title="Pinned support">Pin</button>
+                    <button type="button" data-tool="roller" title="Roller support">Roller</button>
+                    <button type="button" data-tool="fixed" title="Fixed support">Fixed</button>
+                    <span class="sep" aria-hidden="true"></span>
+                    <button type="button" data-tool="point" title="Point load">Point load</button>
+                    <button type="button" data-tool="udl" title="Uniform load over part of the strip">Uniform load</button>
+                    <button type="button" data-tool="linear" title="Linearly varying load">Varying load</button>
+                    <button type="button" data-tool="moment" title="Applied moment">Moment</button>
+                    <span class="spacer"></span>
+                    <button type="button" id="canvas-delete" disabled title="Delete the selected item (Delete key)">Delete</button>
+                  </div>
+                  <div class="canvas-host" id="slab-canvas" tabindex="0" aria-label="Slab strip drawing: supports and loads"></div>
+                  <div class="live-head"><span>Shear force and bending moment (Case A)</span><span class="hint" id="analysis-hint">live</span></div>
+                  <div class="live-diagrams" id="preview-analysis"></div>
+                </section>
+
+                <div class="field"><span class="label">Supports along the strip</span>
+                  <span data-path="span.supports" hidden></span>
+                  <table class="grid-table" id="supports-table">
+                    <thead><tr><th>#</th><th>x (m)</th><th>Type</th><th></th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                  <button type="button" class="inline-link" id="add-support">+ Add support</button></div>
+
+                <details class="more" id="stiffness-more">
+                  <summary><span>More options: stiffness for the analysis</span></summary>
+                  <div class="fields">
+                    <div class="field"><label for="s-em">Elastic modulus</label>
+                      <div class="control"><select id="s-em" name="stiffness.E_method">
+                        <option value="concrete">Ecm of the concrete class</option><option value="enter">Enter E</option></select></div>
+                      <span class="help" id="e-help"></span></div>
+                    <div class="field e-enter"><label for="s-e">E</label>
+                      <div class="control"><input id="s-e" name="stiffness.E" type="number" step="1" min="1" max="300"><span class="unit">GPa</span></div></div>
+                  </div>
+                </details>
+              </div>
+            </details>
+          </div>
+
+          <!-- TWO-WAY ONLY: PANEL GEOMETRY AND EDGES -->
+          <div class="two-way-only">
+            <details class="section" data-section="panel" open>
+              <summary><span class="s-title">Panel dimensions & edges</span><span class="s-sum" data-sum="panel"></span><span class="chev" aria-hidden="true"></span></summary>
+              <div class="s-body">
+                <div class="fields">
+                  <div class="field"><label for="p-lx">Shorter span l<sub>x</sub></label>
+                    <div class="control"><input id="p-lx" name="panel.lx" type="number" step="0.1" min="0.5" max="30" required><span class="unit">m</span></div></div>
+                  <div class="field"><label for="p-ly">Longer span l<sub>y</sub></label>
+                    <div class="control"><input id="p-ly" name="panel.ly" type="number" step="0.1" min="0.5" max="30" required><span class="unit">m</span></div>
+                    <span class="help">Aspect ratio l<sub>y</sub>/l<sub>x</sub> ≤ 2.0</span></div>
+                </div>
+
+                <!-- Interactive panel plan -->
+                <div class="panel" style="margin: 14px 0; padding: 14px;">
+                  <div class="panel-head">
+                    <h3>Edge boundary conditions</h3>
+                    <span class="hint">Click any edge on the plan to toggle Continuous / Discontinuous</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 140px 1fr 140px; grid-template-rows: auto 1fr auto; gap: 8px; align-items: center; justify-items: center; margin-top: 10px;">
+                    <div style="grid-column: 2; grid-row: 1;">
+                      <label for="edge-top" style="font-size:12px;font-weight:600;display:block;text-align:center;">Top edge</label>
+                      <select id="edge-top" name="panel.edges.top" style="font-size:12px;padding:3px 6px;">
+                        <option value="continuous">Continuous</option>
+                        <option value="discontinuous">Discontinuous</option>
+                      </select>
+                    </div>
+                    <div style="grid-column: 1; grid-row: 2; justify-self: end;">
+                      <label for="edge-left" style="font-size:12px;font-weight:600;display:block;text-align:right;">Left edge</label>
+                      <select id="edge-left" name="panel.edges.left" style="font-size:12px;padding:3px 6px;">
+                        <option value="continuous">Continuous</option>
+                        <option value="discontinuous">Discontinuous</option>
+                      </select>
+                    </div>
+                    <div id="panel-plan-interactive" style="grid-column: 2; grid-row: 2; width: 100%; min-height: 220px; display: flex; align-items: center; justify-content: center; cursor: pointer;"></div>
+                    <div style="grid-column: 3; grid-row: 2; justify-self: start;">
+                      <label for="edge-right" style="font-size:12px;font-weight:600;display:block;text-align:left;">Right edge</label>
+                      <select id="edge-right" name="panel.edges.right" style="font-size:12px;padding:3px 6px;">
+                        <option value="continuous">Continuous</option>
+                        <option value="discontinuous">Discontinuous</option>
+                      </select>
+                    </div>
+                    <div style="grid-column: 2; grid-row: 3;">
+                      <label for="edge-bottom" style="font-size:12px;font-weight:600;display:block;text-align:center;">Bottom edge</label>
+                      <select id="edge-bottom" name="panel.edges.bottom" style="font-size:12px;padding:3px 6px;">
+                        <option value="continuous">Continuous</option>
+                        <option value="discontinuous">Discontinuous</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p class="help" style="text-align: center; margin-top: 8px;">Top & bottom are the long edges (length l<sub>y</sub>); left & right are the short edges (length l<sub>x</sub>).</p>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <!-- LOADS SECTION (BOTH ONE-WAY AND TWO-WAY) -->
+          <details class="section" data-section="actions" open>
+            <summary><span class="s-title">Loads</span><span class="s-sum" data-sum="actions"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="s-group">
+                <div class="group-title">Area loads on the slab</div>
+                <div class="fields">
+                  <div class="field"><label for="a-gk">Permanent g<sub>k</sub></label>
+                    <div class="control"><input id="a-gk" name="actions.gk" type="number" step="0.25" min="0" max="100"><span class="unit">kN/m²</span></div>
+                    <span class="help">Finishes, screed, ceilings; excluding slab self-weight</span></div>
+                  <div class="field"><label for="a-qk">Variable q<sub>k</sub></label>
+                    <div class="control"><input id="a-qk" name="actions.qk" type="number" step="0.25" min="0" max="100"><span class="unit">kN/m²</span></div></div>
+                  <div class="field"><label for="a-cat">Variable load category</label>
+                    <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
+                    <span class="help">ψ<sub>2</sub> for the quasi-permanent load</span></div>
+                </div>
+                <label class="check" style="margin-top: 6px;"><input type="checkbox" name="actions.self_weight" checked> <span>Add the slab's self-weight to g<sub>k</sub> (25 kN/m³ · h)</span></label>
+                <div class="one-way-only" style="margin-top: 6px;">
+                  <label class="check"><input type="checkbox" name="actions.pattern" checked> <span>Pattern loading on continuous slabs (run cases A, B, C for envelope)</span></label>
+                </div>
+              </div>
+
+              <div class="one-way-only s-group">
+                <div class="group-title">Further loads on the 1 m strip <span class="muted">(also placed from drawing)</span></div>
+                <span data-path="actions.loads" hidden></span>
+                <div class="table-scroll">
+                  <table class="grid-table" id="loads-table">
+                    <thead><tr><th>Type</th><th>Value</th><th>Case</th><th>x or from (m)</th><th>to (m)</th><th>End value</th><th></th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <button type="button" class="inline-link" id="add-load">+ Add load</button>
+              </div>
+            </div>
+          </details>
+
+          <div class="analysis-action-bar">
+            <button type="button" class="btn primary" id="btn-analyse">Analyse</button>
+            <span class="hint" id="analysis-note"></span>
+          </div>
+
+          <div id="analysis-results-area"></div>
+        </div>
+
+        <!-- TAB 2: DESIGN -->
+        <div role="tabpanel" id="panel-design" class="tab-panel" aria-labelledby="tab-design">
+          <section class="panel design-values-box">
+            <div class="panel-head">
+              <h3>Design values from the analysis</h3>
+              <label class="check" style="font-weight: normal; font-size: 13.5px; margin: 0;">
+                <input type="checkbox" id="adjust-design-values">
+                <span>Adjust these design values</span>
+              </label>
+            </div>
+            <!-- One-way design values -->
+            <div class="fields one-way-only">
+              <div class="field">
+                <label for="dv-ms">Sagging moment M<sup>+</sup><sub>Ed</sub></label>
+                <div class="control"><input id="dv-ms" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kNm/m</span></div>
+              </div>
+              <div class="field">
+                <label for="dv-mh">Hogging moment M<sup>−</sup><sub>Ed</sub></label>
+                <div class="control"><input id="dv-mh" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kNm/m</span></div>
+              </div>
+              <div class="field">
+                <label for="dv-ved">Design shear V<sub>Ed</sub></label>
+                <div class="control"><input id="dv-ved" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kN/m</span></div>
+              </div>
+            </div>
+            <!-- Two-way design values -->
+            <div class="fields two-way-only">
+              <div class="field">
+                <label for="dv-msx-mid">Short span mid m<sub>sx,mid</sub></label>
+                <div class="control"><input id="dv-msx-mid" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kNm/m</span></div>
+              </div>
+              <div class="field">
+                <label for="dv-msx-sup">Short span support m<sub>sx,sup</sub></label>
+                <div class="control"><input id="dv-msx-sup" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kNm/m</span></div>
+              </div>
+              <div class="field">
+                <label for="dv-msy-mid">Long span mid m<sub>sy,mid</sub></label>
+                <div class="control"><input id="dv-msy-mid" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kNm/m</span></div>
+              </div>
+              <div class="field">
+                <label for="dv-msy-sup">Long span support m<sub>sy,sup</sub></label>
+                <div class="control"><input id="dv-msy-sup" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kNm/m</span></div>
+              </div>
+              <div class="field">
+                <label for="dv-tw-ved">Design shear V<sub>Ed</sub></label>
+                <div class="control"><input id="dv-tw-ved" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kN/m</span></div>
+              </div>
+            </div>
+          </section>
+
+          <details class="section" data-section="materials" open>
+            <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="m-fyk">Rebar yield strength f<sub>yk</sub></label>
+                  <div class="control"><input id="m-fyk" name="materials.fyk" type="number" step="10" min="200" max="700" required><span class="unit">MPa</span></div>
+                  <span class="help">B500 is 500 MPa. Eurocode 2 covers 400–600.</span></div>
+                <div class="field"><label for="m-duct">Ductility class</label>
+                  <div class="control"><select id="m-duct" name="materials.ductility">
+                    <option value="A">A (normal)</option><option value="B">B (high)</option><option value="C">C (very high)</option></select></div></div>
+                <div class="field"><label for="m-dg">Largest aggregate d<sub>g</sub></label>
+                  <div class="control"><input id="m-dg" name="materials.dg" type="number" step="1" min="5" max="63" required><span class="unit">mm</span></div></div>
+              </div>
+              <details class="more">
+                <summary><span>More options: National Annex factors</span></summary>
+                <div class="fields">
+                  <div class="field"><label for="m-gc">γ<sub>c</sub> concrete</label>
+                    <div class="control"><input id="m-gc" name="materials.gamma_c" type="number" step="0.05" min="1" max="2"></div></div>
+                  <div class="field"><label for="m-gs">γ<sub>s</sub> reinforcement</label>
+                    <div class="control"><input id="m-gs" name="materials.gamma_s" type="number" step="0.05" min="1" max="1.5"></div></div>
+                  <div class="field"><label for="m-acc">α<sub>cc</sub></label>
+                    <div class="control"><input id="m-acc" name="materials.alpha_cc" type="number" step="0.05" min="0.8" max="1"></div>
+                    <span class="help">UK values: 1.5, 1.15, 0.85</span></div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="section" data-section="reinforcement" open>
+            <summary><span class="s-title">Reinforcement (per metre width)</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="r-bx-dia">Bottom x bars (main)</label>
+                  <div class="control">
+                    <select id="r-bx-dia" name="reinforcement.bottom_x_dia" data-options="bars"></select>
+                    <input id="r-bx-s" name="reinforcement.bottom_x_s" type="number" step="25" min="50" max="500" required aria-label="Spacing in mm">
+                    <span class="unit">@ mm</span>
+                  </div>
+                  <span class="help" id="bx-as-help">Resists sagging moment</span>
+                </div>
+                <div class="field"><label for="r-by-dia">Bottom y bars</label>
+                  <div class="control">
+                    <select id="r-by-dia" name="reinforcement.bottom_y_dia" data-options="bars"></select>
+                    <input id="r-by-s" name="reinforcement.bottom_y_s" type="number" step="25" min="50" max="500" required aria-label="Spacing in mm">
+                    <span class="unit">@ mm</span>
+                  </div>
+                  <span class="help" id="by-as-help">Distribution (one-way) or long-span span steel</span>
+                </div>
+                <div class="field"><label for="r-tx-dia">Top x bars (hogging)</label>
+                  <div class="control">
+                    <select id="r-tx-dia" name="reinforcement.top_x_dia" data-options="bars-or-none"></select>
+                    <input id="r-tx-s" name="reinforcement.top_x_s" type="number" step="25" min="50" max="500" aria-label="Spacing in mm">
+                    <span class="unit">@ mm</span>
+                  </div>
+                  <span class="help" id="tx-as-help">Over continuous supports / long edges</span>
+                </div>
+                <div class="field"><label for="r-ty-dia">Top y bars (hogging)</label>
+                  <div class="control">
+                    <select id="r-ty-dia" name="reinforcement.top_y_dia" data-options="bars-or-none"></select>
+                    <input id="r-ty-s" name="reinforcement.top_y_s" type="number" step="25" min="50" max="500" aria-label="Spacing in mm">
+                    <span class="unit">@ mm</span>
+                  </div>
+                  <span class="help" id="ty-as-help">Over short edges (two-way) or secondary</span>
+                </div>
+                <div class="field"><label for="r-cover">Nominal cover c<sub>nom</sub></label>
+                  <div class="control"><input id="r-cover" name="reinforcement.cover" type="number" step="5" min="0" max="150" required><span class="unit">mm</span></div>
+                  <span class="help">Directly to outer bars (no links)</span>
+                </div>
+              </div>
+              <details class="more">
+                <summary><span>More options: allowance Δc<sub>dev</sub></span></summary>
+                <div class="fields">
+                  <div class="field"><label for="r-dc">Allowance Δc<sub>dev</sub></label>
+                    <div class="control"><select id="r-dc" name="reinforcement.delta_c_dev">
+                      <option value="10">10 mm (normal)</option><option value="5">5 mm (with QA)</option><option value="0">0 mm (precast QA)</option></select></div></div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="section" data-section="durability" open>
+            <summary><span class="s-title">Durability and fire</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field" style="grid-column: span 2"><label for="d-exp">Exposure</label>
+                  <div class="control"><select id="d-exp" name="durability.exposure" data-options="exposure"></select></div>
+                  <span class="help" id="exposure-help"></span></div>
+                <div class="field"><label for="d-cem">Cement type</label>
+                  <div class="control"><select id="d-cem" name="durability.cement_group"></select></div></div>
+                <div class="field"><label for="d-fire">Fire resistance</label>
+                  <div class="control"><select id="d-fire" name="durability.fire_period" data-options="fire"></select></div>
+                  <span class="help">Minimum thickness hs and axis distance a</span></div>
+              </div>
+            </div>
+          </details>
+
+          <details class="section" data-section="options">
+            <summary><span class="s-title">More options: partitions</span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <label class="check"><input type="checkbox" name="actions.partitions"> <span>The slab carries brittle partitions (spans over 7 m reduce l/d)</span></label>
+            </div>
+          </details>
+
+          <details class="section" data-section="project">
+            <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
+            <div class="s-body">
+              <div class="fields">
+                <div class="field"><label for="p-name">Project</label>
+                  <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="Campus block B"></div></div>
+                <div class="field"><label for="p-ref">Element reference</label>
+                  <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="S1 first floor"></div></div>
+                <div class="field"><label for="p-eng">Engineer</label>
+                  <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
+                <div class="field"><label for="p-date">Date</label>
+                  <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
+              </div>
+            </div>
+          </details>
+
+          <div class="design-action-bar">
+            <button type="button" class="btn primary" id="btn-run-design">Run design checks</button>
+          </div>
+
+          <div id="design-results-area"></div>
+        </div>
+
+        <!-- TAB 3: REPORT -->
+        <div role="tabpanel" id="panel-report" class="tab-panel" aria-labelledby="tab-report">
+          <div class="report-actions-bar">
+            <button type="button" class="btn primary" id="btn-pdf">Download PDF report</button>
+            <button type="button" class="btn" id="btn-print">Print</button>
+            <a class="btn" href="/slab/report" target="_blank" rel="noopener">Open in a new tab</a>
+          </div>
+          <iframe class="report-frame" id="report-frame" title="Embedded slab report"></iframe>
+        </div>
+
+        <div class="form-bar">
+          <button type="button" class="btn small" id="files-button" popovertarget="files-menu">Examples and files <span class="caret"></span></button>
+          <span class="spacer"></span>
+          <span class="form-message" id="form-message" role="alert"></span>
+          <button type="submit" class="btn primary">Run design checks</button>
+        </div>
+      </div>
+
+      <aside class="preview" aria-label="Live drawings">
+        <section class="panel">
+          <div class="panel-head"><h3>1 m design strip</h3><span class="hint">to scale</span></div>
+          <div class="panel-body" id="preview-section"></div>
+          <div class="stats">
+            <div><div class="k">A<sub>s</sub> bottom x</div><div class="v" id="st-asbx">—</div></div>
+            <div><div class="k">A<sub>s</sub> bottom y</div><div class="v" id="st-asby">—</div></div>
+            <div><div class="k">A<sub>s</sub> top x</div><div class="v" id="st-astx">—</div></div>
+            <div><div class="k">A<sub>s</sub> top y</div><div class="v" id="st-asty">—</div></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h3>Analysis results</h3><span class="hint">design actions</span></div>
+          <div class="stats" id="analysis-stats">
+            <div><div class="k">Load</div><div class="v" id="st-w">—</div></div>
+            <div><div class="k">M<sub>max</sub></div><div class="v" id="st-m">—</div></div>
+            <div><div class="k">V<sub>Ed</sub></div><div class="v" id="st-v">—</div></div>
+          </div>
+          <div class="reactions" id="analysis-reactions"></div>
+        </section>
+      </aside>
+    </form>
+  </main>
+
+  <div id="files-menu" class="menu" popover role="menu">
+    <button type="button" role="menuitem" data-example="one_way">One-way slab (correct)<span class="sub">Three 4.5 m spans, h 175, C30/37. All 17 checks pass</span></button>
+    <button type="button" role="menuitem" data-example="one_way_wrong">One-way slab with mistakes<span class="sub">Same spans and loads, h 125, C25/30, no top bars. 7 checks fail</span></button>
+    <hr>
+    <button type="button" role="menuitem" data-example="two_way">Two-way slab (correct)<span class="sub">Interior 5.0 × 6.0 m panel, all continuous, h 200, C30/37. All 16 checks pass</span></button>
+    <button type="button" role="menuitem" data-example="two_way_wrong">Two-way slab with mistakes<span class="sub">Same panel all edges discontinuous, h 140, H8 @ 300. 5 checks fail</span></button>
+    <hr>
+    <button type="button" role="menuitem" id="import">Open inputs file (JSON)…</button>
+    <button type="button" role="menuitem" id="reset">Reset to the correct one-way example</button>
+  </div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+
+  <script type="module" src="/static/js/slab-form.js"></script>
+</body>
+</html>

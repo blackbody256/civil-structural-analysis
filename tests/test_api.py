@@ -9,7 +9,11 @@ def client():
     return app.test_client()
 
 
-@pytest.mark.parametrize("path", ["/", "/column", "/column/run", "/column/report", "/beam", "/beam/run", "/beam/report"])
+@pytest.mark.parametrize("path", [
+    "/", "/column", "/column/run", "/column/report",
+    "/beam", "/beam/run", "/beam/report",
+    "/slab", "/slab/run", "/slab/report",
+])
 def test_pages(client, path):
     res = client.get(path)
     assert res.status_code == 200 and b"<!doctype html>" in res.data.lower()
