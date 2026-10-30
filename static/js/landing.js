@@ -48,7 +48,7 @@ function buildHeroAnimation(container) {
   const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const svg = s("svg", {
-    viewBox: "0 0 1000 480",
+    viewBox: "0 0 1000 560",
     role: "img",
     "aria-label": "Beam analysis animation: loads, reactions, shear force and bending moment diagrams",
   });
@@ -69,142 +69,79 @@ function buildHeroAnimation(container) {
     ],
   };
 
-  // Group for the beam model (drawBeamModel)
+  // the beam model, drawn by the canvas code (x from 70 to 930 in drawing units); its ruler is
+  // dropped here so the reaction values can sit under the supports
   const beamGroup = s("g", { class: "hero-beam-model" });
   drawBeamModel(beamGroup, clientModel);
+  beamGroup.querySelector(".ruler")?.remove();
   svg.append(beamGroup);
+  const X = (x) => 70 + (x / 20) * 860;
+  const label = (x, y, text, colour, anchor = "middle", size = 12) => s("text", { x, y, fill: colour,
+    "font-size": size, "font-weight": "700", "text-anchor": anchor, class: "hero-num" }, text);
 
-  // Group for reactions count-up display below the supports
-  const reactionsGroup = s("g", { class: "hero-reactions" });
-  // Node 1 at x = 0 (px 50)
-  const rx1 = s("text", { x: 50, y: 228, fill: "var(--draw-react, #7C3AED)", "font-size": "13", "font-weight": "700", "text-anchor": "middle" }, "0.00 kN");
-  const rx1M = s("text", { x: 50, y: 242, fill: "var(--draw-react, #7C3AED)", "font-size": "11.5", "font-weight": "600", "text-anchor": "middle" }, "281.19 kN·m");
-  // Node 3 at x = 10 (px 500)
-  const rx3 = s("text", { x: 500, y: 228, fill: "var(--draw-react, #7C3AED)", "font-size": "13", "font-weight": "700", "text-anchor": "middle" }, "0.00 kN");
-  // Node 4 at x = 20 (px 950)
-  const rx4 = s("text", { x: 950, y: 228, fill: "var(--draw-react, #7C3AED)", "font-size": "13", "font-weight": "700", "text-anchor": "middle" }, "0.00 kN");
-  reactionsGroup.append(rx1, rx1M, rx3, rx4);
-  svg.append(reactionsGroup);
+  // reactions from the app's own analysis of this beam, counted up by the animation
+  const REACT = "var(--draw-react, #7C3AED)";
+  const rx1 = label(X(0), 198, "0.00 kN", REACT, "start", 13);
+  const rx1M = label(X(0), 214, "281.19 kN·m", REACT, "start", 12);
+  const rx3 = label(X(10), 198, "0.00 kN", REACT, "middle", 13);
+  const rx4 = label(X(20), 198, "0.00 kN", REACT, "end", 13);
+  svg.append(s("g", { class: "hero-reactions" }, rx1, rx1M, rx3, rx4));
 
-  // ---------------- Diagrams (SFD & BMD)
   const diagramsGroup = s("g", { class: "hero-diagrams" });
+  const SFD = "var(--draw-sfd, #2563EB)", BMD = "var(--draw-bmd, #059669)";
+  const axis = (y) => s("line", { x1: X(0), y1: y, x2: X(20), y2: y, stroke: "var(--line-strong, #CBD5E1)", "stroke-width": 1 });
+  for (const x of [0, 6, 10, 15, 20]) {
+    diagramsGroup.append(s("line", { x1: X(x), y1: 268, x2: X(x), y2: 530, stroke: "var(--draw-rule, #e2ddd5)",
+      "stroke-width": 1, "stroke-dasharray": "4 4" }));
+    diagramsGroup.append(label(X(x), 550, x ? `${x} m` : "0", "var(--draw-muted, #6a747a)", "middle", 12));
+  }
+  const path = (pts) => `M ${pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L ")}`;
 
-  // 1. SFD baseline at Y = 300
-  const sfdBaseY = 300;
-  diagramsGroup.append(s("line", { x1: 50, y1: sfdBaseY, x2: 950, y2: sfdBaseY, stroke: "var(--line-strong, #CBD5E1)", "stroke-width": "1" }));
-  diagramsGroup.append(s("text", { x: 50, y: 260, fill: "var(--draw-sfd, #2563EB)", "font-size": "12", "font-weight": "700" },
-    "Shear force (kN) · positive above"));
-
-  // Build exact points for SFD:
-  // V(x) = 146.33 - 30*(x - x^2/12) for x in [0, 6]
-  // Y = 300 - (V / 146.33) * 36 (positive drawn ABOVE)
-  const sfdPoints = [];
-  sfdPoints.push([50, sfdBaseY]);
-  // x=0 to 6 (px 50 to 320)
+  // shear force, positive above the axis
+  const sfdBase = 330, vScale = 40 / 146.327;
+  const V = (v) => sfdBase - v * vScale;
+  const sfdPts = [[X(0), sfdBase]];
   for (let i = 0; i <= 24; i++) {
     const x = (6 * i) / 24;
-    const px = 50 + (x / 20) * 900;
-    const v = 146.327 - 30 * (x - (x * x) / 12);
-    const py = sfdBaseY - (v / 146.327) * 36;
-    sfdPoints.push([px, py]);
+    sfdPts.push([X(x), V(146.327 - 30 * (x - (x * x) / 12))]);
   }
-  // drop at x = 6 by 200 kN to -143.67
-  const pyDrop = sfdBaseY - (-143.673 / 146.327) * 36;
-  sfdPoints.push([320, pyDrop]);
-  sfdPoints.push([500, pyDrop]);
-  // jump at x = 10 by +243.46 to +99.79
-  const pyJump = sfdBaseY - (99.792 / 146.327) * 36;
-  sfdPoints.push([500, pyJump]);
-  sfdPoints.push([725, pyJump]);
-  // drop at x = 15 by 150 kN to -50.21
-  const pyDrop2 = sfdBaseY - (-50.208 / 146.327) * 36;
-  sfdPoints.push([725, pyDrop2]);
-  sfdPoints.push([950, pyDrop2]);
-  sfdPoints.push([950, sfdBaseY]);
+  sfdPts.push([X(6), V(-143.673)], [X(10), V(-143.673)], [X(10), V(99.792)], [X(15), V(99.792)],
+    [X(15), V(-50.208)], [X(20), V(-50.208)], [X(20), sfdBase]);
+  diagramsGroup.append(axis(sfdBase), label(X(0), 262, "Shear force (kN) · positive above", SFD, "start", 13));
+  const sfdFill = s("path", { d: `${path(sfdPts)} Z`, fill: SFD, "fill-opacity": isReducedMotion ? "0.22" : "0",
+    stroke: "none", class: "hero-fill" });
+  const sfdStroke = s("path", { d: path(sfdPts), fill: "none", stroke: SFD, "stroke-width": "2.2",
+    "stroke-linecap": "round", "stroke-linejoin": "round" });
+  diagramsGroup.append(sfdFill, sfdStroke,
+    label(X(0) + 4, V(146.327) - 7, "146.33", SFD, "start", 11.5),
+    label(X(6) - 4, V(56.327) - 7, "56.33", SFD, "end", 11.5),
+    label(X(6) + 4, V(-143.673) + 15, "−143.67", SFD, "start", 11.5),
+    label(X(10) + 4, V(99.792) - 7, "99.79", SFD, "start", 11.5),
+    label(X(15) + 4, V(-50.208) + 15, "−50.21", SFD, "start", 11.5));
 
-  const sfdD = `M ${sfdPoints[0][0]} ${sfdPoints[0][1]} ` + sfdPoints.slice(1).map(([x, y]) => `L ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-
-  const sfdFill = s("path", {
-    d: sfdD + " Z",
-    fill: "var(--draw-sfd, #2563EB)",
-    "fill-opacity": isReducedMotion ? "0.22" : "0",
-    stroke: "none",
-    style: "transition: fill-opacity 0.6s ease-out;",
-  });
-  const sfdStroke = s("path", {
-    d: sfdD,
-    fill: "none",
-    stroke: "var(--draw-sfd, #2563EB)",
-    "stroke-width": "2.2",
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-  });
-  diagramsGroup.append(sfdFill, sfdStroke);
-
-  // Peak labels on SFD
-  diagramsGroup.append(
-    s("text", { x: 50, y: 258, fill: "var(--draw-sfd, #2563EB)", "font-size": "11", "font-weight": "700" }, "+146.33"),
-    s("text", { x: 310, y: 348, fill: "var(--draw-sfd, #2563EB)", "font-size": "11", "font-weight": "700", "text-anchor": "end" }, "−143.67"),
-    s("text", { x: 505, y: 270, fill: "var(--draw-sfd, #2563EB)", "font-size": "11", "font-weight": "700" }, "+99.79"),
-    s("text", { x: 945, y: 326, fill: "var(--draw-sfd, #2563EB)", "font-size": "11", "font-weight": "700", "text-anchor": "end" }, "−50.21")
-  );
-
-  // 2. BMD baseline at Y = 415
-  const bmdBaseY = 415;
-  diagramsGroup.append(s("line", { x1: 50, y1: bmdBaseY, x2: 950, y2: bmdBaseY, stroke: "var(--line-strong, #CBD5E1)", "stroke-width": "1" }));
-  diagramsGroup.append(s("text", { x: 50, y: 362, fill: "var(--draw-bmd, #059669)", "font-size": "12", "font-weight": "700" },
-    "Bending moment (kN·m) · sagging below"));
-
-  // Build exact points for BMD:
-  // M(x) = -281.187 + 146.327 x - 15 x^2 + 5/6 x^3 for x in [0, 6]
-  // Y = 415 + (M / 337.92) * 46 (sagging is positive, drawn BELOW)
-  const bmdPoints = [];
-  bmdPoints.push([50, bmdBaseY]);
+  // bending moment, sagging (positive) below the axis
+  const bmdBase = 478, mScale = 46 / 337.918;
+  const M = (m) => bmdBase + m * mScale;
+  const bmdPts = [[X(0), bmdBase]];
   for (let i = 0; i <= 24; i++) {
     const x = (6 * i) / 24;
-    const px = 50 + (x / 20) * 900;
-    const m = -281.187 + 146.327 * x - 15 * x * x + (5 / 6) * x * x * x;
-    const py = bmdBaseY + (m / 337.918) * 46;
-    bmdPoints.push([px, py]);
+    bmdPts.push([X(x), M(-281.187 + 146.327 * x - 15 * x * x + (5 / 6) * x * x * x)]);
   }
-  // straight line from x = 6 to x = 10: M goes from +236.79 to -337.92
-  const pyHog = bmdBaseY + (-337.918 / 337.918) * 46;
-  bmdPoints.push([500, pyHog]);
-  // 90 kNm moment step at x = 10 to -247.92
-  const pyStep = bmdBaseY + (-247.918 / 337.918) * 46;
-  bmdPoints.push([500, pyStep]);
-  // straight line to x = 15: sagging +251.04
-  const pySag = bmdBaseY + (251.041 / 337.918) * 46;
-  bmdPoints.push([725, pySag]);
-  // straight line to x = 20: M = 0
-  bmdPoints.push([950, bmdBaseY]);
-
-  const bmdD = `M ${bmdPoints[0][0]} ${bmdPoints[0][1]} ` + bmdPoints.slice(1).map(([x, y]) => `L ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-
-  const bmdFill = s("path", {
-    d: bmdD + " Z",
-    fill: "var(--draw-bmd, #059669)",
-    "fill-opacity": isReducedMotion ? "0.22" : "0",
-    stroke: "none",
-    style: "transition: fill-opacity 0.6s ease-out;",
-  });
-  const bmdStroke = s("path", {
-    d: bmdD,
-    fill: "none",
-    stroke: "var(--draw-bmd, #059669)",
-    "stroke-width": "2.2",
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-  });
-  diagramsGroup.append(bmdFill, bmdStroke);
-
-  // Peak labels on BMD
-  diagramsGroup.append(
-    s("text", { x: 50, y: 370, fill: "var(--draw-bmd, #059669)", "font-size": "11", "font-weight": "700" }, "−281.19"),
-    s("text", { x: 320, y: 462, fill: "var(--draw-bmd, #059669)", "font-size": "11", "font-weight": "700", "text-anchor": "middle" }, "+236.79"),
-    s("text", { x: 500, y: 360, fill: "var(--draw-bmd, #059669)", "font-size": "11", "font-weight": "700", "text-anchor": "middle" }, "−337.89"),
-    s("text", { x: 725, y: 464, fill: "var(--draw-bmd, #059669)", "font-size": "11", "font-weight": "700", "text-anchor": "middle" }, "+251.04")
-  );
+  bmdPts.push([X(10), M(-337.918)], [X(10), M(-247.918)], [X(15), M(251.041)], [X(20), bmdBase]);
+  diagramsGroup.append(axis(bmdBase), label(X(0), 404, "Bending moment (kN·m) · sagging below", BMD, "start", 13));
+  const bmdFill = s("path", { d: `${path(bmdPts)} Z`, fill: BMD, "fill-opacity": isReducedMotion ? "0.22" : "0",
+    stroke: "none", class: "hero-fill" });
+  const bmdStroke = s("path", { d: path(bmdPts), fill: "none", stroke: BMD, "stroke-width": "2.2",
+    "stroke-linecap": "round", "stroke-linejoin": "round" });
+  diagramsGroup.append(bmdFill, bmdStroke,
+    label(X(0) + 4, M(-281.187) - 7, "−281.19", BMD, "start", 11.5),
+    label(X(6), M(236.775) + 16, "236.77", BMD, "middle", 11.5),
+    label(X(10) - 4, M(-337.918) - 7, "−337.92", BMD, "end", 11.5),
+    label(X(10) + 6, M(-247.918) + 4, "−247.92", BMD, "start", 11.5),
+    label(X(15), M(251.041) + 16, "251.04", BMD, "middle", 11.5));
+  for (const z of [2.455, 7.648, 12.484]) {
+    diagramsGroup.append(s("circle", { cx: X(z), cy: bmdBase, r: 4, fill: BMD }));
+  }
 
   svg.append(diagramsGroup);
   container.replaceChildren(svg);

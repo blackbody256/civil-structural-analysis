@@ -438,3 +438,8 @@
     transition: none !important;
   }
 }
+
+/* hero diagrams: fills fade in after the outlines are drawn */
+.hero-fill { transition: fill-opacity 0.6s ease-out; }
+.hero-num { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .hero-fill { transition: none; } }
