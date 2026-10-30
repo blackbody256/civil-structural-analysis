@@ -12,6 +12,7 @@ from ec2 import actions, creep, durability, fire, tables
 from ec2 import slenderness as sl
 from ec2.beam import analyse_input, check_beam
 from ec2.column import check_column
+from ec2.slab import analyse_input as analyse_slab_input, check_slab
 from ec2.inputs import ValidationError
 from ec2.elements import ELEMENTS
 from ec2.materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, LINK_SIZES, Concrete
@@ -19,6 +20,8 @@ from ec2.references import GUIDE, PDF_PAGE_OFFSET
 from reports.beam_figures import beam_figures
 from reports.beam_pdf import build_beam_pdf
 from reports.column_pdf import build_column_pdf
+from reports.slab_figures import slab_figures
+from reports.slab_pdf import build_slab_pdf
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -35,10 +38,18 @@ def check_beam_with_figures(data):
     return report
 
 
+def check_slab_with_figures(data):
+    """The slab check, with the analysis/panel and strip figures drawn for the report page."""
+    report = check_slab(data)
+    report["plots"]["figures"] = slab_figures(report)
+    return report
+
+
 # element: (check function, PDF builder)
 ELEMENT_HANDLERS = {
     "column": (check_column, build_column_pdf),
     "beam": (check_beam_with_figures, build_beam_pdf),
+    "slab": (check_slab_with_figures, build_slab_pdf),
 }
 
 PAGES = {"/": "index.html"}
@@ -180,6 +191,17 @@ def api_beam_analysis():
     except ValidationError as exc:
         return jsonify({"errors": exc.errors}), 400
     figures = beam_figures({"plots": result}) if result["analysis"] else {}
+    return jsonify({**result, "figures": figures})
+
+
+@app.post("/api/slab/analysis")
+def api_slab_analysis():
+    """Analysis only, for the live diagrams on the slab input page."""
+    try:
+        result = analyse_slab_input(_payload())
+    except ValidationError as exc:
+        return jsonify({"errors": exc.errors}), 400
+    figures = slab_figures({"plots": result})
     return jsonify({**result, "figures": figures})
 
 

@@ -273,7 +273,7 @@ def test_beam_api_and_pdf(beam):
     assert "diagrams" in live["figures"]
     bad = client.post("/api/beam/analysis", json={**beam, "span": {"l": 6, "supports": [{"x": 3, "type": "roller"}]}})
     assert bad.status_code == 400 and "span.supports" in bad.get_json()["errors"]
-    assert client.post("/api/slab/check", json={}).status_code == 404
+    assert client.post("/api/wall/check", json={}).status_code == 404
 
 
 def test_analysis_does_not_need_valid_design_inputs():

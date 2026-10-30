@@ -511,3 +511,149 @@ export function drawBeamSection(target, sec, opts = {}) {
   target.replaceChildren(svg);
   return svg;
 }
+
+export function drawSlabSection(target, sec, opts = {}) {
+  const W = opts.width || 420;
+  const H = opts.height || 260;
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Slab 1 m strip cross-section" });
+  if (!sec || !(sec.h > 0)) {
+    svg.append(text(W / 2, H / 2, "Slab thickness incomplete", { "text-anchor": "middle", fill: MUTED }));
+    target.replaceChildren(svg);
+    return svg;
+  }
+  const id = `conc${++uid}`;
+  svg.append(s("defs", {}, concretePattern(id)));
+
+  const h = Number(sec.h) || 200;
+  const cover = Number(sec.cover) || 25;
+  const slab_type = sec.slab_type || "one_way";
+
+  const bx_dia = Number(sec.bottom_x?.dia ?? sec.bottom_x_dia ?? 10);
+  const bx_s = Number(sec.bottom_x?.s ?? sec.bottom_x_s ?? 200);
+  const bx_As = Number(sec.bottom_x?.As ?? sec.bottom_x_As ?? Math.round((Math.PI * bx_dia * bx_dia / 4) * 1000 / bx_s));
+
+  const by_dia = Number(sec.bottom_y?.dia ?? sec.bottom_y_dia ?? 10);
+  const by_s = Number(sec.bottom_y?.s ?? sec.bottom_y_s ?? 200);
+  const by_As = Number(sec.bottom_y?.As ?? sec.bottom_y_As ?? Math.round((Math.PI * by_dia * by_dia / 4) * 1000 / by_s));
+
+  const tx_raw = sec.top_x?.dia ?? sec.top_x_dia;
+  const has_tx = tx_raw && String(tx_raw).toLowerCase() !== "none" && Number(tx_raw) > 0;
+  const tx_dia = has_tx ? Number(tx_raw) : null;
+  const tx_s = has_tx ? Number(sec.top_x?.s ?? sec.top_x_s ?? 200) : null;
+  const tx_As = has_tx ? Number(sec.top_x?.As ?? sec.top_x_As ?? Math.round((Math.PI * tx_dia * tx_dia / 4) * 1000 / tx_s)) : 0;
+
+  const ty_raw = sec.top_y?.dia ?? sec.top_y_dia;
+  const has_ty = ty_raw && String(ty_raw).toLowerCase() !== "none" && Number(ty_raw) > 0;
+  const ty_dia = has_ty ? Number(ty_raw) : null;
+  const ty_s = has_ty ? Number(sec.top_y?.s ?? sec.top_y_s ?? 200) : null;
+  const ty_As = has_ty ? Number(sec.top_y?.As ?? sec.top_y_As ?? Math.round((Math.PI * ty_dia * ty_dia / 4) * 1000 / ty_s)) : 0;
+
+  const padL = 60, padR = 40, padT = 45, padB = 65;
+  const scale = Math.min((W - padL - padR) / 1000, (H - padT - padB) / h);
+  const w_px = 1000 * scale;
+  const x0 = padL + (W - padL - padR - w_px) / 2;
+  const yBase = H - padB;
+  const X = (x) => x0 + x * scale;
+  const Y = (y) => yBase - y * scale;
+
+  const status = opts.status || {};
+  const cls = (part) => `part ${part}${status[part] === "fail" ? " is-fail" : ""}`;
+
+  // Concrete polygon with break zigzags at ends
+  const midY = (Y(0) + Y(h)) / 2;
+  const pts = [
+    [X(0), Y(h)],
+    [X(1000), Y(h)],
+    [X(1000), midY - 6],
+    [X(1000) + 5, midY - 2],
+    [X(1000) - 5, midY + 2],
+    [X(1000), midY + 6],
+    [X(1000), Y(0)],
+    [X(0), Y(0)],
+    [X(0), midY + 6],
+    [X(0) - 5, midY + 2],
+    [X(0) + 5, midY - 2],
+    [X(0), midY - 6],
+  ];
+
+  svg.append(s("polygon", {
+    points: pts.map(([x, y]) => `${x},${y}`).join(" "),
+    fill: `url(#${id})`, stroke: INK, "stroke-width": 1.6, "stroke-linejoin": "round",
+    class: cls("section"), "data-part": "section"
+  }));
+
+  // Bottom x bars (dots at spacing)
+  const r_bx = Math.max((bx_dia / 2) * scale, 2.5);
+  const y_bx = Y(cover + bx_dia / 2);
+  const n_bx = Math.max(1, Math.round(1000 / bx_s));
+  const first_bx = (1000 - (n_bx - 1) * bx_s) / 2;
+  const barsGroup = s("g", { class: cls("bars"), "data-part": "bars" });
+  for (let i = 0; i < n_bx; i++) {
+    barsGroup.append(s("circle", { cx: X(first_bx + i * bx_s), cy: y_bx, r: r_bx, fill: STEEL }));
+  }
+
+  // Bottom y bars (line just above bottom x bars)
+  const y_by = Y(cover + bx_dia + by_dia / 2);
+  svg.append(s("line", {
+    x1: X(cover), y1: y_by, x2: X(1000 - cover), y2: y_by,
+    stroke: ACCENT, "stroke-width": Math.max(by_dia * scale, 2.0),
+    class: cls("bars")
+  }));
+
+  // Top x bars
+  if (has_tx) {
+    const r_tx = Math.max((tx_dia / 2) * scale, 2.5);
+    const y_tx = Y(h - cover - tx_dia / 2);
+    const n_tx = Math.max(1, Math.round(1000 / tx_s));
+    const first_tx = (1000 - (n_tx - 1) * tx_s) / 2;
+    for (let i = 0; i < n_tx; i++) {
+      barsGroup.append(s("circle", { cx: X(first_tx + i * tx_s), cy: y_tx, r: r_tx, fill: STEEL }));
+    }
+  }
+
+  // Top y bars
+  if (has_ty) {
+    const tx_eff = has_tx ? tx_dia : 10;
+    const y_ty = Y(h - cover - tx_eff - ty_dia / 2);
+    svg.append(s("line", {
+      x1: X(cover), y1: y_ty, x2: X(1000 - cover), y2: y_ty,
+      stroke: ACCENT, "stroke-width": Math.max(ty_dia * scale, 2.0),
+      class: cls("bars")
+    }));
+  }
+  svg.append(barsGroup);
+
+  // Dimensions
+  svg.append(dimH(X(0), X(1000), yBase + 24, "b = 1000 mm (1 m strip)", yBase));
+  svg.append(dimV(Y(h), yBase, X(0) - 24, `h = ${h}`, X(0)));
+
+  // Cover callout
+  const coverColour = status.cover === "fail" ? COLORS.fail : MUTED;
+  svg.append(symText(X(1000) + 8, Y(cover / 2) + 4, ["c", sub("nom"), ` = ${cover} mm`], { fill: coverColour, "font-size": 10.5 }));
+
+  // Reinforcement labels
+  if (has_tx) {
+    let tx_txt = `Top x: H${tx_dia} @ ${tx_s}`;
+    if (tx_As) tx_txt += ` (${tx_As} mm²/m)`;
+    svg.append(text(X(0), Y(h) - 14, tx_txt, { fill: INK, "font-size": 11, "font-weight": 700 }));
+    if (has_ty) {
+      let ty_txt = `Top y: H${ty_dia} @ ${ty_s}`;
+      if (ty_As) ty_txt += ` (${ty_As} mm²/m)`;
+      svg.append(text(X(1000), Y(h) - 14, ty_txt, { fill: ACCENT, "font-size": 11, "font-weight": 700, "text-anchor": "end" }));
+    }
+  } else {
+    svg.append(text(X(0), Y(h) - 14, "No top reinforcement", { fill: MUTED, "font-size": 10.5 }));
+  }
+
+  let bx_txt = `Bottom x: H${bx_dia} @ ${bx_s}`;
+  if (bx_As) bx_txt += ` (${bx_As} mm²/m)`;
+  const by_kind = slab_type === "one_way" ? "distr." : "y";
+  let by_txt = `Bottom ${by_kind}: H${by_dia} @ ${by_s}`;
+  if (by_As) by_txt += ` (${by_As} mm²/m)`;
+
+  svg.append(text(X(0), yBase + 46, bx_txt, { fill: INK, "font-size": 11, "font-weight": 700 }));
+  svg.append(text(X(1000), yBase + 46, by_txt, { fill: ACCENT, "font-size": 11, "font-weight": 700, "text-anchor": "end" }));
+
+  target.replaceChildren(svg);
+  return svg;
+}

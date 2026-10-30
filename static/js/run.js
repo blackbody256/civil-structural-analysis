@@ -1,9 +1,9 @@
 import { currentElement, el, ELEMENT_TITLES, keysFor, postJSON, SEVERITY, STATUS_SVG, store, verdictText } from "./common.js";
-import { drawBeamSection, drawSection } from "./drawings.js";
+import { drawBeamSection, drawSection, drawSlabSection } from "./drawings.js";
 
 const element = currentElement();
 const KEYS = keysFor(element);
-const draw = { column: drawSection, beam: drawBeamSection }[element];
+const draw = { column: drawSection, beam: drawBeamSection, slab: drawSlabSection }[element];
 
 const list = document.getElementById("run-list");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

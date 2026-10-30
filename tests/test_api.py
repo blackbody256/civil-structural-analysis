@@ -17,10 +17,64 @@ def test_pages(client, path):
 
 def test_elements_and_meta(client):
     elements = client.get("/api/elements").get_json()
-    assert [e["id"] for e in elements if e["status"] == "active"] == ["column", "beam"]
+    assert [e["id"] for e in elements if e["status"] == "active"] == ["column", "beam", "slab"]
     meta = client.get("/api/meta").get_json()
     assert "C30/37" in [c["name"] for c in meta["concrete"]]
     assert len(meta["table4"]["F"]) == 11
+
+
+def test_slab_api_and_pdf(client):
+    slab_payload = {
+        "project": {"name": "Test Slab", "ref": "S1"},
+        "slab": {"type": "one_way", "h": 175},
+        "materials": {"concrete": "C30/37", "fyk": 500, "ductility": "B", "dg": 20},
+        "span": {"l": 4.5, "supports": [{"x": 0, "type": "pin"}, {"x": 4.5, "type": "roller"}]},
+        "reinforcement": {
+            "bottom_x_dia": 12, "bottom_x_s": 200,
+            "bottom_y_dia": 10, "bottom_y_s": 300,
+            "top_x_dia": "none", "top_x_s": 200,
+            "top_y_dia": "none", "top_y_s": 200,
+            "cover": 25, "delta_c_dev": 10,
+        },
+        "actions": {
+            "mode": "analysis", "gk": 1.5, "qk": 2.5, "self_weight": True,
+            "category": "B", "loads": [], "pattern": True, "partitions": True,
+        },
+        "stiffness": {"E_method": "concrete"},
+        "durability": {"exposure": "XC1", "cement_group": "All", "fire_period": "R60"},
+    }
+    # 200 OK check
+    res = client.post("/api/slab/check", json=slab_payload)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["summary"]["verdict"] == "pass"
+    assert "strip" in data["plots"]["figures"]
+    assert "diagrams" in data["plots"]["figures"]
+
+    # 400 Bad request on invalid input
+    bad_payload = dict(slab_payload, slab={"type": "one_way", "h": -10})
+    bad_res = client.post("/api/slab/check", json=bad_payload)
+    assert bad_res.status_code == 400
+    assert "slab.h" in bad_res.get_json()["errors"]
+
+    # PDF download starts with %PDF
+    pdf_res = client.post("/api/slab/report.pdf", json=slab_payload)
+    assert pdf_res.status_code == 200
+    assert pdf_res.mimetype == "application/pdf"
+    assert pdf_res.data.startswith(b"%PDF")
+    assert len(pdf_res.data) > 20_000
+
+    # Live analysis endpoint returns figures
+    live_res = client.post("/api/slab/analysis", json=slab_payload)
+    assert live_res.status_code == 200
+    live_data = live_res.get_json()
+    assert "diagrams" in live_data["figures"]
+    assert "loading" in live_data["figures"]
+
+    # Live analysis error
+    live_bad = client.post("/api/slab/analysis", json=bad_payload)
+    assert live_bad.status_code == 400
+    assert "slab.h" in live_bad.get_json()["errors"]
 
 
 def test_check_ok_and_invalid(client, example):

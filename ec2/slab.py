@@ -893,6 +893,14 @@ def _plots_one_way(inp, act):
     return {"section": section, "model": model, "analysis": analysis}
 
 
+class CheckDict(dict):
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+
 def check_slab(data):
     inp = parse_input(data)
 
@@ -940,13 +948,16 @@ def _check_one_way(inp):
         "analysis": None,
     }
 
+    checks_dict = [CheckDict(c.to_dict()) for c in checks]
     return {
         "element": "slab",
         "project": inp.project,
-        "verdict": summary["verdict"],
-        "checks": checks,
         "summary": summary,
-        "working": [c.to_dict() for c in checks],
+        "verdict": summary["verdict"],
+        "groups": list(GROUPS),
+        "checks": checks_dict,
+        "working": checks_dict,
+        "inputs": _input_echo(inp, act),
         "input_echo": _input_echo(inp, act),
         "assumptions": list(ASSUMPTIONS),
         "derived": {
@@ -1151,13 +1162,16 @@ def _check_two_way(inp):
         "top_y": {"dia": inp.top_y.dia, "s": inp.top_y.spacing, "As": inp.top_y.As},
     }
 
+    checks_dict = [CheckDict(c.to_dict()) for c in checks]
     return {
         "element": "slab",
         "project": inp.project,
-        "verdict": summary["verdict"],
-        "checks": checks,
         "summary": summary,
-        "working": [c.to_dict() for c in checks],
+        "verdict": summary["verdict"],
+        "groups": list(GROUPS),
+        "checks": checks_dict,
+        "working": checks_dict,
+        "inputs": _input_echo(inp, {"sw": sw}),
         "input_echo": _input_echo(inp, {"sw": sw}),
         "assumptions": list(ASSUMPTIONS),
         "derived": derived,

@@ -44,3 +44,49 @@ def test_diagram_convention_shear_above_moment_below():
     pt_x15 = min(pts, key=lambda p: abs(p[0] - (90 + 15 / 20 * (920 - 90))))
     # Sagging moment is positive, drawn BELOW the baseline (larger y).
     assert pt_x15[1] > moment_baseline
+
+
+def test_strip_figure():
+    from reports.slab_figures import strip_figure
+    sec = {
+        "slab_type": "one_way",
+        "b": 1000, "h": 200, "cover": 25,
+        "bottom_x": {"dia": 12, "s": 200, "As": 565},
+        "bottom_y": {"dia": 10, "s": 300, "As": 262},
+        "top_x": {"dia": 12, "s": 200, "As": 565},
+        "top_y": {"dia": None, "s": 200, "As": 0},
+    }
+    fig = strip_figure(sec)
+    assert fig["w"] == 1000
+    assert fig["h"] > 200
+    # Checks circles for bottom x bars and top x bars
+    circles = [it for it in fig["items"] if it.get("k") == "circle"]
+    assert len(circles) >= 5  # at 200 spacing across 1000 mm
+    # Checks lines for dimensions, cover and bottom y bar
+    lines = [it for it in fig["items"] if it.get("k") == "line"]
+    assert len(lines) >= 5
+
+
+def test_panel_figure():
+    from reports.slab_figures import panel_figure
+    panel = {
+        "lx": 5.0, "ly": 6.0,
+        "edges": {"top": "continuous", "bottom": "continuous", "left": "continuous", "right": "discontinuous"},
+        "case": {"id": "one_short_discontinuous", "label": "One short edge discontinuous"},
+        "coefficients": {"bsx_mid": 0.036, "bsx_sup": 0.048, "bsy_mid": 0.024, "bsy_sup": 0.032},
+        "moments": {"msx_mid": 9.15, "msx_sup": 12.20, "msy_mid": 6.10, "msy_sup": 8.13},
+        "shears": {"VEd": 30.49, "vEd": 0.174, "vRd_c": 0.450, "basis": "0.6 n lx"},
+    }
+    fig = panel_figure(panel)
+    assert fig["w"] == 1000
+    assert fig["h"] == 640
+    texts = [it["t"] for it in fig["items"] if it.get("k") == "text"]
+    assert any("One short edge discontinuous" in t for t in texts)
+    assert any("lx = 5.00 m" in t for t in texts)
+    assert any("ly = 6.00 m" in t for t in texts)
+    # Check that sagging moment is in bmd colour and hogging in accent
+    bmd_texts = [it for it in fig["items"] if it.get("k") == "text" and it.get("c") == "bmd"]
+    accent_texts = [it for it in fig["items"] if it.get("k") == "text" and it.get("c") == "accent"]
+    assert len(bmd_texts) >= 2  # msx_mid and msy_mid
+    assert len(accent_texts) >= 2  # top continuous and left continuous
+
