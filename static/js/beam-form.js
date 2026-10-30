@@ -645,14 +645,12 @@ async function performDesignChecks() {
 }
 
 function renderDesignResults(result) {
+  const c = result.summary.counts;
   const verdict = result.summary.verdict;
-  const isPass = verdict === "pass";
-  const failCount = result.summary.counts?.fail ?? 0;
-  const totalChecks = result.checks.length;
-
-  const titleText = isPass
-    ? `Adequate: all ${totalChecks} checks pass`
-    : `Not adequate: ${failCount} check${failCount > 1 ? "s" : ""} fail`;
+  // same wording as the report header: only passed checks are counted, not information or n/a rows
+  const titleText = c.fail ? `Not adequate: ${c.fail} check${c.fail > 1 ? "s" : ""} fail`
+    : c.warn ? `Adequate, with ${c.warn} warning${c.warn > 1 ? "s" : ""}`
+      : `Adequate: all ${c.pass} checks pass`;
 
   const counts = el("div", { class: "design-counts" },
     `${result.summary.counts.pass} passed · ${result.summary.counts.fail} failed`
