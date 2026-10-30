@@ -62,3 +62,50 @@ def check_beam_fire(period, support, b_min, a):
     passing = [o for o in evaluated if o["ok"]]
     governing = passing[0] if passing else min(evaluated, key=lambda o: max(o["b_min"] / b_min, o["a"] / a))
     return bool(passing), governing, evaluated
+
+
+# Slabs: Chapter 3, Table 2 (p.18, matching BS EN 1992-1-2 Table 5.8).
+# Minimum thickness hs and axis distance a (mm) for solid slabs.
+SLAB_FIRE_TABLE = {
+    "R60": {"hs": 80, "one_way": 20, "two_way_le_1_5": 10, "two_way_gt_1_5": 15},
+    "R90": {"hs": 100, "one_way": 30, "two_way_le_1_5": 15, "two_way_gt_1_5": 20},
+    "R120": {"hs": 120, "one_way": 40, "two_way_le_1_5": 20, "two_way_gt_1_5": 25},
+    "R240": {"hs": 175, "one_way": 65, "two_way_le_1_5": 40, "two_way_gt_1_5": 50},
+}
+
+
+def check_slab_fire(period, kind, h, a, ly_lx=None):
+    """Check fire resistance for a solid slab (Guide Ch 3 Table 2 / BS EN 1992-1-2 Table 5.8).
+
+    kind is 'one_way' or 'two_way'.
+    Returns (ok, required {'hs', 'a'}, lines).
+    """
+    if period == "none":
+        return True, {"hs": 0, "a": 0}, ["Fire resistance check: none specified"]
+    if period not in SLAB_FIRE_TABLE:
+        raise ValueError(f"Unknown fire period {period!r}; expected one of {FIRE_PERIODS}")
+    if kind not in ("one_way", "two_way"):
+        raise ValueError(f"Unknown slab kind {kind!r}; expected 'one_way' or 'two_way'")
+
+    entry = SLAB_FIRE_TABLE[period]
+    hs_req = entry["hs"]
+    if kind == "one_way":
+        a_req = entry["one_way"]
+        desc = f"{period}, one-way solid slab"
+    else:
+        if ly_lx is None or ly_lx <= 1.5 + 1e-9:
+            a_req = entry["two_way_le_1_5"]
+            ratio_desc = "ly/lx ≤ 1.5"
+        else:
+            a_req = entry["two_way_gt_1_5"]
+            ratio_desc = "1.5 < ly/lx ≤ 2.0"
+        desc = f"{period}, two-way solid slab ({ratio_desc})"
+
+    ok = (h >= hs_req) and (a >= a_req)
+    lines = [
+        desc,
+        f"Minimum slab thickness: {h:g} mm vs required {hs_req} mm ({'satisfied' if h >= hs_req else 'not satisfied'})",
+        f"Axis distance: a = {a:.1f} mm vs required {a_req} mm ({'satisfied' if a >= a_req else 'not satisfied'})",
+    ]
+    return ok, {"hs": hs_req, "a": a_req}, lines
+

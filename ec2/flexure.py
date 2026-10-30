@@ -90,3 +90,17 @@ def basic_span_depth(K, fck, rho, rho_c=0.0):
     if rho <= rho0:
         return K * (11 + 1.5 * rf * rho0 / rho + 3.2 * rf * (rho0 / rho - 1) ** 1.5)
     return K * (11 + 1.5 * rf * rho0 / max(rho - rho_c, 1e-9) + rf / 12 * math.sqrt(rho_c / rho0))
+
+
+def vrd_c(fck, d, rho_l):
+    """Concrete shear resistance without shear reinforcement (MPa), EC2 Cl 6.2.2.
+
+    k = min(1 + √(200/d), 2.0); ρl = min(As/(b·d), 0.02)
+    vRd,c = 0.12·k·(100·ρl·fck)^(1/3) ≥ 0.035·k^1.5·√fck
+    """
+    k = min(1.0 + math.sqrt(200.0 / d), 2.0)
+    rho = min(rho_l, 0.02)
+    v = 0.12 * k * (100.0 * rho * fck) ** (1.0 / 3.0)
+    vmin = 0.035 * (k ** 1.5) * math.sqrt(fck)
+    return max(v, vmin)
+

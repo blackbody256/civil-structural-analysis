@@ -145,3 +145,121 @@ def crack_limits(sigma_s, w_max):
     sizes, spacings = CRACK_LIMITS[w_max]
     stress = max(float(sigma_s), float(CRACK_STRESS[0]))
     return float(np.interp(stress, CRACK_STRESS, sizes)), float(np.interp(stress, CRACK_STRESS, spacings))
+
+
+# ---------------------------------------------------------------- two-way slabs
+
+# Ch 3, Table 8 (p.22): bending moment coefficients for two-way spanning rectangular
+# slabs supported by beams on four edges, with provision for torsion at corners
+# (matches BS 8110-1 Table 3.14).
+# Short-span coefficients βsx are given for ly/lx ratios; long-span coefficients βsy
+# are independent of ly/lx. Where an edge in that direction is discontinuous, the support
+# coefficient is None.
+SLAB_LY_LX = np.array([1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.75, 2.0])
+
+SLAB_CASES = [
+    {
+        "id": "interior",
+        "label": "Interior panels",
+        "bsx_sup": np.array([0.031, 0.037, 0.042, 0.046, 0.050, 0.053, 0.059, 0.063]),
+        "bsx_mid": np.array([0.024, 0.028, 0.032, 0.035, 0.037, 0.040, 0.044, 0.048]),
+        "bsy_sup": 0.032,
+        "bsy_mid": 0.024,
+    },
+    {
+        "id": "one_short_discontinuous",
+        "label": "One short edge discontinuous",
+        "bsx_sup": np.array([0.039, 0.044, 0.048, 0.052, 0.055, 0.058, 0.063, 0.067]),
+        "bsx_mid": np.array([0.029, 0.033, 0.036, 0.039, 0.041, 0.043, 0.047, 0.050]),
+        "bsy_sup": 0.037,
+        "bsy_mid": 0.028,
+    },
+    {
+        "id": "one_long_discontinuous",
+        "label": "One long edge discontinuous",
+        "bsx_sup": np.array([0.039, 0.049, 0.056, 0.062, 0.068, 0.073, 0.082, 0.089]),
+        "bsx_mid": np.array([0.030, 0.036, 0.042, 0.047, 0.051, 0.055, 0.062, 0.067]),
+        "bsy_sup": 0.037,
+        "bsy_mid": 0.028,
+    },
+    {
+        "id": "two_adjacent_discontinuous",
+        "label": "Two adjacent edges discontinuous",
+        "bsx_sup": np.array([0.047, 0.056, 0.063, 0.069, 0.074, 0.078, 0.087, 0.093]),
+        "bsx_mid": np.array([0.036, 0.042, 0.047, 0.051, 0.055, 0.059, 0.065, 0.070]),
+        "bsy_sup": 0.045,
+        "bsy_mid": 0.034,
+    },
+    {
+        "id": "two_short_discontinuous",
+        "label": "Two short edges discontinuous",
+        "bsx_sup": np.array([0.046, 0.050, 0.054, 0.057, 0.060, 0.062, 0.067, 0.070]),
+        "bsx_mid": np.array([0.034, 0.038, 0.040, 0.043, 0.045, 0.047, 0.050, 0.053]),
+        "bsy_sup": None,
+        "bsy_mid": 0.034,
+    },
+    {
+        "id": "two_long_discontinuous",
+        "label": "Two long edges discontinuous",
+        "bsx_sup": None,
+        "bsx_mid": np.array([0.034, 0.046, 0.056, 0.065, 0.072, 0.078, 0.091, 0.100]),
+        "bsy_sup": 0.045,
+        "bsy_mid": 0.034,
+    },
+    {
+        "id": "three_discontinuous_one_long_continuous",
+        "label": "Three edges discontinuous (one long edge continuous)",
+        "bsx_sup": np.array([0.057, 0.065, 0.071, 0.076, 0.081, 0.084, 0.092, 0.098]),
+        "bsx_mid": np.array([0.043, 0.048, 0.053, 0.057, 0.060, 0.063, 0.069, 0.074]),
+        "bsy_sup": None,
+        "bsy_mid": 0.044,
+    },
+    {
+        "id": "three_discontinuous_one_short_continuous",
+        "label": "Three edges discontinuous (one short edge continuous)",
+        "bsx_sup": None,
+        "bsx_mid": np.array([0.042, 0.054, 0.063, 0.071, 0.078, 0.084, 0.096, 0.105]),
+        "bsy_sup": 0.058,
+        "bsy_mid": 0.044,
+    },
+    {
+        "id": "four_discontinuous",
+        "label": "Four edges discontinuous",
+        "bsx_sup": None,
+        "bsx_mid": np.array([0.055, 0.065, 0.074, 0.081, 0.087, 0.092, 0.103, 0.111]),
+        "bsy_sup": None,
+        "bsy_mid": 0.056,
+    },
+]
+
+# Note: The guide does not provide shear coefficients (βvx, βvy) for two-way slabs.
+# See ec2/slab.py for the conservative shear estimates (VEd = 0.5·n·lx or 0.6·n·lx).
+
+
+def two_way_coefficients(case_id, ly_lx):
+    """Bending moment coefficients βsx, βsy for a restrained two-way slab.
+
+    Linearly interpolated in ly/lx. If ly/lx > 2.0, raises ValueError.
+    """
+    if ly_lx < 1.0 - 1e-9:
+        raise ValueError(f"ly/lx = {ly_lx:g} < 1.0 (lx must be the shorter span)")
+    if ly_lx > 2.0 + 1e-9:
+        raise ValueError(f"ly/lx = {ly_lx:g} > 2.0 (design as a one-way slab)")
+
+    case = next((c for c in SLAB_CASES if c["id"] == case_id), None)
+    if case is None:
+        raise ValueError(f"Unknown slab case: {case_id}")
+
+    r = float(np.clip(ly_lx, 1.0, 2.0))
+    bsx_sup = float(np.interp(r, SLAB_LY_LX, case["bsx_sup"])) if case["bsx_sup"] is not None else None
+    bsx_mid = float(np.interp(r, SLAB_LY_LX, case["bsx_mid"]))
+    bsy_sup = float(case["bsy_sup"]) if case["bsy_sup"] is not None else None
+    bsy_mid = float(case["bsy_mid"])
+
+    return {
+        "bsx_sup": bsx_sup,
+        "bsx_mid": bsx_mid,
+        "bsy_sup": bsy_sup,
+        "bsy_mid": bsy_mid,
+    }
+
