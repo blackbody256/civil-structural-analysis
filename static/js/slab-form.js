@@ -722,7 +722,7 @@ function buildTwoWayAnalysisView(data, { onContinue }) {
     ["Long span continuous edge", "Hogging (top y)", coeffs.bsy_sup !== null ? num(coeffs.bsy_sup, 4) : "—", coeffs.bsy_sup !== null ? `${num(moms.msy_sup)} kNm/m` : "discontinuous"],
   ];
   const coeffTable = el("figure", { class: "panel figure" },
-    el("div", { class: "panel-head" }, el("h3", {}, "Table 8 moment coefficients")),
+    el("div", { class: "panel-head" }, el("h3", {}, "Moment coefficients")),
     el("div", { class: "panel-body" }, table(["Location", "Action", "Coeff. β", "Moment m = β·n·lx²"], rowsCoeffs)),
     el("figcaption", {}, "Bending moment coefficients for two-way slabs with restrained corners.")
   );
@@ -730,7 +730,7 @@ function buildTwoWayAnalysisView(data, { onContinue }) {
   const rowsShears = [
     ["Design shear force VEd", `${num(shears.VEd)} kN/m`, shears.basis || ""],
     ["Design shear stress vEd", `${num(shears.vEd, 3)} MPa`, "vEd = VEd / (b·d)"],
-    ["Concrete shear resistance vRd,c", `${num(shears.vRd_c, 3)} MPa`, "EC2 Cl 6.2.2 (without links)"],
+    ["Concrete shear resistance vRd,c", `${num(shears.vRd_c, 3)} MPa`, "without shear links"],
   ];
   const shearTable = el("figure", { class: "panel figure" },
     el("div", { class: "panel-head" }, el("h3", {}, "Shear evaluation")),
@@ -812,7 +812,8 @@ async function performDesignChecks(e) {
 
     designDone = true;
     updateTabStates();
-    store.set(KEYS.result, res.data);
+    // the report page reads { input, result } from this tab's session, as the run page stores it
+    store.setSession(KEYS.result, { input: data, result: res.data });
     store.set(KEYS.input, data);
 
     const c = res.data.summary.counts;

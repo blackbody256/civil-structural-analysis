@@ -43,7 +43,7 @@ function twoWayDesignValues(result) {
     el("p", { class: "data-lede" }, `Two-way slab panel (${num(p.lx)} m × ${num(p.ly)} m, ly/lx = ${num(ratio)}) — ${p.case?.label || ""}`),
     table(["Action / Location", "Value", "Notes / Coefficient"], rows)
   );
-  return figure("Design moments and shears", body, "Moments and shears per metre width from Table 8 coefficients.");
+  return figure("Design moments and shears", body, "Moments and shears per metre width from the two-way moment coefficients.");
 }
 
 export function figures(state) {
@@ -95,7 +95,7 @@ export function designPath(result) {
     flow.push(
       node("Loading", "gk + sw, qk (area load)"),
       arrow(),
-      node("Table 8 coefficients", `${p.case?.label || "Two-way panel"}<br>ly/lx = ${num(ratio)}`),
+      node("Moment coefficients", `${p.case?.label || "Two-way panel"}<br>ly/lx = ${num(ratio)}`),
       arrow(),
       node("Design values", `msx,mid = ${num(p.moments?.msx_mid)} · msy,mid = ${num(p.moments?.msy_mid)}<br>VEd = ${num(p.shears?.VEd)} kN/m`),
       arrow()

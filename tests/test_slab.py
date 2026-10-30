@@ -189,7 +189,7 @@ def test_thick_slab_h_greater_than_200_uses_crack_table():
     res = check_slab(data)
     checks_by_id = {c.id: c for c in res["checks"]}
     c_crack = checks_by_id["crack_control"]
-    assert "Table 11" in c_crack.working[0]
+    assert "bar size or spacing" in c_crack.working[0]
 
 
 def test_analyse_input_one_way():

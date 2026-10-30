@@ -41,7 +41,7 @@ ASSUMPTIONS = [
     "Linear elastic analysis per metre width; moments, shears, reactions and deflections without redistribution (δ = 1.0).",
     "Continuous one-way slabs use pattern loading (Case A: all spans loaded; Case B/C: alternate spans loaded) to obtain the envelope.",
     "Two-way slabs supported on four edges use tabulated bending moment coefficients for restrained panels.",
-    "Shear resistance of slabs without shear reinforcement (vRd,c) to EC2 Cl 6.2.2. No shear links in slabs.",
+    "Shear resistance of slabs without shear reinforcement (vRd,c); slabs have no shear links.",
     "No compression reinforcement in slabs (K ≤ K'). Deflection by span-to-effective-depth ratio.",
     "Durability covers follow BS 8500 for a 50-year working life and 20 mm maximum aggregate.",
     "Fire resistance by the tabulated method of BS EN 1992-1-2 for solid slabs.",
@@ -793,7 +793,7 @@ def _detailing_checks(inp, is_two_way=False):
         ok_crack_pitch = (max_pitch is None) or (s_bx <= max_pitch)
         ok_crack = ok_crack_dia and ok_crack_pitch
         lines_crack = [
-            f"Slab depth h = {h:g} mm > 200 mm: crack control checked against Table 11",
+            f"Slab depth h = {h:g} mm > 200 mm: crack control by bar size or spacing",
             f"Exposure {inp.exposure} (wmax = {wmax} mm), estimated steel stress σs ≈ {sigma_s:.0f} MPa",
             f"Maximum bar size: {max_bar:.1f} mm vs provided H{dia_bx} ({'satisfied' if ok_crack_dia else 'exceeded'})",
             f"Maximum bar spacing: {max_pitch:.1f} mm vs provided {s_bx:g} mm ({'satisfied' if ok_crack_pitch else 'exceeded'})",
@@ -802,7 +802,7 @@ def _detailing_checks(inp, is_two_way=False):
                                   PASS if ok_crack else FAIL,
                                   result=f"H{dia_bx} @ {s_bx:g} vs H{max_bar:.0f} @ {max_pitch:.0f} mm",
                                   working=lines_crack, target="reinforcement.bottom_x_dia",
-                                  note="" if ok_crack else "Reduce bar size or bar spacing to satisfy Table 11 crack limits."))
+                                  note="" if ok_crack else "Use smaller bars at closer spacing, or add reinforcement to lower the steel stress."))
 
     return checks
 

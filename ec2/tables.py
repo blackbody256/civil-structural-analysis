@@ -149,9 +149,11 @@ def crack_limits(sigma_s, w_max):
 
 # ---------------------------------------------------------------- two-way slabs
 
-# Ch 3, Table 8 (p.22): bending moment coefficients for two-way spanning rectangular
-# slabs supported by beams on four edges, with provision for torsion at corners
-# (matches BS 8110-1 Table 3.14).
+# Bending moment coefficients for two-way spanning rectangular slabs supported by beams on four
+# edges, with provision for torsion at corners. The guide (Ch 3, Table 8, p.22) prints the first
+# four cases for ly/lx = 1.0, 1.25, 1.5, 1.75 and 2.0; the intermediate ratios and the other five
+# cases are BS 8110-1 Table 3.14, which the guide's values agree with (where they differ by 0.001,
+# the guide's value is used).
 # Short-span coefficients βsx are given for ly/lx ratios; long-span coefficients βsy
 # are independent of ly/lx. Where an edge in that direction is discontinuous, the support
 # coefficient is None.
@@ -177,7 +179,7 @@ SLAB_CASES = [
     {
         "id": "one_long_discontinuous",
         "label": "One long edge discontinuous",
-        "bsx_sup": np.array([0.039, 0.049, 0.056, 0.062, 0.068, 0.073, 0.082, 0.089]),
+        "bsx_sup": np.array([0.039, 0.049, 0.056, 0.062, 0.068, 0.073, 0.083, 0.089]),
         "bsx_mid": np.array([0.030, 0.036, 0.042, 0.047, 0.051, 0.055, 0.062, 0.067]),
         "bsy_sup": 0.037,
         "bsy_mid": 0.028,
