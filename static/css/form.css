@@ -2,7 +2,8 @@
 
 .page.wide { max-width: 1280px; }
 .form-layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 28px; align-items: start; }
-.form-main { display: grid; gap: 10px; min-width: 0; }
+/* minmax(0, 1fr): wide tables scroll inside their own box instead of widening the page */
+.form-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
 .form-tools { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; color: var(--muted); font-size: 13.5px; }
 .form-tools .spacer { flex: 1; }
 
@@ -22,7 +23,7 @@
 .chev { width: 9px; height: 9px; border-right: 1.6px solid var(--muted); border-bottom: 1.6px solid var(--muted); transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
 .section[open] .chev { transform: rotate(-135deg) translateY(-2px); }
 .section .bad { color: var(--fail); font-family: var(--font-ui); }
-.s-body { padding: 18px; display: grid; gap: 16px; }
+.s-body { padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 
 .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 16px; }
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -93,7 +94,7 @@ details.more > .fields { margin-top: 14px; }
 .pop .out:empty { display: none; }
 
 @media (max-width: 1080px) {
-  .form-layout { grid-template-columns: 1fr; }
+  .form-layout { grid-template-columns: minmax(0, 1fr); }
   .preview { position: static; grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 720px) {
@@ -266,7 +267,7 @@ details.more > .fields + .check { margin-top: 14px; }
 .tab-panel.is-active { display: block; }
 
 .analysis-action-bar, .design-action-bar, .report-actions-bar {
-  display: flex; align-items: center; gap: 14px; margin: 18px 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 18px 0;
 }
 .tab-continue { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
 
@@ -346,7 +347,7 @@ details.more > .fields + .check { margin-top: 14px; }
 .s-group > .inline-link, .field > .inline-link { align-self: flex-start; justify-self: start; border: 0; background: none; padding: 0;
   color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
 .s-group > .inline-link:hover { text-decoration: underline; }
-.s-group { display: grid; gap: 12px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+.s-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
 .group-title { font-size: 13.5px; font-weight: 600; color: var(--text-2); }
 .group-title .muted { font-weight: 400; color: var(--muted); }
 .formula { margin: 0; font-family: var(--font-mono); font-size: 13px; color: var(--text-2); }
@@ -357,3 +358,14 @@ details.more > .fields + .check { margin-top: 14px; }
 .mini th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 4px 4px; border-bottom: 1px solid var(--line); }
 .mini td { padding: 5px 4px; font-family: var(--font-mono); border-bottom: 1px solid var(--line); }
 .mini td:first-child { font-family: var(--font-ui); }
+
+/* phones: one column of fields; a field that spans two columns must not create a second one */
+@media (max-width: 560px) {
+  .fields { grid-template-columns: minmax(0, 1fr); }
+  .fields > * { grid-column: 1 / -1 !important; }
+  /* the supports and stiffness tables shrink to the screen (the loads table scrolls in its own box) */
+  #supports-table, #segments-table { table-layout: fixed; width: 100%; }
+  #supports-table th:first-child { width: 24px; }
+  #supports-table th:last-child, #segments-table th:last-child { width: 42px; }
+  .grid-table .control { min-width: 0; }
+}
