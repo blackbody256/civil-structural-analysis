@@ -40,11 +40,11 @@ ASSUMPTIONS = [
     "Design loads G = 1.35·gk and Q = 1.5·qk per metre width. Further loads entered as design values are used as they are.",
     "Linear elastic analysis per metre width; moments, shears, reactions and deflections without redistribution (δ = 1.0).",
     "Continuous one-way slabs use pattern loading (Case A: all spans loaded; Case B/C: alternate spans loaded) to obtain the envelope.",
-    "Two-way slabs supported on four edges use bending moment coefficients from Table 8 of the guide (BS 8110-1 Table 3.14).",
+    "Two-way slabs supported on four edges use tabulated bending moment coefficients for restrained panels.",
     "Shear resistance of slabs without shear reinforcement (vRd,c) to EC2 Cl 6.2.2. No shear links in slabs.",
     "No compression reinforcement in slabs (K ≤ K'). Deflection by span-to-effective-depth ratio.",
     "Durability covers follow BS 8500 for a 50-year working life and 20 mm maximum aggregate.",
-    "Fire resistance by the tabulated method of BS EN 1992-1-2 Table 5.8 / Guide Table 2.",
+    "Fire resistance by the tabulated method of BS EN 1992-1-2 for solid slabs.",
 ]
 
 
@@ -964,24 +964,258 @@ def _check_one_way(inp):
     }
 
 
+def map_edges_to_case(edges):
+    """Map the four edge boundary conditions (top/bottom long, left/right short) to one of the 9 cases."""
+    if not edges:
+        return "interior"
+    num_cont_long = sum(1 for e in (edges.get("top"), edges.get("bottom")) if e == "continuous")
+    num_cont_short = sum(1 for e in (edges.get("left"), edges.get("right")) if e == "continuous")
+
+    mapping = {
+        (2, 2): "interior",
+        (2, 1): "one_short_discontinuous",
+        (1, 2): "one_long_discontinuous",
+        (1, 1): "two_adjacent_discontinuous",
+        (2, 0): "two_short_discontinuous",
+        (0, 2): "two_long_discontinuous",
+        (1, 0): "three_discontinuous_one_long_continuous",
+        (0, 1): "three_discontinuous_one_short_continuous",
+        (0, 0): "four_discontinuous",
+    }
+    return mapping[(num_cont_long, num_cont_short)]
+
+
 def _check_two_way(inp):
-    # Two-way stub for step 2 (fully implemented in step 3)
-    from . import tables
-    # Map edges to case
-    case_id = "interior"
-    coeffs = tables.two_way_coefficients(case_id, inp.ly / inp.lx)
+    b = 1000.0
+    h = inp.h
+    sw = (CONCRETE_DENSITY * h / 1000.0) if inp.self_weight else 0.0
+    n = 1.35 * (inp.gk + sw) + 1.5 * inp.qk  # kN/m²
+
+    case_id = map_edges_to_case(inp.edges)
+    case_label = next(c["label"] for c in tables.SLAB_CASES if c["id"] == case_id)
+    ly_lx = inp.ly / inp.lx
+    coeffs = tables.two_way_coefficients(case_id, ly_lx)
+
+    # Moments in N·mm per metre width (1 kNm = 1e6 N·mm):
+    msx_mid = coeffs["bsx_mid"] * n * (inp.lx ** 2) * 1e6
+    msx_sup = (coeffs["bsx_sup"] * n * (inp.lx ** 2) * 1e6) if coeffs["bsx_sup"] is not None else 0.0
+    msy_mid = coeffs["bsy_mid"] * n * (inp.lx ** 2) * 1e6
+    msy_sup = (coeffs["bsy_sup"] * n * (inp.lx ** 2) * 1e6) if coeffs["bsy_sup"] is not None else 0.0
+
+    # Shear per metre width:
+    num_cont_long = sum(1 for e in (inp.edges.get("top"), inp.edges.get("bottom")) if e == "continuous")
+    if num_cont_long > 0:
+        VEd = 0.6 * n * inp.lx * 1e3  # N/m
+        shear_basis = "0.6·n·lx (continuous long edge)"
+    else:
+        VEd = 0.5 * n * inp.lx * 1e3  # N/m
+        shear_basis = "0.5·n·lx (discontinuous long edge)"
+
+    # Effective depths:
+    phi_bx = inp.bottom_x.dia or 10
+    phi_by = inp.bottom_y.dia or 10
+    phi_tx = inp.top_x.dia or 10
+    phi_ty = inp.top_y.dia or 10
+
+    d_x = h - inp.cover - phi_bx / 2.0
+    d_top_x = h - inp.cover - phi_tx / 2.0
+    d_y = h - inp.cover - phi_bx - phi_by / 2.0
+    if inp.top_x.dia and inp.top_x.dia != "none":
+        d_top_y = h - inp.cover - inp.top_x.dia - phi_ty / 2.0
+    else:
+        d_top_y = h - inp.cover - phi_ty / 2.0
+
+    # Shear check:
+    d_shear = d_top_x if (num_cont_long > 0 and inp.top_x.dia and inp.top_x.dia != "none") else d_x
+    vEd_mpa = VEd / (b * d_shear)
+    rho_l = (inp.top_x.As if (num_cont_long > 0 and inp.top_x.dia and inp.top_x.dia != "none") else inp.bottom_x.As) / (b * d_shear)
+    vrd_c = flexure.vrd_c(inp.concrete.fck, d_shear, rho_l)
+
+    checks = []
+    checks += _scope_checks(inp)
+    checks += _cover_checks(inp)
+    checks += _fire_checks(inp)
+
+    # Actions check:
+    bsx_sup_str = f"{coeffs['bsx_sup']:.4f}" if coeffs["bsx_sup"] is not None else "None"
+    bsy_sup_str = f"{coeffs['bsy_sup']:.4f}" if coeffs["bsy_sup"] is not None else "None"
+    act_lines = [
+        f"Two-way slab panel: lx = {_m(inp.lx)} m, ly = {_m(inp.ly)} m (aspect ratio ly/lx = {ly_lx:.2f} ≤ 2.0)",
+        f"Boundary conditions: top={inp.edges.get('top')}, bottom={inp.edges.get('bottom')}, left={inp.edges.get('left')}, right={inp.edges.get('right')}",
+        f"Panel edge case: {case_label}",
+        f"Design load: n = 1.35·({inp.gk:g} + {sw:.2f}) + 1.5·{inp.qk:g} = {n:.3f} kN/m²",
+        f"Short-span coefficients: βsx,mid = {coeffs['bsx_mid']:.4f}, βsx,sup = {bsx_sup_str}",
+        f"Long-span coefficients: βsy,mid = {coeffs['bsy_mid']:.4f}, βsy,sup = {bsy_sup_str}",
+        f"Moments: msx,mid = {kNm(msx_mid)} kNm/m, msx,sup = {kNm(msx_sup)} kNm/m, msy,mid = {kNm(msy_mid)} kNm/m, msy,sup = {kNm(msy_sup)} kNm/m",
+        f"Design shear: VEd = {kN(VEd)} kN/m ({shear_basis})",
+    ]
+    res_str = f"msx = {kNm(msx_mid)}/{kNm(msx_sup)} kNm/m, msy = {kNm(msy_mid)}/{kNm(msy_sup)} kNm/m"
+    checks.append(CheckResult("actions", GROUPS[3], "Design actions", INFO, result=res_str, working=act_lines))
+
+    # Bending checks:
+    checks.append(_bending_check_two_way(inp, msx_mid, inp.bottom_x, "bottom_x", d_x, False, "Short span mid-span (bottom x)"))
+    checks.append(_bending_check_two_way(inp, msx_sup, inp.top_x, "top_x", d_top_x, True, "Continuous long edge (top x)"))
+    checks.append(_bending_check_two_way(inp, msy_mid, inp.bottom_y, "bottom_y", d_y, False, "Long span mid-span (bottom y)"))
+    checks.append(_bending_check_two_way(inp, msy_sup, inp.top_y, "top_y", d_top_y, True, "Continuous short edge (top y)"))
+
+    # Shear check:
+    ok_shear = vEd_mpa <= vrd_c
+    shear_lines = [
+        f"Design shear force VEd = {kN(VEd)} kN/m ({shear_basis})",
+        f"Effective depth d = {d_shear:.1f} mm; longitudinal ratio ρl = {rho_l:.4f} (≤ 0.02)",
+        f"Applied shear stress: vEd = VEd / (b·d) = {vEd_mpa:.3f} MPa",
+        f"Concrete shear capacity without links: vRd,c = {vrd_c:.3f} MPa ({'satisfied' if ok_shear else 'exceeded'})",
+    ]
+    checks.append(CheckResult("shear", GROUPS[5], "Shear resistance", PASS if ok_shear else FAIL,
+                              result=f"{vEd_mpa:.3f} vs {vrd_c:.3f} MPa",
+                              utilisation=vEd_mpa / vrd_c, working=shear_lines, target="slab.h",
+                              note="" if ok_shear else "Increase the slab thickness (shear reinforcement is not usual in solid slabs)."))
+
+    # Deflection check (on short span lx with d_x):
+    K_sys = 1.0 if num_cont_long == 0 else (1.3 if num_cont_long == 1 else 1.5)
+    K_bend = min(msx_mid / (b * d_x**2 * inp.concrete.fck), 0.168)
+    z_defl = flexure.lever_arm(K_bend, d_x)
+    As_req_defl = msx_mid / (inp.steel.fyd * z_defl)
+    rho_defl = As_req_defl / (b * d_x)
+    basic_defl = flexure.basic_span_depth(K_sys, inp.concrete.fck, rho_defl, rho_c=0.0)
+    F1 = 1.0
+    F2 = (7.0 / inp.lx) if (inp.lx > 7.0 and inp.partitions) else 1.0
+    psi0, _, psi2 = psi_factors(inp.category)
+    qp_ratio = (inp.gk + sw + psi2 * inp.qk) / max(n, 1e-6)
+    sigma_s = inp.steel.fyd * qp_ratio * (As_req_defl / max(inp.bottom_x.As, 1.0))
+    F3 = min(310.0 / max(sigma_s, 1.0), 1.5)
+    limiting_defl = basic_defl * F1 * F2 * F3
+    actual_defl = (inp.lx * 1000.0) / d_x
+    ok_defl = actual_defl <= limiting_defl
+    defl_lines = [
+        f"Two-way panel short span lx = {_m(inp.lx)} m, d = {d_x:.1f} mm, K = {K_sys:g} ({num_cont_long} continuous long edge{'s' if num_cont_long != 1 else ''})",
+        f"Basic span-to-depth ratio: (l/d)basic = {basic_defl:.1f}",
+        f"Modification factors: F1 = 1.0; F2 = {F2:.3f}; F3 = {F3:.3f} (service steel stress σs = {sigma_s:.1f} MPa)",
+        f"Limiting l/d = {limiting_defl:.1f}; Actual span-to-depth ratio: lx/d = {actual_defl:.1f} ({'satisfied' if ok_defl else 'exceeded'})",
+    ]
+    checks.append(CheckResult("deflection", GROUPS[6], "Deflection (short span lx)",
+                              PASS if ok_defl else FAIL, result=f"{actual_defl:.1f} vs {limiting_defl:.1f}",
+                              utilisation=actual_defl / limiting_defl, working=defl_lines, target="slab.h",
+                              note="" if ok_defl else "Increase the slab thickness or provide more reinforcement."))
+
+    # Detailing checks:
+    checks += _detailing_checks(inp, is_two_way=True)
+
+    summary = summarise(checks)
+    plots = {
+        "section": {
+            "shape": "rectangular", "slab_type": "two_way", "b": b, "h": h, "cover": inp.cover,
+            "bottom_x": {"dia": inp.bottom_x.dia, "s": inp.bottom_x.spacing, "As": inp.bottom_x.As},
+            "bottom_y": {"dia": inp.bottom_y.dia, "s": inp.bottom_y.spacing, "As": inp.bottom_y.As},
+            "top_x": {"dia": inp.top_x.dia, "s": inp.top_x.spacing, "As": inp.top_x.As},
+            "top_y": {"dia": inp.top_y.dia, "s": inp.top_y.spacing, "As": inp.top_y.As},
+        },
+        "panel": {
+            "lx": inp.lx,
+            "ly": inp.ly,
+            "edges": inp.edges,
+            "case": {"id": case_id, "label": case_label},
+            "coefficients": coeffs,
+            "moments": {
+                "msx_mid": msx_mid / 1e6,
+                "msx_sup": msx_sup / 1e6,
+                "msy_mid": msy_mid / 1e6,
+                "msy_sup": msy_sup / 1e6,
+            },
+            "shears": {
+                "VEd": VEd / 1e3,
+                "vEd": vEd_mpa,
+                "vRd_c": vrd_c,
+                "basis": shear_basis,
+            },
+        },
+    }
+
+    derived = {
+        "slab_type": "two_way",
+        "h": inp.h,
+        "lx": inp.lx,
+        "ly": inp.ly,
+        "case": case_id,
+        "case_label": case_label,
+        "MEd_sag": msx_mid / 1e6,
+        "MEd_hog": msx_sup / 1e6,
+        "VEd": VEd / 1e3,
+        "msx_mid": msx_mid / 1e6,
+        "msx_sup": msx_sup / 1e6,
+        "msy_mid": msy_mid / 1e6,
+        "msy_sup": msy_sup / 1e6,
+        "bottom_x": {"dia": inp.bottom_x.dia, "s": inp.bottom_x.spacing, "As": inp.bottom_x.As},
+        "bottom_y": {"dia": inp.bottom_y.dia, "s": inp.bottom_y.spacing, "As": inp.bottom_y.As},
+        "top_x": {"dia": inp.top_x.dia, "s": inp.top_x.spacing, "As": inp.top_x.As},
+        "top_y": {"dia": inp.top_y.dia, "s": inp.top_y.spacing, "As": inp.top_y.As},
+    }
+
     return {
         "element": "slab",
         "project": inp.project,
-        "verdict": "pass",
-        "checks": [],
-        "summary": {"pass": 0, "fail": 0, "warn": 0, "na": 0, "info": 0, "verdict": "pass"},
-        "working": [],
-        "input_echo": [],
+        "verdict": summary["verdict"],
+        "checks": checks,
+        "summary": summary,
+        "working": [c.to_dict() for c in checks],
+        "input_echo": _input_echo(inp, {"sw": sw}),
         "assumptions": list(ASSUMPTIONS),
-        "derived": {},
-        "plots": {"panel": {"lx": inp.lx, "ly": inp.ly, "edges": inp.edges, "case": case_id}},
+        "derived": derived,
+        "plots": plots,
     }
+
+
+def _bending_check_two_way(inp, M_ed, layer, name, d, is_hogging, position_label):
+    b = 1000.0
+    fck = inp.concrete.fck
+    fyd = inp.steel.fyd
+
+    if M_ed <= 0:
+        return CheckResult(f"bending_{name}", GROUPS[4], f"Bending ({position_label})", NA,
+                           result="0.00 kNm/m",
+                           working=[f"No moment at {position_label} (discontinuous edge / not designed for); check not applicable."])
+
+    if not layer.dia or layer.dia == "none" or not layer.spacing:
+        return CheckResult(f"bending_{name}", GROUPS[4], f"Bending ({position_label})", FAIL,
+                           result="No bars provided",
+                           working=[f"Design moment MEd = {kNm(M_ed)} kNm/m at {position_label}.",
+                                    f"No {name} bars entered."],
+                           target=f"reinforcement.{name}_dia",
+                           note=f"Add bars for {position_label}.")
+
+    K = M_ed / (b * d**2 * fck)
+    kp = flexure.k_prime(1.0, uk_limit=True)
+
+    if K > kp:
+        lines = [
+            f"Design moment MEd = {kNm(M_ed)} kNm/m per metre width at {position_label}",
+            f"Effective depth d = {d:.1f} mm; concrete fck = {fck:g} MPa",
+            f"K = MEd / (b·d²·fck) = {K:.4f} > K' = {kp:.3f}",
+            "Compression reinforcement is not permitted in solid slabs.",
+        ]
+        return CheckResult(f"bending_{name}", GROUPS[4], f"Bending ({position_label})", FAIL,
+                           result=f"K = {K:.3f} > K' = {kp:.3f}",
+                           utilisation=K / kp, working=lines, target="slab.h",
+                           note="Increase the slab thickness (compression reinforcement is not used in slabs).")
+
+    z = flexure.lever_arm(K, d)
+    As_req = M_ed / (fyd * z)
+    As_prov = layer.As
+    ok = As_prov >= As_req
+
+    lines = [
+        f"Design moment MEd = {kNm(M_ed)} kNm/m per metre width at {position_label}",
+        f"Effective depth d = {d:.1f} mm; lever arm z = {z:.1f} mm (≤ 0.95d = {0.95 * d:.1f} mm)",
+        f"K = MEd / (b·d²·fck) = {K:.4f} ≤ K' = {kp:.3f}",
+        f"Required tension steel: As,req = MEd / (fyd·z) = {M_ed:.0f} / ({fyd:.1f} × {z:.1f}) = {As_req:.0f} mm²/m",
+        f"Provided reinforcement: {layer.label} → As,prov = {As_prov:.0f} mm²/m ({'satisfied' if ok else 'insufficient'})",
+    ]
+    return CheckResult(f"bending_{name}", GROUPS[4], f"Bending ({position_label})", PASS if ok else FAIL,
+                       result=f"{As_prov:.0f} vs {As_req:.0f} mm²/m",
+                       utilisation=As_req / max(As_prov, 1.0),
+                       working=lines, target=f"reinforcement.{name}_s",
+                       note="" if ok else "Increase bar diameter or decrease bar spacing.")
+
 
 
 def analyse_input(data):
@@ -1011,11 +1245,14 @@ def analyse_input(data):
         }
         return plots
     else:
-        # Two-way stub for step 2
-        return {
-            "panel": {
-                "lx": inp.lx,
-                "ly": inp.ly,
-                "edges": inp.edges,
-            }
+        res = _check_two_way(inp)
+        plots = res["plots"]
+        sw = (CONCRETE_DENSITY * inp.h / 1000.0) if inp.self_weight else 0.0
+        n_g = inp.gk + sw
+        plots["loads"] = {
+            "w": 1.35 * n_g + 1.5 * inp.qk,
+            "sw": sw,
+            "g": n_g,
+            "q": inp.qk,
         }
+        return plots

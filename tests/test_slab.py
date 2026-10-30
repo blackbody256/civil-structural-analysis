@@ -203,3 +203,130 @@ def test_analyse_input_one_way():
     assert "reactions" in plots["analysis"]
     assert "envelope" in plots["analysis"]
     assert "loads" in plots
+
+
+def test_two_way_case_mapping_all_9_combinations():
+    from ec2.slab import map_edges_to_case
+
+    # (num_cont_long, num_cont_short)
+    # 1. Interior: all 4 continuous
+    assert map_edges_to_case({"top": "continuous", "bottom": "continuous", "left": "continuous", "right": "continuous"}) == "interior"
+
+    # 2. One short edge discontinuous: 2 long, 1 short continuous
+    assert map_edges_to_case({"top": "continuous", "bottom": "continuous", "left": "discontinuous", "right": "continuous"}) == "one_short_discontinuous"
+
+    # 3. One long edge discontinuous: 1 long, 2 short continuous
+    assert map_edges_to_case({"top": "discontinuous", "bottom": "continuous", "left": "continuous", "right": "continuous"}) == "one_long_discontinuous"
+
+    # 4. Two adjacent edges discontinuous: 1 long, 1 short continuous
+    assert map_edges_to_case({"top": "discontinuous", "bottom": "continuous", "left": "discontinuous", "right": "continuous"}) == "two_adjacent_discontinuous"
+
+    # 5. Two short edges discontinuous: 2 long, 0 short continuous
+    assert map_edges_to_case({"top": "continuous", "bottom": "continuous", "left": "discontinuous", "right": "discontinuous"}) == "two_short_discontinuous"
+
+    # 6. Two long edges discontinuous: 0 long, 2 short continuous
+    assert map_edges_to_case({"top": "discontinuous", "bottom": "discontinuous", "left": "continuous", "right": "continuous"}) == "two_long_discontinuous"
+
+    # 7. Three edges discontinuous (one long edge continuous): 1 long, 0 short continuous
+    assert map_edges_to_case({"top": "continuous", "bottom": "discontinuous", "left": "discontinuous", "right": "discontinuous"}) == "three_discontinuous_one_long_continuous"
+
+    # 8. Three edges discontinuous (one short edge continuous): 0 long, 1 short continuous
+    assert map_edges_to_case({"top": "discontinuous", "bottom": "discontinuous", "left": "continuous", "right": "discontinuous"}) == "three_discontinuous_one_short_continuous"
+
+    # 9. Four edges discontinuous: 0 long, 0 short continuous
+    assert map_edges_to_case({"top": "discontinuous", "bottom": "discontinuous", "left": "discontinuous", "right": "discontinuous"}) == "four_discontinuous"
+
+
+def test_two_way_interior_panel_reproduces_moments():
+    # 5 m x 6 m panel -> lx = 5.0, ly = 6.0, ly/lx = 1.2
+    h = 200.0
+    sw = 25.0 * h / 1000.0  # 5.0 kN/m²
+    gk = 1.5
+    qk = 2.5
+    n = 1.35 * (gk + sw) + 1.5 * qk  # 1.35 * 6.5 + 1.5 * 2.5 = 8.775 + 3.75 = 12.525 kN/m²
+
+    data = {
+        "slab": {"type": "two_way", "h": h},
+        "materials": {"concrete": "C30/37", "fyk": 500, "ductility": "B", "dg": 20},
+        "panel": {
+            "lx": 5.0, "ly": 6.0,
+            "edges": {"top": "continuous", "bottom": "continuous", "left": "continuous", "right": "continuous"},
+        },
+        "reinforcement": {
+            "bottom_x_dia": 12, "bottom_x_s": 200,
+            "bottom_y_dia": 12, "bottom_y_s": 200,
+            "top_x_dia": 12, "top_x_s": 200,
+            "top_y_dia": 12, "top_y_s": 200,
+            "cover": 25, "delta_c_dev": 10,
+        },
+        "actions": {"mode": "analysis", "gk": gk, "qk": qk, "self_weight": True, "category": "B"},
+        "durability": {"exposure": "XC1", "cement_group": "All", "fire_period": "none"},
+    }
+
+    res = check_slab(data)
+
+    # From Table 8 for Interior panel at ly/lx = 1.2:
+    # bsx_mid = 0.032, bsx_sup = 0.042, bsy_mid = 0.024, bsy_sup = 0.032
+    # lx^2 = 25.0
+    expected_msx_mid = 0.032 * n * 25.0
+    expected_msx_sup = 0.042 * n * 25.0
+    expected_msy_mid = 0.024 * n * 25.0
+    expected_msy_sup = 0.032 * n * 25.0
+
+    derived = res["derived"]
+    assert derived["msx_mid"] == pytest.approx(expected_msx_mid, rel=1e-3)
+    assert derived["msx_sup"] == pytest.approx(expected_msx_sup, rel=1e-3)
+    assert derived["msy_mid"] == pytest.approx(expected_msy_mid, rel=1e-3)
+    assert derived["msy_sup"] == pytest.approx(expected_msy_sup, rel=1e-3)
+
+
+def test_two_way_ly_lx_greater_than_2_validation_error():
+    from ec2.inputs import ValidationError
+
+    data = {
+        "slab": {"type": "two_way", "h": 150},
+        "materials": {"concrete": "C30/37", "fyk": 500, "ductility": "B", "dg": 20},
+        "panel": {
+            "lx": 3.0, "ly": 6.6,  # 6.6 / 3.0 = 2.2 > 2.0
+            "edges": {"top": "continuous", "bottom": "continuous", "left": "continuous", "right": "continuous"},
+        },
+        "reinforcement": {
+            "bottom_x_dia": 10, "bottom_x_s": 200, "bottom_y_dia": 10, "bottom_y_s": 200,
+            "top_x_dia": "none", "top_x_s": 0, "top_y_dia": "none", "top_y_s": 0,
+            "cover": 25, "delta_c_dev": 10,
+        },
+        "actions": {"mode": "analysis", "gk": 1.0, "qk": 2.0, "self_weight": True, "category": "B"},
+        "durability": {"exposure": "XC1", "cement_group": "All", "fire_period": "none"},
+    }
+
+    with pytest.raises(ValidationError) as exc:
+        check_slab(data)
+    assert "panel.ly" in exc.value.errors
+    assert "one-way" in exc.value.errors["panel.ly"]
+
+
+def test_two_way_discontinuous_edges_have_na_support_moments():
+    # Four edges discontinuous panel:
+    data = {
+        "slab": {"type": "two_way", "h": 180},
+        "materials": {"concrete": "C30/37", "fyk": 500, "ductility": "B", "dg": 20},
+        "panel": {
+            "lx": 4.0, "ly": 5.0,
+            "edges": {"top": "discontinuous", "bottom": "discontinuous", "left": "discontinuous", "right": "discontinuous"},
+        },
+        "reinforcement": {
+            "bottom_x_dia": 10, "bottom_x_s": 200, "bottom_y_dia": 10, "bottom_y_s": 200,
+            "top_x_dia": "none", "top_x_s": 0, "top_y_dia": "none", "top_y_s": 0,
+            "cover": 25, "delta_c_dev": 10,
+        },
+        "actions": {"mode": "analysis", "gk": 1.0, "qk": 2.0, "self_weight": True, "category": "B"},
+        "durability": {"exposure": "XC1", "cement_group": "All", "fire_period": "none"},
+    }
+
+    res = check_slab(data)
+    checks_by_id = {c.id: c for c in res["checks"]}
+    assert checks_by_id["bending_top_x"].status == "na"
+    assert checks_by_id["bending_top_y"].status == "na"
+    assert checks_by_id["bending_bottom_x"].status in ("pass", "fail")
+    assert checks_by_id["bending_bottom_y"].status in ("pass", "fail")
+
