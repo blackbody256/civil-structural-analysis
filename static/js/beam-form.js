@@ -113,6 +113,7 @@ function switchTab(name) {
     $(`tab-${t}`).setAttribute("aria-selected", String(t === name));
     $(`panel-${t}`).classList.toggle("is-active", t === name);
   }
+  form.classList.toggle("report-active", name === "report");
   if (history.replaceState) {
     history.replaceState(null, "", `#${name}`);
   } else {
@@ -124,6 +125,7 @@ function switchTab(name) {
       frame.src = "/beam/report?embed=1";
     }
     resizeReportFrame();
+    setTimeout(resizeReportFrame, 300);       // the frame is wider now: its height changes
   }
 }
 
@@ -695,6 +697,8 @@ function resizeReportFrame() {
   try {
     const frame = $("report-frame");
     if (frame?.contentDocument?.documentElement) {
+      // shrink first: scrollHeight never reports less than the frame's current height
+      frame.style.height = "800px";
       frame.style.height = (frame.contentDocument.documentElement.scrollHeight + 30) + "px";
     }
   } catch (e) {}
