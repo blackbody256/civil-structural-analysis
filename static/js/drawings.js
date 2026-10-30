@@ -514,7 +514,7 @@ export function drawBeamSection(target, sec, opts = {}) {
 
 export function drawSlabSection(target, sec, opts = {}) {
   const W = opts.width || 420;
-  const H = opts.height || 260;
+  const H = opts.height || 300;
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Slab 1 m strip cross-section" });
   if (!sec || !(sec.h > 0)) {
     svg.append(text(W / 2, H / 2, "Slab thickness incomplete", { "text-anchor": "middle", fill: MUTED }));
@@ -548,7 +548,7 @@ export function drawSlabSection(target, sec, opts = {}) {
   const ty_s = has_ty ? Number(sec.top_y?.s ?? sec.top_y_s ?? 200) : null;
   const ty_As = has_ty ? Number(sec.top_y?.As ?? sec.top_y_As ?? Math.round((Math.PI * ty_dia * ty_dia / 4) * 1000 / ty_s)) : 0;
 
-  const padL = 60, padR = 40, padT = 45, padB = 65;
+  const padL = 60, padR = 40, padT = 60, padB = 92;
   const scale = Math.min((W - padL - padR) / 1000, (H - padT - padB) / h);
   const w_px = 1000 * scale;
   const x0 = padL + (W - padL - padR - w_px) / 2;
@@ -635,11 +635,12 @@ export function drawSlabSection(target, sec, opts = {}) {
   if (has_tx) {
     let tx_txt = `Top x: H${tx_dia} @ ${tx_s}`;
     if (tx_As) tx_txt += ` (${tx_As} mm²/m)`;
-    svg.append(text(X(0), Y(h) - 14, tx_txt, { fill: INK, "font-size": 11, "font-weight": 700 }));
+    // one label per line, so the x and y labels never run into each other
+    svg.append(text(X(0), Y(h) - (has_ty ? 30 : 14), tx_txt, { fill: INK, "font-size": 11, "font-weight": 700 }));
     if (has_ty) {
       let ty_txt = `Top y: H${ty_dia} @ ${ty_s}`;
       if (ty_As) ty_txt += ` (${ty_As} mm²/m)`;
-      svg.append(text(X(1000), Y(h) - 14, ty_txt, { fill: ACCENT, "font-size": 11, "font-weight": 700, "text-anchor": "end" }));
+      svg.append(text(X(0), Y(h) - 14, ty_txt, { fill: ACCENT, "font-size": 11, "font-weight": 700 }));
     }
   } else {
     svg.append(text(X(0), Y(h) - 14, "No top reinforcement", { fill: MUTED, "font-size": 10.5 }));
@@ -651,8 +652,8 @@ export function drawSlabSection(target, sec, opts = {}) {
   let by_txt = `Bottom ${by_kind}: H${by_dia} @ ${by_s}`;
   if (by_As) by_txt += ` (${by_As} mm²/m)`;
 
-  svg.append(text(X(0), yBase + 46, bx_txt, { fill: INK, "font-size": 11, "font-weight": 700 }));
-  svg.append(text(X(1000), yBase + 46, by_txt, { fill: ACCENT, "font-size": 11, "font-weight": 700, "text-anchor": "end" }));
+  svg.append(text(X(0), yBase + 62, bx_txt, { fill: INK, "font-size": 11, "font-weight": 700 }));
+  svg.append(text(X(0), yBase + 78, by_txt, { fill: ACCENT, "font-size": 11, "font-weight": 700 }));
 
   target.replaceChildren(svg);
   return svg;

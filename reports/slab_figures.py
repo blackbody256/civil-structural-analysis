@@ -196,7 +196,8 @@ def strip_figure(section):
 
 
 def panel_figure(panel):
-    """Plan view of a two-way slab panel to scale (lx across, ly up):
+    """Plan view of a two-way slab panel to scale: ly across, lx up, so that the top and bottom
+    edges are the long edges as on the input page:
 
     continuous edges thick line with hatching outside, discontinuous thin line;
     dimension lines lx, ly; direction arrows;
@@ -214,9 +215,9 @@ def panel_figure(panel):
     fig = Fig(640)
 
     # Scale to fit inside available area
-    scale = min(420.0 / lx, 390.0 / ly)
-    w_px = lx * scale
-    h_px = ly * scale
+    scale = min(560.0 / ly, 330.0 / lx)
+    w_px = ly * scale
+    h_px = lx * scale
     x_mid, y_mid = 500.0, 335.0
 
     x0 = x_mid - w_px / 2.0
@@ -274,7 +275,7 @@ def panel_figure(panel):
     fig.line(x0, y_dim_x, x1, y_dim_x, c="ink", sw=1.0)
     fig.line(x0 - 4, y_dim_x + 4, x0 + 4, y_dim_x - 4, c="ink", sw=1.3)
     fig.line(x1 - 4, y_dim_x + 4, x1 + 4, y_dim_x - 4, c="ink", sw=1.3)
-    fig.text(x_mid, y_dim_x + 18, f"lx = {lx:.2f} m", c="ink", size=14, a="m", b=True)
+    fig.text(x_mid, y_dim_x + 18, f"ly = {ly:.2f} m (long edges)", c="ink", size=14, a="m", b=True)
 
     # Dimension lines: ly up
     x_dim_y = x0 - 45
@@ -283,7 +284,7 @@ def panel_figure(panel):
     fig.line(x_dim_y, y0, x_dim_y, y1, c="ink", sw=1.0)
     fig.line(x_dim_y - 4, y0 + 4, x_dim_y + 4, y0 - 4, c="ink", sw=1.3)
     fig.line(x_dim_y - 4, y1 + 4, x_dim_y + 4, y1 - 4, c="ink", sw=1.3)
-    fig.text(x_dim_y - 10, y_mid + 5, f"ly = {ly:.2f} m", c="ink", size=14, a="e", b=True)
+    fig.text(x_dim_y - 10, y_mid + 5, f"lx = {lx:.2f} m", c="ink", size=14, a="e", b=True)
 
     # Direction arrows
     fig.arrow(x_mid - w_px * 0.35, y_mid, x_mid + w_px * 0.35, y_mid, c="muted", sw=1.0, head=7)
@@ -312,15 +313,16 @@ def panel_figure(panel):
     else:
         fig.text(x_mid, y1 - 10, "Discontinuous", c="muted", size=12, a="m")
 
+    # short edges: the left label above the middle, the right one below it, so they never overlap
     if left_cont:
-        fig.text(x0 + 12, y_mid - 40, f"msy,sup = −{msy_sup:.2f} kNm/m", c="accent", size=13, a="s", b=True)
+        fig.text(x0 + 10, y_mid - 52, f"msy,sup = −{msy_sup:.2f}", c="accent", size=13, a="s", b=True)
     else:
-        fig.text(x0 + 12, y_mid - 40, "Discontinuous", c="muted", size=12, a="s")
+        fig.text(x0 + 10, y_mid - 52, "Discontinuous", c="muted", size=12, a="s")
 
     if right_cont:
-        fig.text(x1 - 12, y_mid - 40, f"msy,sup = −{msy_sup:.2f} kNm/m", c="accent", size=13, a="e", b=True)
+        fig.text(x1 - 10, y_mid + 62, f"msy,sup = −{msy_sup:.2f}", c="accent", size=13, a="e", b=True)
     else:
-        fig.text(x1 - 12, y_mid - 40, "Discontinuous", c="muted", size=12, a="e")
+        fig.text(x1 - 10, y_mid + 62, "Discontinuous", c="muted", size=12, a="e")
 
     # Shear summary note
     shears = panel.get("shears") or {}

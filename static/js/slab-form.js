@@ -399,10 +399,11 @@ function drawPanelPlan() {
   const W = 280, H = 200;
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Interactive panel plan" });
 
-  const maxW = 160, maxH = 130;
-  const scale = Math.min(maxW / lx, maxH / ly);
-  const pw = Math.max(lx * scale, 70);
-  const ph = Math.max(ly * scale, 70);
+  // ly across and lx up: the top and bottom edges are the long edges, as the labels say
+  const maxW = 180, maxH = 130;
+  const scale = Math.min(maxW / ly, maxH / lx);
+  const pw = Math.max(ly * scale, 70);
+  const ph = Math.max(lx * scale, 70);
   const cx = W / 2, cy = H / 2;
   const x0 = cx - pw / 2;
   const x1 = cx + pw / 2;
@@ -469,7 +470,7 @@ function drawPanelPlan() {
   svg.append(s("text", {
     x: cx, y: cy - 8, "text-anchor": "middle", "font-size": 12, "font-weight": 600,
     fill: "var(--draw-ink, #192329)",
-  }, `${lx.toFixed(1)} m × ${ly.toFixed(1)} m`));
+  }, `ly ${ly.toFixed(1)} m × lx ${lx.toFixed(1)} m`));
   svg.append(s("text", {
     x: cx, y: cy + 10, "text-anchor": "middle", "font-size": 10.5,
     fill: "var(--draw-muted, #6a747a)",

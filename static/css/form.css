@@ -370,3 +370,14 @@ details.more > .fields + .check { margin-top: 14px; }
   #supports-table th:last-child, #segments-table th:last-child { width: 42px; }
   .grid-table .control { min-width: 0; }
 }
+
+/* two-way slab: the four edge selects around the panel plan; on phones the plan comes first and the
+   selects sit two by two below it */
+.edge-grid { display: grid; grid-template-columns: 140px minmax(0, 1fr) 140px; grid-template-rows: auto 1fr auto;
+  gap: 8px; align-items: center; justify-items: center; margin-top: 10px; }
+@media (max-width: 560px) {
+  .edge-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: none; }
+  .edge-grid > * { grid-column: auto !important; grid-row: auto !important; justify-self: stretch !important; }
+  .edge-grid > #panel-plan-interactive { grid-column: 1 / -1 !important; order: -1; }
+  .edge-grid select { width: 100%; }
+}
