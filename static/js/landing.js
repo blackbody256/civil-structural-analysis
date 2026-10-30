@@ -1,11 +1,12 @@
 import { el, getJSON } from "./common.js";
 import { drawBeamModel } from "./beam-canvas.js";
-import { beamSectionFromInputs, drawBeamSection, drawElevation, drawSection, s, sectionFromInputs } from "./drawings.js";
+import { beamSectionFromInputs, drawBeamSection, drawElevation, drawSection, drawSlabSection, s, sectionFromInputs } from "./drawings.js";
 
 // Card accents from Beam Pro palette
 const CARD_ACCENTS = {
   beam: { light: "#6366F1", dark: "#818CF8" },
   column: { light: "#8B5CF6", dark: "#A78BFA" },
+  slab: { light: "#10B981", dark: "#34D399" },
 };
 
 const PLANNED_ACCENTS = {
@@ -38,6 +39,49 @@ const ART = {
         { type: "point", W: 150, x: 15 },
       ],
     });
+    elevation.replaceChildren(svg);
+  },
+  slab(section, elevation) {
+    const sample = {
+      slab_type: "one_way",
+      b: 1000,
+      h: 175,
+      cover: 25,
+      bottom_x: { dia: 12, s: 200, As: 565 },
+      bottom_y: { dia: 10, s: 300, As: 262 },
+      top_x: { dia: 12, s: 200, As: 565 },
+      top_y: { dia: null, s: 200, As: 0 },
+    };
+    drawSlabSection(section, sample, { width: 380, height: 210 });
+
+    const svg = s("svg", { viewBox: "0 0 280 200", role: "img", "aria-label": "Two-way slab panel plan" });
+    const pw = 150, ph = 120, x0 = 65, y0 = 35, x1 = x0 + pw, y1 = y0 + ph;
+    svg.append(s("polygon", {
+      points: `${x0},${y0} ${x1},${y0} ${x1},${y1} ${x0},${y1}`,
+      fill: "var(--draw-concrete, #ece6db)",
+      stroke: "var(--draw-rule, #e2ddd5)",
+      "stroke-width": 1,
+    }));
+    // Continuous edges with hatching
+    // Top
+    svg.append(s("line", { x1: x0, y1: y0, x2: x1, y2: y0, stroke: "var(--draw-ink, #192329)", "stroke-width": 3 }));
+    for (let x = x0 + 4; x < x1; x += 8) svg.append(s("line", { x1: x, y1: y0, x2: x + 6, y2: y0 - 7, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
+    // Bottom
+    svg.append(s("line", { x1: x0, y1: y1, x2: x1, y2: y1, stroke: "var(--draw-ink, #192329)", "stroke-width": 3 }));
+    for (let x = x0 + 4; x < x1; x += 8) svg.append(s("line", { x1: x, y1: y1, x2: x - 6, y2: y1 + 7, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
+    // Left
+    svg.append(s("line", { x1: x0, y1: y0, x2: x0, y2: y1, stroke: "var(--draw-ink, #192329)", "stroke-width": 3 }));
+    for (let y = y0 + 4; y < y1; y += 8) svg.append(s("line", { x1: x0, y1: y, x2: x0 - 7, y2: y + 6, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
+    // Right
+    svg.append(s("line", { x1: x1, y1: y0, x2: x1, y2: y1, stroke: "var(--draw-ink, #192329)", "stroke-width": 1.4 }));
+
+    // Direction arrows & moments
+    svg.append(s("line", { x1: x0 + 15, y1: (y0 + y1) / 2, x2: x1 - 15, y2: (y0 + y1) / 2, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
+    svg.append(s("line", { x1: (x0 + x1) / 2, y1: y0 + 15, x2: (x0 + x1) / 2, y2: y1 - 15, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
+    svg.append(s("text", { x: (x0 + x1) / 2, y: (y0 + y1) / 2 - 5, "text-anchor": "middle", "font-size": 11, "font-weight": "700", fill: "var(--draw-bmd, #059669)" }, "msx,mid"));
+    svg.append(s("text", { x: (x0 + x1) / 2, y: (y0 + y1) / 2 + 13, "text-anchor": "middle", "font-size": 11, "font-weight": "700", fill: "var(--draw-bmd, #059669)" }, "msy,mid"));
+    svg.append(s("text", { x: (x0 + x1) / 2, y: y1 + 20, "text-anchor": "middle", "font-size": 11, fill: "var(--draw-ink, #192329)" }, "lx = 5.0 m × ly = 6.0 m"));
+
     elevation.replaceChildren(svg);
   },
 };
@@ -276,11 +320,20 @@ function feature(item) {
 }
 
 function planned(items) {
+  const allPlanned = [
+    ...items,
+    {
+      id: "ribbed-slab",
+      title: "Ribbed slab",
+      chapter: 3,
+      checks: ["Ribbed slab: data being gathered"],
+    },
+  ];
   return el("section", { class: "planned-section" },
     el("h3", {}, "Coming next"),
     el("p", { class: "lede" }, "The other elements in the guide, planned in this order."),
-    el("div", { class: "planned-grid" }, items.map((item) => {
-      const tileColor = PLANNED_ACCENTS[item.id] || "#6366F1";
+    el("div", { class: "planned-grid" }, allPlanned.map((item) => {
+      const tileColor = PLANNED_ACCENTS[item.id] || "#10B981";
       return el("div", { class: "tile-planned", style: `--tile-color: ${tileColor};` },
         el("div", { class: "tile-top" },
           el("span", { class: "tile-name" }, item.title),

@@ -85,6 +85,41 @@ The **Examples and files** menu provides:
 | Deflection | For every span: basic span/depth ratio × F1 × F2 × F3 against the actual l/d (K from the span's end conditions); the elastic deflection for information |
 | Detailing | As,min of each tension face, As,max, clear spacing of the bottom and top bars, crack control |
 
+## Slab (solid, one-way and two-way) (Chapter 3)
+
+The slab module checks solid reinforced concrete slabs designed per metre width ($b = 1000$ mm).
+> **Ribbed slabs: not yet** (the client is gathering the data for ribbed slabs; shown as "Ribbed slab: coming later").
+
+### Method
+* **One-way solid slab**: Analysed as a 1 m wide continuous strip across supports.
+  - **Pattern loading**: For continuous slabs with two or more spans, three load cases are solved:
+    * Case A: all spans loaded ($1.35\cdot n_g + 1.5\cdot n_q$)
+    * Case B: all spans $1.35\cdot n_g$, odd spans also $1.5\cdot n_q$
+    * Case C: all spans $1.35\cdot n_g$, even spans also $1.5\cdot n_q$
+  - The governing envelope yields maximum sagging moment, maximum hogging moment, and maximum shear force with their locations and governing case.
+* **Two-way solid slab**: Rectangular panel supported on four edges by beams or walls with restrained corners.
+  - Bending moments are determined using Table 8 moment coefficients from the guide (BS 8110-1 Table 3.14) across all 9 edge boundary combinations with linear interpolation in $l_y/l_x \le 2.0$.
+  - Design moments: $m_{sx} = \beta_{sx}\cdot n\cdot l_x^2$ and $m_{sy} = \beta_{sy}\cdot n\cdot l_x^2$ per metre width.
+  - Design shear: $V_{Ed} = 0.5\cdot n\cdot l_x$ (or $0.6\cdot n\cdot l_x$ at continuous long edges).
+
+### Checks
+| Group | Check |
+|---|---|
+| Scope | Concrete class $\le$ C50/60, $400 \le f_{yk} \le 600$ MPa |
+| Durability & cover | $c_{nom} \ge c_{min,dur} + \Delta c_{dev}$; bond cover to outer bars (no links) |
+| Fire | Tabulated minimum slab thickness $h_s$ and axis distance $a$ (BS EN 1992-1-2 Table 5.8 / Guide Table 2) |
+| Design actions | Envelope of pattern loading (one-way) or Table 8 moment coefficients (two-way) |
+| Bending | $K = M/(b\cdot d^2\cdot f_{ck}) \le K'$ (0.168 limited); no compression steel in slabs (fail requires thickness increase); $z = \min(d/2(1 + \sqrt{1 - 3.53K}), 0.95d)$; $A_{s,req} = M/(f_{yd}\cdot z)$ vs provided $A_s$ |
+| Shear | Design shear stress $v_{Ed} = V_{Ed}/(b\cdot d) \le v_{Rd,c}$ (EC2 Cl 6.2.2 concrete shear capacity without reinforcement; no shear links in slabs) |
+| Deflection | Span-to-effective-depth ratio $l/d \le (l/d)_{allow} = \text{basic } l/d \times F_1 \times F_2 \times F_3$ (quasi-permanent stress $\sigma_s$) |
+| Detailing | $A_{s,min} = \max(0.26\frac{f_{ctm}}{f_{yk}}bd, 0.0013bd)$, $A_{s,max} = 0.04bh$; secondary steel $\ge 20\%$ main steel (one-way); bar spacing limits ($\min(2h, 250)$ mm main, $\min(3h, 400)$ mm secondary); clear spacing; crack control ($h \le 200$ mm deemed satisfied; crack table limits for $h > 200$ mm) |
+
+### Examples
+1. **One-way slab (correct)**: Three equal spans of 4.5 m (L = 13.5 m), $h = 175$ mm, C30/37 concrete, $g_k = 1.5$ kN/m² + self-weight, $q_k = 2.5$ kN/m², category B, XC1, R60, cover 25 mm. Reinforcement: bottom x H12 @ 200, bottom y H10 @ 300, top x H12 @ 200. All 17 checks pass.
+2. **One-way slab with mistakes**: Same spans and loads, but $h = 125$ mm, C25/30 concrete, bottom x H8 @ 300, no top bars, cover 15 mm, exposure XC3/4, fire R90. Exactly 7 checks fail.
+3. **Two-way slab (correct)**: Interior panel $5.0 \times 6.0$ m with all four edges continuous, $h = 200$ mm, C30/37 concrete, $g_k = 1.5$ kN/m² + self-weight, $q_k = 2.5$ kN/m², XC1, R60, cover 25 mm. Reinforcement: H10 @ 200 in all layers. All 16 checks pass.
+4. **Two-way slab with mistakes**: Same panel with all four edges discontinuous, $h = 140$ mm, bottom bars H8 @ 300 both ways, no top bars. Exactly 5 checks fail.
+
 ## Tests
 
 ```bash
@@ -101,11 +136,11 @@ ec2/                calculation engine (no web code)
   durability.py     cover · fire.py  fire tables · actions.py  load combinations
   geometry.py       column section and bar layout · interaction.py  N–M resistance
   slenderness.py    effective length, slenderness, nominal curvature
-  flexure.py        bending, shear and span/depth for beams
+  flexure.py        bending, shear and span/depth for beams and slabs
   analysis.py       matrix stiffness beam analysis (the client's BeamViz Pro solver)
-  column.py · beam.py   each element's procedure → report data
+  column.py · beam.py · slab.py   each element's procedure → report data
 reports/            PDF reports (reportlab): pdf_base.py shared layout, one module per element;
-                    beam_figures.py draws the analysis figures once for the page and the PDF
+                    beam_figures.py and slab_figures.py draw analysis figures for page and PDF
 static/             HTML pages, JS, and fonts (IBM Plex for the pages, Liberation Serif for the PDF)
   css/base.css      theme tokens (light and dark) and shared components
   css/landing.css · form.css · run.css · report.css   one stylesheet per page
@@ -118,7 +153,7 @@ tests/              pytest suite
 
 ## Limits
 
-Rectangular columns; rectangular, T and L beams; normal-weight concrete up to C50/60; 50-year durability
-covers with 20 mm aggregate. Fire is checked by the tabulated method. The beam analysis is linear elastic
+Rectangular columns; rectangular, T and L beams; solid one-way and two-way slabs; normal-weight concrete up to C50/60; 50-year durability
+covers with 20 mm aggregate. Fire is checked by the tabulated method. The beam and slab analysis is linear elastic
 (no redistribution) with the gross section unless I is entered. The tool is for learning and preliminary
 checking: a qualified structural engineer must verify the inputs and results.
