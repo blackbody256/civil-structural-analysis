@@ -1,6 +1,9 @@
-"""Tests for 2D frame stiffness analysis (ec2/frame.py)."""
+"""Tests for 2D frame stiffness analysis and column actions (ec2/frame.py)."""
+import math
 import pytest
-from ec2.frame import solve
+from ec2.frame import solve, analyse_frame, column_actions
+from ec2.inputs import ValidationError
+from ec2.slenderness import PINNED
 
 
 def test_fixed_fixed_beam_midspan_point_load():
@@ -162,7 +165,6 @@ def test_unstable_frame_raises_error():
     members = [
         {"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
     ]
-    # Free roller in x only
     supports = [
         {"node": "A", "dx": False, "dy": True, "rz": False},
         {"node": "B", "dx": False, "dy": True, "rz": False},
@@ -204,3 +206,91 @@ def test_invalid_topology_errors():
             supports,
             [],
         )
+
+
+def test_analyse_frame_and_column_actions():
+    """Test analyse_frame with G/Q factoring, self-weight, and column_actions extraction."""
+    payload = {
+        "materials": {"concrete": "C30/37"},
+        "frame": {
+            "nodes": [
+                {"id": "N1", "x": 0.0, "y": 0.0},
+                {"id": "N2", "x": 0.0, "y": 3.5},
+                {"id": "N3", "x": 6.0, "y": 0.0},
+                {"id": "N4", "x": 6.0, "y": 3.5},
+            ],
+            "members": [
+                {"id": "C1", "node1": "N1", "node2": "N2", "b": 300, "h": 300},
+                {"id": "C2", "node1": "N3", "node2": "N4", "b": 300, "h": 300},
+                {"id": "B1", "node1": "N2", "node2": "N4", "b": 300, "h": 500},
+            ],
+            "supports": [
+                {"node": "N1", "type": "fixed"},
+                {"node": "N3", "type": "pin"},
+            ],
+            "loads": [
+                {"type": "udl", "member": "B1", "w": 20.0, "case": "G"},
+                {"type": "point", "member": "B1", "P": 40.0, "a": 3.0, "case": "Q"},
+                {"type": "node", "node": "N2", "fx": 15.0, "fy": 0.0, "mz": 0.0, "case": "Q"},
+            ],
+            "self_weight": True,
+            "E_method": "concrete",
+        },
+    }
+
+    res = analyse_frame(payload)
+    assert "displacements" in res
+    assert "reactions" in res
+    assert set(res["vertical_members"]) == {"C1", "C2"}
+
+    # Extract actions for C1
+    act_c1 = column_actions(res, "C1", payload["frame"]["members"], payload["frame"]["supports"])
+    assert act_c1["member"] == "C1"
+    assert act_c1["NEd"] > 0  # Compression
+    assert act_c1["l"] == pytest.approx(3.5)
+    assert act_c1["bottom_node"] == "N1"
+    assert act_c1["top_node"] == "N2"
+    assert act_c1["k_bottom"] == pytest.approx(0.1)  # Fixed support
+    assert 0.1 <= act_c1["k_top"] < 10.0  # Joint N2 with framing beam B1
+    assert act_c1["curvature"] in ("single", "double")
+
+    # Extract actions for C2
+    act_c2 = column_actions(res, "C2", payload["frame"]["members"], payload["frame"]["supports"])
+    assert act_c2["bottom_node"] == "N3"
+    assert act_c2["top_node"] == "N4"
+    assert math.isinf(act_c2["k_bottom"])  # Pinned support -> inf
+
+
+def test_column_actions_errors():
+    """column_actions raises errors for non-vertical or tension members."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0},
+        {"id": "B", "x": 4.0, "y": 0.0},
+    ]
+    members = [{"id": "B1", "node1": "A", "node2": "B", "E": 2e8, "A": 0.09, "I": 6.75e-4}]
+    supports = [{"node": "A", "type": "fixed"}, {"node": "B", "type": "pin"}]
+    loads = [{"member": "B1", "load_type": "udl_gravity", "w": 20.0}]
+
+    res = solve(nodes, members, supports, loads)
+    res["nodes"] = nodes
+
+    # Non-vertical member
+    with pytest.raises(ValueError, match="not vertical"):
+        column_actions(res, "B1", members, supports)
+
+    # Tension member
+    col_nodes = [{"id": "C1_bot", "x": 0.0, "y": 0.0}, {"id": "C1_top", "x": 0.0, "y": 3.0}]
+    col_mems = [{"id": "Col_T", "node1": "C1_bot", "node2": "C1_top", "E": 2e8, "A": 0.09, "I": 6.75e-4}]
+    col_sups = [{"node": "C1_bot", "type": "fixed"}]
+    col_loads = [{"node": "C1_top", "fx": 0.0, "fy": 100.0, "mz": 0.0}]  # Upward tension
+    res_t = solve(col_nodes, col_mems, col_sups, col_loads)
+    res_t["nodes"] = col_nodes
+    with pytest.raises(ValueError, match="in tension"):
+        column_actions(res_t, "Col_T", col_mems, col_sups)
+
+
+def test_analyse_frame_validation_errors():
+    """analyse_frame validates required inputs with Reader and raises ValidationError."""
+    with pytest.raises(ValidationError) as exc:
+        analyse_frame({"frame": {"nodes": []}})
+    assert "frame.nodes" in exc.value.errors
