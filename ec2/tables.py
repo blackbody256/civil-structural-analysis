@@ -265,3 +265,22 @@ def two_way_coefficients(case_id, ly_lx):
         "bsy_mid": bsy_mid,
     }
 
+
+
+# ---------------------------------------------------------------- ribbed slabs
+
+# Maxpan clay hollow blocks ("MAXPAN SPECIFICATIONS", LN11 Design of Ribbed and Hollow Block
+# Floors, Example 3): nominal size → mass per unit (kg) and length, width, height (mm); 8 units per m².
+MAXPANS = {
+    '4"': {"mass": 6.80, "length": 300, "width": 300, "height": 100},
+    '5"': {"mass": 7.50, "length": 300, "width": 300, "height": 125},
+    '6"': {"mass": 8.50, "length": 300, "width": 300, "height": 150},
+    '7"': {"mass": 9.80, "length": 300, "width": 300, "height": 175},
+    '8"': {"mass": 11.0, "length": 300, "width": 300, "height": 200},
+    '9"': {"mass": 12.3, "length": 300, "width": 300, "height": 230},
+    '12"': {"mass": 16.5, "length": 300, "width": 300, "height": 300},
+}
+MAXPANS_PER_M2 = 8
+
+# Square welded fabric (BS 4483 A-series) for the topping: steel area in mm²/m each way.
+MESHES = {"A98": 98, "A142": 142, "A193": 193, "A252": 252, "A393": 393}

@@ -292,15 +292,16 @@ def _m(x):
     return f"{x:.2f}"
 
 
-def _analysis_loads_one_way(inp, n_g, n_q_spans, factors):
-    """Build loads for one-way analysis."""
+def _analysis_loads_one_way(inp, n_g, n_q_spans, factors, n_q=None):
+    """Build loads for one-way analysis (n_q defaults to the area load qk on a 1 m strip)."""
+    n_q = inp.qk if n_q is None else n_q
     loads = []
     # Permanent load across whole length:
     if n_g > 0:
         loads.append({"type": "udl", "w": n_g * factors["G"], "x1": 0.0, "x2": inp.length, "line": True})
     # Variable load per span:
     for (x1, x2) in n_q_spans:
-        loads.append({"type": "udl", "w": inp.qk * factors["Q"], "x1": x1, "x2": x2, "line": True})
+        loads.append({"type": "udl", "w": n_q * factors["Q"], "x1": x1, "x2": x2, "line": True})
     # Further loads on strip:
     for ld in inp.loads:
         f = factors[ld["case"]]
@@ -312,18 +313,17 @@ def _analysis_loads_one_way(inp, n_g, n_q_spans, factors):
     return loads
 
 
-def analyse_one_way(inp):
-    """Run analysis for a 1 m wide one-way slab strip."""
-    b = 1000.0  # mm
-    h = inp.h    # mm
-    sw = (CONCRETE_DENSITY * h / 1000.0) if inp.self_weight else 0.0
-    n_g = inp.gk + sw
-    n_q = inp.qk
+def analyse_one_way(inp, n_g=None, n_q=None, inertia=None):
+    """Run the analysis of a one-way strip: a 1 m wide solid slab by default, or one rib of a ribbed
+    slab when its line loads n_g, n_q (kN/m) and second moment of area (m⁴) are given."""
+    if n_g is None:
+        sw = (CONCRETE_DENSITY * inp.h / 1000.0) if inp.self_weight else 0.0
+        n_g, n_q = inp.gk + sw, inp.qk
+        inertia = 1.0 * (inp.h / 1000.0) ** 3 / 12.0   # m⁴ per metre width
+    else:
+        sw = 0.0
     psi0, _, psi2 = psi_factors(inp.category)
-
-    # Elastic modulus and gross inertia (1 m width):
     E = (inp.E_gpa or inp.concrete.Ecm) * 1e6  # kPa
-    inertia = 1.0 * (h / 1000.0) ** 3 / 12.0   # m⁴ per metre width
 
     spans = spans_of(inp.length, inp.supports)
     internal_spans = [s for s in spans if s.kind != "cantilever"]
@@ -331,7 +331,7 @@ def analyse_one_way(inp):
 
     # Case A: all spans loaded
     spans_all = [(s.x1, s.x2) for s in spans]
-    loads_A = _analysis_loads_one_way(inp, n_g, spans_all, ULS)
+    loads_A = _analysis_loads_one_way(inp, n_g, spans_all, ULS, n_q)
 
     try:
         res_A = analyse(inp.length, inp.supports, loads_A, E, inertia)
@@ -343,19 +343,19 @@ def analyse_one_way(inp):
     if is_continuous:
         # Case B: odd spans also loaded
         spans_odd = [(s.x1, s.x2) for s in spans if s.i % 2 == 1]
-        loads_B = _analysis_loads_one_way(inp, n_g, spans_odd, ULS)
+        loads_B = _analysis_loads_one_way(inp, n_g, spans_odd, ULS, n_q)
         res_B = analyse(inp.length, inp.supports, loads_B, E, inertia)
         cases["B"] = res_B
 
         # Case C: even spans also loaded
         spans_even = [(s.x1, s.x2) for s in spans if s.i % 2 == 0]
-        loads_C = _analysis_loads_one_way(inp, n_g, spans_even, ULS)
+        loads_C = _analysis_loads_one_way(inp, n_g, spans_even, ULS, n_q)
         res_C = analyse(inp.length, inp.supports, loads_C, E, inertia)
         cases["C"] = res_C
 
     # Quasi-permanent run (Case A loads with G=1.0, Q=psi2):
     qp_factors = {"Ed": 1.0 / GAMMA_G, "G": 1.0, "Q": psi2}
-    loads_qp = _analysis_loads_one_way(inp, n_g, spans_all, qp_factors)
+    loads_qp = _analysis_loads_one_way(inp, n_g, spans_all, qp_factors, n_q)
     res_qp = analyse(inp.length, inp.supports, loads_qp, E, inertia)
 
     # Envelope over all cases:
@@ -834,32 +834,17 @@ def _input_echo(inp, act):
     return [{"label": k, "value": v} for k, v in rows]
 
 
-def _plots_one_way(inp, act):
+def analysis_plot(inp, act, inertia):
+    """The analysis results in the shape the beam figures draw (reports/beam_figures.py)."""
     res_A = act["res_A"]
-    res_qp = act["res_qp"]
-    b = 1000.0
-    h = inp.h
-    inertia = 1.0 * (h / 1000.0) ** 3 / 12.0
-
-    section = {
-        "shape": "rectangular",
-        "slab_type": inp.slab_type,
-        "b": b,
-        "h": h,
-        "cover": inp.cover,
-        "bottom_x": {"dia": inp.bottom_x.dia, "s": inp.bottom_x.spacing, "As": inp.bottom_x.As},
-        "bottom_y": {"dia": inp.bottom_y.dia, "s": inp.bottom_y.spacing, "As": inp.bottom_y.As},
-        "top_x": {"dia": inp.top_x.dia, "s": inp.top_x.spacing, "As": inp.top_x.As},
-        "top_y": {"dia": inp.top_y.dia, "s": inp.top_y.spacing, "As": inp.top_y.As},
-    }
-    model = {"length": inp.length, "supports": inp.supports}
-
-    analysis = {
+    return {
         "length": inp.length,
         "E": act["E"] / 1e6,  # GPa
         "segments": [{"x1": 0.0, "x2": inp.length, "I": inertia * 1e6}],
         "supports": inp.supports,
-        "loads": _analysis_loads_one_way(inp, act["n_g"], [(s.x1, s.x2) for s in act["spans"]], ULS),
+        # drawn as one total line load w (all spans loaded) plus the further loads at their design values
+        "loads": [{"type": "udl", "w": 1.35 * act["n_g"] + 1.5 * act["n_q"], "x1": 0.0, "x2": inp.length, "line": True}]
+                 + _analysis_loads_one_way(inp, 0.0, [], ULS, 0.0),
         "w": 1.35 * act["n_g"] + 1.5 * act["n_q"],
         "nodes": res_A["nodes"],
         "elements": res_A["elements"],
@@ -890,7 +875,24 @@ def _plots_one_way(inp, act):
             "case_v": act["case_v"],
         },
     }
-    return {"section": section, "model": model, "analysis": analysis}
+
+
+def _plots_one_way(inp, act):
+    b = 1000.0
+    h = inp.h
+    section = {
+        "shape": "rectangular",
+        "slab_type": inp.slab_type,
+        "b": b,
+        "h": h,
+        "cover": inp.cover,
+        "bottom_x": {"dia": inp.bottom_x.dia, "s": inp.bottom_x.spacing, "As": inp.bottom_x.As},
+        "bottom_y": {"dia": inp.bottom_y.dia, "s": inp.bottom_y.spacing, "As": inp.bottom_y.As},
+        "top_x": {"dia": inp.top_x.dia, "s": inp.top_x.spacing, "As": inp.top_x.As},
+        "top_y": {"dia": inp.top_y.dia, "s": inp.top_y.spacing, "As": inp.top_y.As},
+    }
+    model = {"length": inp.length, "supports": inp.supports}
+    return {"section": section, "model": model, "analysis": analysis_plot(inp, act, 1.0 * (h / 1000.0) ** 3 / 12.0)}
 
 
 class CheckDict(dict):
@@ -901,7 +903,14 @@ class CheckDict(dict):
             raise AttributeError(name)
 
 
+def _is_ribbed(data):
+    return isinstance(data, dict) and isinstance(data.get("slab"), dict) and data["slab"].get("type") == "ribbed"
+
+
 def check_slab(data):
+    if _is_ribbed(data):
+        from .ribbed import check_ribbed
+        return check_ribbed(data)
     inp = parse_input(data)
 
     if inp.slab_type == "one_way":
@@ -1234,6 +1243,9 @@ def _bending_check_two_way(inp, M_ed, layer, name, d, is_hogging, position_label
 
 def analyse_input(data):
     """Analysis only, with design fields replaced by safe defaults (for live preview)."""
+    if _is_ribbed(data):
+        from .ribbed import analyse_ribbed
+        return analyse_ribbed(data)
     d = _upgrade(data)
     d["reinforcement"] = {
         "bottom_x_dia": 10, "bottom_x_s": 200,

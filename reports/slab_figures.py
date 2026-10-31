@@ -27,6 +27,7 @@ from reports.beam_figures import (
 
 __all__ = [
     "strip_figure",
+    "ribbed_figure",
     "panel_figure",
     "slab_figures",
     "loading_figure",
@@ -195,6 +196,78 @@ def strip_figure(section):
     return fig.spec()
 
 
+def ribbed_figure(section):
+    """Cross-section of a ribbed slab across two ribs: Maxpans between the ribs, the topping with its
+    fabric, the bars in each rib, and the dimensions bw, s, hf and h."""
+    bw, hf, ph, h = (float(section[k]) for k in ("bw", "hf", "ph", "h"))
+    s_mm = float(section["spacing"])
+    cover = float(section.get("cover", 25))
+    link = float(section.get("link_dia") or 0)
+    bot, top = section.get("bottom") or {}, section.get("top") or {}
+    width = 2 * s_mm                        # two rib spacings, a rib in the middle of each
+    x0, x1 = 120, 880
+    k = (x1 - x0) / width
+    y_top = 70
+    y_bot = y_top + h * k
+    fig = Fig(int(y_bot + 150))
+    X = lambda mm: x0 + mm * k
+    Y = lambda mm: y_bot - mm * k          # mm from the soffit
+    ribs = [s_mm / 2, 3 * s_mm / 2]
+    # topping and ribs as one outline
+    pts = [(X(0), Y(h)), (X(width), Y(h)), (X(width), Y(ph))]
+    for c in reversed(ribs):
+        pts += [(X(c + bw / 2), Y(ph)), (X(c + bw / 2), Y(0)), (X(c - bw / 2), Y(0)), (X(c - bw / 2), Y(ph))]
+    pts += [(X(0), Y(ph))]
+    fig.poly(pts, c="ink", f="concrete", closed=True, sw=1.5)
+    # Maxpans: crossed boxes between the ribs (half pans at the edges)
+    pan_edges = [(0, ribs[0] - bw / 2), (ribs[0] + bw / 2, ribs[1] - bw / 2), (ribs[1] + bw / 2, width)]
+    for a, b in pan_edges:
+        box = [(X(a), Y(ph)), (X(b), Y(ph)), (X(b), Y(0)), (X(a), Y(0))]
+        fig.poly(box, c="muted", f="paper", closed=True, sw=1.0)
+        fig.line(X(a), Y(ph), X(b), Y(0), c="muted", sw=0.8)
+        fig.line(X(a), Y(0), X(b), Y(ph), c="muted", sw=0.8)
+    # fabric in the topping
+    if section.get("mesh"):
+        fig.line(X(0), Y(h - hf / 2), X(width), Y(h - hf / 2), c="accent", sw=1.4, dash=[6, 4])
+    # bars and links in each rib
+    for c in ribs:
+        if link:
+            fig.poly([(X(c - bw / 2 + cover), Y(h - cover)), (X(c + bw / 2 - cover), Y(h - cover)),
+                      (X(c + bw / 2 - cover), Y(cover)), (X(c - bw / 2 + cover), Y(cover))], c="accent", closed=True,
+                     sw=max(link * k, 1.2))
+        for face, data, at in (("bottom", bot, cover + link + (bot.get("dia") or 10) / 2),
+                               ("top", top, h - cover - link - (top.get("dia") or 10) / 2)):
+            n, dia = int(data.get("n") or 0), data.get("dia")
+            if not dia or not n:
+                continue
+            lo = c - bw / 2 + cover + link + dia / 2
+            hi = c + bw / 2 - cover - link - dia / 2
+            xs = [(lo + hi) / 2] if n == 1 else [lo + (hi - lo) * i / (n - 1) for i in range(n)]
+            for xb in xs:
+                fig.circle(X(xb), Y(at), max(dia / 2 * k, 3.0), c="ink", f="ink", sw=0.8)
+    # dimensions: rib width, rib centres, topping and overall depth
+    yd = y_bot + 30
+    c0 = ribs[0]
+    fig.line(X(c0 - bw / 2), yd, X(c0 + bw / 2), yd, c="ink", sw=1.0)
+    fig.text(X(c0), yd + 18, f"bw = {bw:g}", c="ink", size=14, a="m")
+    yd2 = y_bot + 66
+    fig.line(X(ribs[0]), yd2, X(ribs[1]), yd2, c="ink", sw=1.0)
+    for xx in (ribs[0], ribs[1]):
+        fig.line(X(xx), y_bot + 4, X(xx), yd2 + 6, c="muted", sw=0.7, dash=[3, 3])
+    fig.text((X(ribs[0]) + X(ribs[1])) / 2, yd2 + 18, f"ribs at s = {s_mm:g} mm", c="ink", size=14, a="m")
+    fig.line(X(width) + 22, Y(h), X(width) + 22, Y(0), c="ink", sw=1.0)
+    fig.text(X(width) + 30, (Y(h) + Y(0)) / 2 + 5, f"h = {h:g}", c="ink", size=14, a="s")
+    fig.text(X(width) + 30, Y(h - hf / 2) + 5, f"hf = {hf:g}", c="muted", size=13, a="s")
+    # callouts
+    label = lambda n, d: f"{n}H{d:g}" if d and n else "none"
+    fig.text(x0, y_top - 30, f"Top bars per rib: {label(int(top.get('n') or 0), top.get('dia'))}"
+             + (f"; fabric {section['mesh']} in the topping" if section.get("mesh") else "; no fabric"), c="ink", size=14, a="s", b=True)
+    fig.text(x0, y_top - 10, f"Maxpan {section.get('maxpan', '')}: {ph:g} mm deep", c="muted", size=13, a="s")
+    fig.text(x0, y_bot + 118, f"Bottom bars per rib: {label(int(bot.get('n') or 0), bot.get('dia'))}"
+             + (f"; links H{link:g}" if link else "; no links") + f"; cnom = {cover:g} mm", c="ink", size=14, a="s", b=True)
+    return fig.spec()
+
+
 def panel_figure(panel):
     """Plan view of a two-way slab panel to scale: ly across, lx up, so that the top and bottom
     edges are the long edges as on the input page:
@@ -340,7 +413,8 @@ def slab_figures(report):
     figures = {}
 
     if "section" in plots and plots["section"]:
-        figures["strip"] = strip_figure(plots["section"])
+        sec = plots["section"]
+        figures["strip"] = ribbed_figure(sec) if sec.get("slab_type") == "ribbed" else strip_figure(sec)
 
     analysis = plots.get("analysis")
     if analysis:

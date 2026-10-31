@@ -4,7 +4,7 @@ from reportlab.platypus import CondPageBreak, KeepTogether, Paragraph, Spacer, T
 
 from reports.beam_pdf import WIDTH, _table, render_figure
 from reports.pdf_base import RULE, build_report, styles
-from reports.slab_figures import slab_figures, strip_figure
+from reports.slab_figures import ribbed_figure, slab_figures, strip_figure
 
 
 def one_way_analysis_section(report):
@@ -23,12 +23,15 @@ def one_way_analysis_section(report):
             Paragraph(caption, st["muted"]),
         ])
 
+    ribbed = (report["plots"].get("section") or {}).get("slab_type") == "ribbed"
+    what = "one rib of the ribbed slab (T-section)" if ribbed else "the 1 m wide slab strip"
     flow = [
         CondPageBreak(120 * mm),
         Paragraph("2. Structural analysis", st["h1"]),
-        Paragraph("Matrix stiffness analysis of the 1 m wide slab strip under the design loads. Positive shear and "
+        Paragraph(f"Matrix stiffness analysis of {what} under the design loads. Positive shear and "
                   "hogging moments are drawn above the x-axis; negative shear and sagging moments below it.", st["body"]),
-        block("Strip, loads and stiffness", figs["loading"], "Design loads on the 1 m wide strip, with the dimensions "
+        block("Rib, loads and stiffness" if ribbed else "Strip, loads and stiffness", figs["loading"],
+              f"Design loads on {'one rib' if ribbed else 'the 1 m wide strip'}, with the dimensions "
               "between supports and loads, and the second moment of area of each part."),
         block("Analytical model", figs["model"], "Nodes are circled and elements boxed. Degrees of freedom: "
               "free ones (blue) numbered first, restrained ones (green, crossed) after them."),
@@ -137,11 +140,13 @@ def build_slab_pdf(report):
     """Build the complete PDF report for a slab check."""
     sec_data = report["plots"].get("section")
     if sec_data:
-        strip_fig = strip_figure(sec_data)
+        ribbed = sec_data.get("slab_type") == "ribbed"
+        strip_fig = ribbed_figure(sec_data) if ribbed else strip_figure(sec_data)
         dwg = render_figure(strip_fig, width=170 * mm)
         sec = Table([[dwg]], colWidths=[175 * mm])
         sec.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, RULE), ("ALIGN", (0, 0), (-1, -1), "CENTER")]))
-        caption = "1 m wide design strip cross-section to scale."
+        caption = ("Ribbed slab cross-section across two ribs, to scale." if ribbed
+                   else "1 m wide design strip cross-section to scale.")
     else:
         sec = None
         caption = ""
