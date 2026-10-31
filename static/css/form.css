@@ -282,7 +282,7 @@ details.more > .fields + .check { margin-top: 14px; }
 .design-values-box input[readonly] { color: var(--text-2); cursor: default; }
 /* the report tab uses the whole page width */
 .form-layout.report-active { grid-template-columns: minmax(0, 1fr); }
-.report-active .preview, .report-active .form-tools { display: none; }
+.report-active .preview, .report-active .form-tools, .report-active .form-bar { display: none; }
 .design-values-box .panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .design-results-block { margin-top: 20px; padding: 18px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); }
 .design-verdict-head { font-size: 18px; font-weight: 700; margin-bottom: 6px; }

@@ -3,7 +3,7 @@ import { BeamCanvas, DEFAULT_LOAD, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { beamSectionFromInputs, drawBeamSection } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
-import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
+import { fitFrame, formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { buildAnalysisView, designValues } from "./beam-analysis-view.js";
 
 const KEYS = keysFor("beam");
@@ -124,8 +124,6 @@ function switchTab(name) {
     if (!frame.src || !frame.src.includes("/beam/report?embed=1")) {
       frame.src = "/beam/report?embed=1";
     }
-    resizeReportFrame();
-    setTimeout(resizeReportFrame, 300);       // the frame is wider now: its height changes
   }
 }
 
@@ -687,17 +685,6 @@ function renderDesignResults(result) {
   $("design-results-area").replaceChildren(block);
 }
 
-function resizeReportFrame() {
-  try {
-    const frame = $("report-frame");
-    if (frame?.contentDocument?.documentElement) {
-      // shrink first: scrollHeight never reports less than the frame's current height
-      frame.style.height = "800px";
-      frame.style.height = (frame.contentDocument.documentElement.scrollHeight + 30) + "px";
-    }
-  } catch (e) {}
-}
-
 function setupReportTab() {
   $("btn-pdf").addEventListener("click", async () => {
     const btn = $("btn-pdf");
@@ -723,17 +710,7 @@ function setupReportTab() {
     if (frame?.contentWindow) frame.contentWindow.print();
   });
 
-  $("report-frame").addEventListener("load", () => {
-    resizeReportFrame();
-    try {
-      const win = $("report-frame").contentWindow;
-      if (win) {
-        win.addEventListener("resize", resizeReportFrame);
-        new win.ResizeObserver(resizeReportFrame).observe(win.document.body);
-      }
-    } catch (e) {}
-  });
-  window.addEventListener("resize", resizeReportFrame);
+  fitFrame($("report-frame"));
 }
 
 // ------------------------------------------------------------------ init
@@ -879,9 +856,14 @@ async function init() {
     looksValid: (x) => Boolean(x.section && x.span),
   });
 
-  form.addEventListener("submit", (event) => {
+  // the bar under the tabs: analyse first if needed, then run the checks and show them on the Design tab
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    performDesignChecks();
+    if (valueOf("actions.mode") !== "direct" && (!analysisDone || analysisDirty)) await performAnalysis();
+    if ($("tab-design").getAttribute("aria-disabled") === "true") return;      // the analysis needs fixing first
+    switchTab("design");
+    await performDesignChecks();
+    $("design-results-area").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   // Check initial hash

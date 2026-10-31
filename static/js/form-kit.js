@@ -89,3 +89,26 @@ export function setupFilesMenu({ examples, fill, errors, inputKey, looksValid, m
     fileInput.value = "";
   });
 }
+
+/**
+ * Keeps an embedded report as tall as its content, so the page scrolls and the frame never does.
+ * Only the content's own size is watched: the frame's resize must not set off another one, or the
+ * page keeps changing height and the browser keeps pulling the scroll position back.
+ */
+export function fitFrame(frame) {
+  const fit = () => {
+    try {
+      const body = frame.contentDocument?.body;
+      if (!body) return;
+      const height = Math.ceil(body.getBoundingClientRect().height) + 24;
+      if (Math.abs(frame.clientHeight - height) > 1) frame.style.height = `${height}px`;
+    } catch { /* not readable: the frame keeps its own height */ }
+  };
+  frame.addEventListener("load", () => {
+    fit();
+    try {
+      new frame.contentWindow.ResizeObserver(fit).observe(frame.contentDocument.body);
+    } catch { /* sized once on load */ }
+  });
+  return fit;
+}

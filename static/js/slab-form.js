@@ -4,7 +4,7 @@ import { BeamCanvas, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { drawSlabSection, s } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
-import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
+import { fitFrame, formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { buildAnalysisView, designValues, num, spec, table } from "./beam-analysis-view.js";
 
 const KEYS = keysFor("slab");
@@ -227,19 +227,6 @@ function markAnalysisDirty() {
   updateTabStates();
 }
 
-function resizeReportFrame() {
-  const frame = $("report-frame");
-  if (!frame || !frame.contentWindow) return;
-  try {
-    const doc = frame.contentDocument || frame.contentWindow.document;
-    if (doc?.body) {
-      frame.style.height = `${Math.max(doc.body.scrollHeight + 32, 600)}px`;
-    }
-  } catch {
-    // cross-origin protection
-  }
-}
-
 function switchTab(name) {
   if (name === currentTab) return;
   const button = $(`tab-${name}`);
@@ -268,8 +255,6 @@ function switchTab(name) {
     if (!frame.src || !frame.src.includes("/slab/report?embed=1")) {
       frame.src = "/slab/report?embed=1";
     }
-    resizeReportFrame();
-    setTimeout(resizeReportFrame, 300);
   }
 }
 
@@ -1134,7 +1119,15 @@ async function init() {
 
   $("btn-analyse")?.addEventListener("click", performAnalysis);
   $("btn-run-design")?.addEventListener("click", performDesignChecks);
-  form.addEventListener("submit", performDesignChecks);
+  // the bar under the tabs: analyse first if needed, then run the checks and show them on the Design tab
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!analysisDone || analysisDirty) await performAnalysis();
+    if ($("tab-design").getAttribute("aria-disabled") === "true") return;      // the analysis needs fixing first
+    switchTab("design");
+    await performDesignChecks();
+  });
+  fitFrame($("report-frame"));
 
   $("add-support")?.addEventListener("click", () => {
     const L = length();
