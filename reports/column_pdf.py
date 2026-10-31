@@ -1,12 +1,14 @@
 """PDF report for a column check: the column drawings on top of the shared report layout."""
 from reportlab.graphics.shapes import Circle, Drawing, Line, PolyLine, Polygon, Rect, String
 from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import CondPageBreak, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
-from .beam_pdf import render_figure
+from .beam_pdf import _table, render_figure
+from .frame_figures import frame_figures
 from .pdf_base import (ACCENT, CONCRETE, INK, MUTED, RULE, STATUS, build_report, fonts, nice_ticks,
-                       styles, target_status)
+                       para, styles, target_status)
 
 
 def _section_drawing(report, width=86 * mm, height=78 * mm):
@@ -175,75 +177,46 @@ def _elevation_drawing(report, axis, width=86 * mm, height=78 * mm):
     return d
 
 
-def frame_analysis_section(report):
-    """Section 2 of the PDF when the column was analysed as part of a 2D frame."""
-    frame = report.get("plots", {}).get("frame")
-    if not frame:
-        return None
-    figs = frame.get("figures")
-    if not figs:
-        from reports.frame_figures import frame_figures
-        member_id = None
-        chk = next((c for c in report.get("checks", []) if c.get("id") == "design_actions_frame"), None)
-        if chk and chk.get("working"):
-            for line in chk["working"]:
-                if line.startswith("Member "):
-                    member_id = line.split(":")[0].replace("Member ", "").strip()
-                    break
-        figs = frame_figures(frame, member=member_id)
-
-    st = styles()
-
-    def block(title, spec, caption):
-        return KeepTogether([
-            Paragraph(title, st["h2"]),
-            render_figure(spec),
-            Spacer(1, 1.5 * mm),
-            Paragraph(caption, st["muted"]),
-        ])
-
-    flow = [
-        CondPageBreak(120 * mm),
-        Paragraph("2. Frame analysis", st["h1"]),
-        Paragraph("Linear elastic matrix stiffness analysis of the 2D frame under design loads (1.35G + 1.5Q). "
-                  "Bending moments are drawn on the tension side.", st["body"]),
-        Spacer(1, 2 * mm),
-        block("Analytical model", figs["model"],
-              "Nodes are circled and members boxed. The column member being designed is highlighted."),
-        Spacer(1, 3 * mm),
-        block("Bending moment diagram", figs["M"],
-              "Bending moments M (kNm) drawn on the tension side of each member."),
-        Spacer(1, 4 * mm),
+def frame_actions_rows(act):
+    """The design actions taken from the frame for the chosen column, as (label, value) rows (web and PDF)."""
+    k = lambda v: "pinned" if v == "pinned" else f"{v:.2f}"
+    return [
+        ("Column", f"{act['member']}, {act['bottom_node']} to {act['top_node']}, l = {act['l']:.2f} m"),
+        ("Axial force NEd", f"{act['NEd']:.1f} kN (compression)"),
+        ("Moment at the top Mtop", f"{act['M_top']:.1f} kNm ({act['top_node']})"),
+        ("Moment at the bottom Mbottom", f"{act['M_bottom']:.1f} kNm ({act['bottom_node']})"),
+        ("Curvature", f"{act['curvature']} (end moments {'of the same' if act['curvature'] == 'single' else 'of opposite'} sense)"),
+        ("End stiffness k, top / bottom", f"{k(act['k_top'])} / {k(act['k_bottom'])}"),
     ]
 
-    chk = next((c for c in report.get("checks", []) if c.get("id") == "design_actions_frame"), None)
-    if chk and chk.get("working"):
-        rows = [["Design action / parameter", "Value"]]
-        for line in chk["working"]:
-            if ":" in line:
-                k, v = line.split(":", 1)
-                rows.append([k.strip(), v.strip()])
-            else:
-                rows.append([line.strip(), ""])
-        t = Table(rows, colWidths=[80 * mm, 95 * mm])
-        t.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), fonts()["regular"]),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("TEXTCOLOR", (0, 0), (-1, -1), INK),
-            ("FONTNAME", (0, 0), (-1, 0), fonts()["bold"]),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
-            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-            ("LINEBELOW", (0, 0), (-1, 0), 0.6, INK),
-            ("LINEBELOW", (0, -1), (-1, -1), 0.6, INK),
-        ]))
-        flow.append(KeepTogether([
-            Paragraph("Design actions taken from the frame analysis", st["h2"]),
-            Spacer(1, 1.5 * mm),
-            t,
-            Spacer(1, 4 * mm),
-        ]))
 
-    return flow
+def frame_analysis_section(report):
+    """Section 2 of the PDF when the column's actions come from a 2D frame analysis."""
+    frame = report["plots"].get("frame")
+    if not frame:
+        return None
+    st = styles()
+    figs = report["plots"].get("figures") or frame_figures(frame, member=frame["member"])
+
+    def block(title, spec, caption):
+        return KeepTogether([Paragraph(title, st["h2"]), render_figure(spec), Spacer(1, 1.5 * mm),
+                             Paragraph(caption, st["muted"])])
+
+    cell = ParagraphStyle("cell", parent=st["body"], fontSize=11, leading=14)
+    rows = [["Design action", "Value"]] + [[para(label, cell), para(value, cell)]
+                                           for label, value in frame_actions_rows(frame["actions"])]
+    return [
+        CondPageBreak(120 * mm), Paragraph("2. Frame analysis", st["h1"]),
+        Paragraph("Linear elastic matrix stiffness analysis of the plane frame under the design loads "
+                  "(G × 1.35, Q × 1.5, self-weight as G). Bending moments are drawn on the tension side of each "
+                  "member: sagging below a beam, hogging above it.", st["body"]),
+        block("Frame and design loads", figs["model"], "Nodes are circled and members boxed; the column being "
+              "designed is drawn in colour."),
+        block("Bending moments (kNm)", figs["M"], "Values at the member ends and at the peaks."),
+        KeepTogether([Paragraph("Design actions for the column", st["h2"]),
+                      _table(rows, [70 * mm, 104 * mm], st),
+                      Paragraph("Bending is in the plane of the frame, about y–y of the column.", st["muted"])]),
+    ]
 
 
 def build_column_pdf(report):

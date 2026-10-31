@@ -215,6 +215,83 @@ def test_column_check_in_frame_mode(client, example):
     assert pdf_res.data.startswith(b"%PDF")
 
 
+def _portal(example, **actions):
+    """A one-bay portal frame column request (frame mode) built on the shared example."""
+    return {
+        "materials": example["materials"], "geometry": {"b": 300, "h": 300, "l": 3.5},
+        "reinforcement": example["reinforcement"], "restraint": example["restraint"],
+        "durability": example["durability"],
+        "actions": {"mode": "frame", "member": "C1", "bending": "uniaxial", "phi_ef": 1.7,
+                    "lambda_lim_method": "simplified", **actions},
+        "frame": {
+            "nodes": [{"id": "N1", "x": 0, "y": 0}, {"id": "N2", "x": 0, "y": 3.5},
+                      {"id": "N3", "x": 5, "y": 0}, {"id": "N4", "x": 5, "y": 3.5}],
+            "members": [{"id": "C1", "node1": "N1", "node2": "N2", "b": 300, "h": 300},
+                        {"id": "C2", "node1": "N3", "node2": "N4", "b": 300, "h": 300},
+                        {"id": "B1", "node1": "N2", "node2": "N4", "b": 300, "h": 450}],
+            "supports": [{"node": "N1", "type": "fixed"}, {"node": "N3", "type": "fixed"}],
+            "loads": [{"type": "udl", "member": "B1", "w": 25.0, "case": "G"}],
+            "self_weight": True, "E_method": "concrete",
+        },
+    }
+
+
+@pytest.mark.parametrize("case, message", [
+    ("beam", "not vertical"),
+    ("unknown", "no member 'XX'"),
+    ("tension", "in tension"),
+    ("unloaded", "no axial load"),
+])
+def test_column_frame_mode_member_errors_are_field_messages(client, example, case, message):
+    """A member that cannot be designed as a column is a 400 on actions.member, never a server error."""
+    data = _portal(example)
+    if case == "beam":
+        data["actions"]["member"] = "B1"
+    elif case == "unknown":
+        data["actions"]["member"] = "XX"
+    elif case == "tension":
+        data["frame"]["loads"] = [{"type": "node", "node": "N2", "fx": 0, "fy": -400, "mz": 0, "case": "Ed"}]
+        data["frame"]["self_weight"] = False
+    else:
+        data["frame"]["loads"] = []
+        data["frame"]["self_weight"] = False
+    for url in ("/api/column/check", "/api/column/report.pdf"):
+        res = client.post(url, json=data)
+        assert res.status_code == 400
+        assert message in res.get_json()["errors"]["actions.member"]
+    res = client.post("/api/column/analysis", json=data)
+    assert res.status_code == 200
+    assert res.get_json()["column_actions"] is None
+    assert message in res.get_json()["column_actions_error"]
+
+
+def test_column_frame_mode_unstable_frame_is_a_message(client, example):
+    data = _portal(example)
+    data["frame"]["supports"] = [{"node": "N1", "type": "pin"}]
+    for url in ("/api/column/check", "/api/column/analysis"):
+        res = client.post(url, json=data)
+        assert res.status_code == 400
+        assert "unstable" in res.get_json()["errors"]["frame"]
+
+
+def test_column_frame_mode_report_data(client, example):
+    """The frame result goes out once: figures under plots.figures, the chosen column's actions with the frame."""
+    report = client.post("/api/column/check", json=_portal(example)).get_json()
+    frame = report["plots"]["frame"]
+    assert set(report["plots"]["figures"]) == {"model", "N", "V", "M"}
+    assert "figures" not in frame and "members_input" not in frame
+    assert all("diagram" not in m for m in frame["members"])
+    assert frame["member"] == "C1" and frame["actions"]["member"] == "C1"
+    assert frame["actions"]["k_bottom"] == pytest.approx(0.1)
+    assert "Design actions" in report["groups"]
+
+
+def test_column_direct_mode_has_no_frame_group(client, example):
+    report = client.post("/api/column/check", json=example).get_json()
+    assert "Design actions" not in report["groups"]
+    assert "frame" not in report["plots"] and "figures" not in report["plots"]
+
+
 def test_non_finite_numbers_are_sent_as_null():
     """A utilisation over zero cover is infinite; the browser cannot parse Infinity, so it goes out as null."""
     assert json.loads(app.json.dumps({"u": math.inf, "v": [math.nan, 1.5]})) == {"u": None, "v": [None, 1.5]}

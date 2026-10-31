@@ -70,7 +70,7 @@ def model_figure(result, member=None):
     node_map = {str(n["id"]): n for n in nodes}
 
     # 1. Members
-    elements = result.get("elements") or result.get("members_input") or result.get("members", [])
+    elements = result.get("elements") or result.get("members", [])
     for el_def in elements:
         mid = str(el_def["id"])
         n1 = node_map.get(str(el_def["node1"]))
@@ -232,7 +232,7 @@ def diagram_figure(result, kind):
     # Find maximum absolute value across all members
     max_val = 0.0
     for m in members:
-        diag = m.get("diagram", {})
+        diag = m
         vals = diag.get(kind, [])
         for v in vals:
             if abs(v) > max_val:
@@ -267,7 +267,7 @@ def diagram_figure(result, kind):
         nx = ldy
         ny = -ldx
 
-        diag = m.get("diagram", {})
+        diag = m
         x_arr = diag.get("x", [0.0, m.get("L", 1.0)])
         v_arr = diag.get(kind, [0.0, 0.0])
         L_real = m.get("L", 1.0)

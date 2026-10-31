@@ -56,6 +56,15 @@ class FiniteJSON(DefaultJSONProvider):
 app.json = FiniteJSON(app)
 
 
+def check_column_with_figures(data):
+    """The column check, with the frame drawn for the report page when the actions come from a frame analysis."""
+    report = check_column(data)
+    frame = report["plots"].get("frame")
+    if frame:
+        report["plots"]["figures"] = frame_figures(frame, member=frame["member"])
+    return report
+
+
 def check_beam_with_figures(data):
     """The beam check, with the analysis figures drawn for the report page."""
     report = check_beam(data)
@@ -79,7 +88,7 @@ def check_foundation_with_figures(data):
 
 # element: (check function, PDF builder)
 ELEMENT_HANDLERS = {
-    "column": (check_column, build_column_pdf),
+    "column": (check_column_with_figures, build_column_pdf),
     "beam": (check_beam_with_figures, build_beam_pdf),
     "slab": (check_slab_with_figures, build_slab_pdf),
     "foundation": (check_foundation_with_figures, build_foundation_pdf),
@@ -244,36 +253,30 @@ def api_slab_analysis():
 
 @app.post("/api/column/analysis")
 def api_column_analysis():
-    """Analysis only, for the live diagrams on the column input page."""
+    """Frame analysis only, for the column page's Analysis tab: the result, its figures, the vertical members and
+    the design actions of the chosen column (or why it cannot be designed)."""
     data = _payload()
     try:
-        frame_res = analyse_frame(data)
+        result = analyse_frame(data)
     except ValidationError as exc:
         return jsonify({"errors": exc.errors}), 400
-    except ValueError as exc:
-        return jsonify({"errors": {"frame": str(exc)}}), 400
-
-    member_id = data.get("actions", {}).get("member") if isinstance(data.get("actions"), dict) else None
-    col_act = None
-    if member_id and str(member_id) in frame_res.get("vertical_members", []):
+    actions = data.get("actions") if isinstance(data.get("actions"), dict) else {}
+    member = str(actions.get("member") or "")
+    col_act, col_error = None, None
+    if member:
         try:
-            col_act = column_actions(frame_res, member_id, frame_res["elements"], frame_res["supports"])
-        except ValueError:
-            col_act = None
-
-    if col_act:
-        col_act = dict(col_act)
-        if math.isinf(col_act.get("k_top", 0)):
-            col_act["k_top"] = "pinned"
-        if math.isinf(col_act.get("k_bottom", 0)):
-            col_act["k_bottom"] = "pinned"
-
-    figures = frame_figures(frame_res, member=member_id)
+            col_act = column_actions(result, member, result["elements"], result["supports"])
+        except ValueError as exc:
+            col_error = str(exc)
+        else:
+            col_act = {**col_act, **{end: "pinned" if math.isinf(col_act[end]) else col_act[end]
+                                     for end in ("k_top", "k_bottom")}}
     return jsonify({
-        "frame": frame_res,
-        "figures": figures,
-        "vertical_members": frame_res.get("vertical_members", []),
+        "frame": result,
+        "figures": frame_figures(result, member=member or None),
+        "vertical_members": result["vertical_members"],
         "column_actions": col_act,
+        "column_actions_error": col_error,
     })
 
 

@@ -68,14 +68,11 @@ def solve(nodes, members, supports, loads):
             "reactions": {node_id: {"Rx": float, "Ry": float, "Mz": float}},
             "members": [
                 {
-                    "id": str, "element": str, "node1": str, "node2": str, "L": float,
+                    "id": str, "node1": str, "node2": str, "L": float,
                     "axial": float, "axial_start": float, "axial_end": float,
                     "shear_start": float, "shear_end": float,
                     "moment_start": float, "moment_end": float,
-                    "node1_disp": dict, "node2_disp": dict,
-                    "x": list of float, "N": list of float,
-                    "V": list of float, "M": list of float,
-                    "diagram": {"x": ..., "N": ..., "V": ..., "M": ...}
+                    "x": list of float (m from node1), and N, V, M sampled at x
                 },
                 ...
             ],
@@ -430,7 +427,6 @@ def solve(nodes, members, supports, loads):
 
         members_out.append({
             "id": mid,
-            "element": mid,
             "node1": str(m["node1"]),
             "node2": str(m["node2"]),
             "L": L,
@@ -443,18 +439,10 @@ def solve(nodes, members, supports, loads):
             "shear_end": V2,
             "moment_start": M1,
             "moment_end": M2,
-            "node1_disp": displacements[str(m["node1"])],
-            "node2_disp": displacements[str(m["node2"])],
             "x": x_arr,
             "N": N_arr,
             "V": V_arr,
             "M": M_arr,
-            "diagram": {
-                "x": x_arr,
-                "N": N_arr,
-                "V": V_arr,
-                "M": M_arr,
-            },
         })
 
     m_cnt = len(members)
@@ -679,7 +667,6 @@ def analyse_frame(data):
 
     result["nodes"] = nodes
     result["elements"] = members
-    result["members_input"] = members
     result["supports"] = supports
     result["loads"] = loads
     result["combined_loads"] = solve_loads
@@ -723,13 +710,10 @@ def column_actions(result, member_id, members, supports):
             "bottom_node": str,
         }
     """
-    m_res = next((m for m in result.get("members", []) if m["id"] == str(member_id) or m.get("element") == str(member_id)), None)
-    if not m_res:
-        raise ValueError(f"Member '{member_id}' not found in frame analysis result")
-
+    m_res = next((m for m in result.get("members", []) if m["id"] == str(member_id)), None)
     m_def = next((m for m in members if str(m["id"]) == str(member_id)), None)
-    if not m_def:
-        raise ValueError(f"Member '{member_id}' not found in members list")
+    if not m_res or not m_def:
+        raise ValueError(f"There is no member '{member_id}' in the frame.")
 
     # Get node coordinates
     if "nodes" in result:
@@ -746,7 +730,7 @@ def column_actions(result, member_id, members, supports):
     dy = abs(y2 - y1)
     L = math.sqrt(dx * dx + dy * dy)
     if L == 0 or (dx / L) >= 0.05:
-        raise ValueError(f"Member '{member_id}' is not vertical")
+        raise ValueError(f"Member '{member_id}' is not vertical: choose one of the columns.")
 
     # Axial force: solve() uses tension (+), compression (-)
     N1 = m_res.get("axial_start", m_res.get("axial", 0.0))
@@ -754,8 +738,11 @@ def column_actions(result, member_id, members, supports):
     comp1 = -N1
     comp2 = -N2
     N_comp = max(comp1, comp2)
+    if abs(N1) < 1e-6 and abs(N2) < 1e-6:
+        raise ValueError(f"Member '{member_id}' carries no axial load: add loads to the frame.")
     if N_comp <= 0:
-        raise ValueError(f"Member '{member_id}' is in tension (N = {max(N1, N2):.2f} kN)")
+        raise ValueError(f"Member '{member_id}' is in tension (N = {max(N1, N2):.1f} kN): "
+                         "there is no compression to design for.")
 
     # Heights for top and bottom nodes
     if y2 >= y1:

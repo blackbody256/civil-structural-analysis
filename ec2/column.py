@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from . import durability, fire, tables
 from . import slenderness as sl
 from .geometry import RectSection
+from .frame import analyse_frame, column_actions
 from .inputs import Reader, ValidationError
 from .interaction import EPS_C3, SectionModel
 from .materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, LINK_SIZES, Concrete, Reinforcement
@@ -848,37 +849,60 @@ def _input_echo(inp):
     return [{"label": k, "value": v} for k, v in rows]
 
 
-def check_column(data):
-    mode = data.get("actions", {}).get("mode", "direct") if isinstance(data.get("actions"), dict) else "direct"
-    frame_res = None
-    col_act = None
-    member_id = None
-    if mode == "frame":
-        from .frame import analyse_frame, column_actions
-        frame_res = analyse_frame(data)
-        member_id = data.get("actions", {}).get("member")
-        if not member_id:
-            raise ValidationError({"actions.member": "Choose a column member from the frame."})
-        col_act = column_actions(frame_res, member_id, frame_res["elements"], frame_res["supports"])
+def _frame_actions(data):
+    """Frame mode: analyse the frame and take NEd, the y–y end moments, the curvature and (when not entered)
+    the size and length of the chosen column from it. Returns the updated request and the frame result."""
+    frame_res = analyse_frame(data)
+    member_id = str(data["actions"].get("member") or "")
+    if not member_id:
+        raise ValidationError({"actions.member": "Choose the column to design from the frame."})
+    try:
+        act = column_actions(frame_res, member_id, frame_res["elements"], frame_res["supports"])
+    except ValueError as exc:
+        raise ValidationError({"actions.member": str(exc)}) from exc
 
-        # Update a copy of data with design values extracted from frame
-        data = dict(data)
-        actions = dict(data.get("actions", {}))
-        actions["NEd"] = col_act["NEd"]
-        actions["My_top"] = col_act["M_top"]
-        actions["My_bottom"] = col_act["M_bottom"]
-        actions["My_curvature"] = col_act["curvature"]
-        data["actions"] = actions
-        geo = dict(data.get("geometry", {}))
-        if not geo.get("l"):
-            geo["l"] = col_act["l"]
-        m_def = next((m for m in frame_res["elements"] if str(m["id"]) == str(member_id)), None)
-        if m_def:
-            if not geo.get("b"):
-                geo["b"] = m_def.get("b", 300)
-            if not geo.get("h"):
-                geo["h"] = m_def.get("h", 300)
-        data["geometry"] = geo
+    data = dict(data)
+    data["actions"] = {**data["actions"], "NEd": act["NEd"], "My_top": act["M_top"],
+                       "My_bottom": act["M_bottom"], "My_curvature": act["curvature"]}
+    geo = dict(data.get("geometry") or {})
+    member = next(m for m in frame_res["elements"] if m["id"] == member_id)
+    for key, value in (("b", member["b"]), ("h", member["h"]), ("l", act["l"])):
+        if geo.get(key) in (None, ""):
+            geo[key] = value
+    data["geometry"] = geo
+    frame_res["member"] = member_id
+    frame_res["actions"] = {**act, **{end: "pinned" if math.isinf(act[end]) else act[end]
+                                      for end in ("k_top", "k_bottom")}}
+    return data, frame_res
+
+
+def _k_text(k):
+    return "pinned" if k == "pinned" or (isinstance(k, float) and math.isinf(k)) else f"{k:.2f}"
+
+
+def _frame_actions_check(frame_res):
+    act = frame_res["actions"]
+    top, bottom = act["top_node"], act["bottom_node"]
+    return CheckResult(
+        "design_actions_frame", GROUP_ACTIONS, "Design actions from the frame analysis", INFO,
+        result=f"NEd = {act['NEd']:.0f} kN, Mtop = {act['M_top']:.1f}, Mbottom = {act['M_bottom']:.1f} kNm",
+        working=[
+            f"Member {act['member']}: l = {act['l']:.2f} m; loads combined as 1.35G + 1.5Q",
+            f"Axial force: NEd = {act['NEd']:.1f} kN (compression)",
+            f"End moments in the frame plane (about y–y): {act['M_top_signed']:.1f} kNm at the top ({top}), "
+            f"{act['M_bottom_signed']:.1f} kNm at the bottom ({bottom}); sagging positive along {act['member']}",
+            f"Curvature: {act['curvature']}",
+            f"Suggested end stiffness: k = {_k_text(act['k_top'])} at the top ({top}), "
+            f"{_k_text(act['k_bottom'])} at the bottom ({bottom})",
+        ],
+        refs=refs("ch5_design_moments"))
+
+
+def check_column(data):
+    actions = data.get("actions") if isinstance(data.get("actions"), dict) else {}
+    frame_res = None
+    if actions.get("mode") == "frame":
+        data, frame_res = _frame_actions(data)
 
     inp = parse_input(data)
     sec, conc, steel = inp.section, inp.concrete, inp.steel
@@ -886,31 +910,7 @@ def check_column(data):
     omega = sec.As * steel.fyd / (sec.Ac * conc.fcd)
     axes = {axis: analyse_axis(inp, axis, n, omega) for axis in AXES}
 
-    action_checks = []
-    if mode == "frame" and col_act is not None:
-        k_t = col_act["k_top"]
-        k_b = col_act["k_bottom"]
-        k_top_str = "pinned" if (math.isinf(k_t) if isinstance(k_t, float) else k_t == "pinned") else (f"{k_t:.1f}" if k_t == 0.1 else f"{k_t:.2f}")
-        k_bot_str = "pinned" if (math.isinf(k_b) if isinstance(k_b, float) else k_b == "pinned") else (f"{k_b:.1f}" if k_b == 0.1 else f"{k_b:.2f}")
-        working = [
-            f"Member {member_id}: l = {col_act['l']:.2f} m, combination 1.35G + 1.5Q",
-            f"Axial force: NEd = {col_act['NEd']:.1f} kN (compression)",
-            f"In-plane bending (y–y): My,top = {col_act['M_top_signed']:.1f} kNm ({col_act['top_node']}), "
-            f"My,bottom = {col_act['M_bottom_signed']:.1f} kNm ({col_act['bottom_node']})",
-            f"Curvature: {col_act['curvature']}",
-            f"Suggested end restraint: k_top = {k_top_str} ({col_act['top_node']}), "
-            f"k_bottom = {k_bot_str} ({col_act['bottom_node']})",
-        ]
-        action_checks.append(CheckResult(
-            "design_actions_frame",
-            GROUP_ACTIONS,
-            "Design actions from the frame analysis",
-            INFO,
-            result=f"NEd = {col_act['NEd']:.0f} kN, My = {col_act['M_top']:.1f} / {col_act['M_bottom']:.1f} kNm",
-            working=working,
-            refs=refs("ch5_design_moments"),
-        ))
-
+    action_checks = [_frame_actions_check(frame_res)] if frame_res else []
     checks = _scope_checks(inp) + _cover_checks(inp) + _fire_checks(inp) + action_checks
     checks += _slenderness_checks(inp, axes, n) + _moment_checks(inp, axes, n, omega)
     resistance, as_req = _resistance_checks(inp, axes, n)
@@ -933,16 +933,13 @@ def check_column(data):
         "interaction": curves,
     }
     if frame_res:
-        from reports.frame_figures import frame_figures
-        frame_res["figures"] = frame_figures(frame_res, member=member_id)
         plots["frame"] = frame_res
-        plots["figures"] = frame_res["figures"]
 
     return {
         "element": "column",
         "project": inp.project,
         "summary": summarise(checks),
-        "groups": list(GROUPS),
+        "groups": [g for g in GROUPS if any(c.group == g for c in checks)],
         "checks": [c.to_dict() for c in checks],
         "inputs": _input_echo(inp),
         "assumptions": ASSUMPTIONS,
