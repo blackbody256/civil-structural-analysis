@@ -294,3 +294,79 @@ def test_analyse_frame_validation_errors():
     with pytest.raises(ValidationError) as exc:
         analyse_frame({"frame": {"nodes": []}})
     assert "frame.nodes" in exc.value.errors
+
+
+def _member(res, mid):
+    return next(m for m in res["members"] if m["id"] == mid)
+
+
+def test_point_load_along_a_column_axial_force():
+    """A downward point load at mid-height of a free-standing column: compression below it, none above."""
+    nodes = [{"id": "A", "x": 0.0, "y": 0.0}, {"id": "B", "x": 0.0, "y": 4.0}]
+    members = [{"id": "C", "node1": "A", "node2": "B", "E": 2e8, "A": 0.09, "I": 6.75e-4}]
+    supports = [{"node": "A", "type": "fixed"}]
+    loads = [{"member": "C", "load_type": "point_gravity", "P": 10.0, "a": 2.0}]
+
+    res = solve(nodes, members, supports, loads)
+    col = _member(res, "C")
+    assert res["reactions"]["A"]["Ry"] == pytest.approx(10.0)
+    assert col["axial_start"] == pytest.approx(-10.0)
+    assert col["axial_end"] == pytest.approx(0.0, abs=1e-9)
+    above = [n for x, n in zip(col["x"], col["N"]) if x > 2.0]
+    assert all(n == pytest.approx(0.0, abs=1e-9) for n in above)
+
+    res["nodes"] = nodes
+    assert column_actions(res, "C", members, supports)["NEd"] == pytest.approx(10.0)
+
+
+def test_point_load_on_an_inclined_member_axial_force():
+    """Pin–roller member (0,0)–(4,3), 10 kN down at a = 2.5 m: N = −3 kN before the load, +3 kN after it."""
+    nodes = [{"id": "A", "x": 0.0, "y": 0.0}, {"id": "B", "x": 4.0, "y": 3.0}]
+    members = [{"id": "R", "node1": "A", "node2": "B", "E": 2e8, "A": 0.09, "I": 6.75e-4}]
+    supports = [{"node": "A", "type": "pin"}, {"node": "B", "type": "roller"}]
+    loads = [{"member": "R", "load_type": "point_gravity", "P": 10.0, "a": 2.5}]
+
+    res = solve(nodes, members, supports, loads)
+    m = _member(res, "R")
+    assert res["reactions"]["A"]["Ry"] == pytest.approx(5.0)
+    assert res["reactions"]["B"]["Ry"] == pytest.approx(5.0)
+    assert m["axial_start"] == pytest.approx(-3.0)
+    assert m["axial_end"] == pytest.approx(3.0)
+    assert max(m["M"], key=abs) == pytest.approx(10.0)   # 5 kN × 2 m horizontal lever arm
+
+
+def test_diagrams_close_on_the_member_end_forces():
+    """The sampled N, V and M agree with the end forces, and M follows dM/dx = V, on the client's portal frame."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0}, {"id": "B", "x": 0.0, "y": 4.0}, {"id": "C", "x": 5.0, "y": 4.0},
+        {"id": "D", "x": 5.0, "y": 0.0},
+    ]
+    col = {"E": 2e8, "A": 2e-2, "I": 1.6e-4}
+    beam = {"E": 2e8, "A": 1.5e-2, "I": 1.2e-4}
+    members = [
+        {"id": "Col1", "node1": "A", "node2": "B", **col},
+        {"id": "Beam1", "node1": "B", "node2": "C", **beam},
+        {"id": "Col2", "node1": "D", "node2": "C", **col},
+    ]
+    supports = [{"node": "A", "type": "fixed"}, {"node": "D", "type": "fixed"}]
+    loads = [
+        {"node": "B", "fx": 30.0, "fy": 0.0, "mz": 0.0},
+        {"member": "Beam1", "load_type": "udl_gravity", "w": 15.0},
+        {"member": "Beam1", "load_type": "point_gravity", "P": 40.0, "a": 1.5},
+        {"member": "Col1", "load_type": "point_gravity", "P": 20.0, "a": 1.0},
+    ]
+    res = solve(nodes, members, supports, loads)
+    for m in res["members"]:
+        assert m["N"][0] == pytest.approx(m["axial_start"])
+        assert m["V"][0] == pytest.approx(m["shear_start"])
+        assert m["V"][-1] == pytest.approx(m["shear_end"])
+        assert m["M"][0] == pytest.approx(m["moment_start"])
+        assert m["M"][-1] == pytest.approx(m["moment_end"], abs=1e-6)
+        # trapezoidal ∫V dx between samples reproduces the change in M
+        xs, vs, ms = m["x"], m["V"], m["M"]
+        integral = sum((xs[i + 1] - xs[i]) * (vs[i] + vs[i + 1]) / 2 for i in range(len(xs) - 1))
+        assert ms[-1] - ms[0] == pytest.approx(integral, abs=0.02 * max(abs(v) for v in ms))
+    col1 = _member(res, "Col1")
+    # Col1 carries the column point load in compression below it only: the jump in N is the 20 kN load
+    jump = [col1["N"][i + 1] - col1["N"][i] for i in range(len(col1["x"]) - 1)]
+    assert max(jump) == pytest.approx(20.0)

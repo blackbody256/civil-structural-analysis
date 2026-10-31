@@ -389,7 +389,7 @@ def solve(nodes, members, supports, loads):
                     N -= ld["qa"] * x
                 elif ld["type"] == "point_gravity":
                     if x > ld["a"]:
-                        N += ld["pa"]
+                        N -= ld["pa"]
             return N
 
         def shear_at(x):
