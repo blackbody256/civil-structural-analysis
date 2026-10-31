@@ -20,14 +20,24 @@ AXES = ("y", "z")
 AXIS_NAME = {"y": "y–y", "z": "z–z"}
 DIM_SYMBOL = {"y": "h", "z": "b"}
 
+GROUP_SCOPE = "Scope & materials"
+GROUP_DURABILITY = "Durability & cover"
+GROUP_FIRE = "Fire resistance"
+GROUP_ACTIONS = "Design actions"
+GROUP_SLENDERNESS = "Slenderness"
+GROUP_MOMENTS = "Design moments"
+GROUP_RESISTANCE = "Resistance"
+GROUP_DETAILING = "Detailing"
+
 GROUPS = (
-    "Scope & materials",
-    "Durability & cover",
-    "Fire resistance",
-    "Slenderness",
-    "Design moments",
-    "Resistance",
-    "Detailing",
+    GROUP_SCOPE,
+    GROUP_DURABILITY,
+    GROUP_FIRE,
+    GROUP_ACTIONS,
+    GROUP_SLENDERNESS,
+    GROUP_MOMENTS,
+    GROUP_RESISTANCE,
+    GROUP_DETAILING,
 )
 
 ASSUMPTIONS = [
@@ -341,7 +351,7 @@ def _scope_checks(inp):
     steel_ok = 400 <= steel.fyk <= 600
     k_req, eps_req = DUCTILITY_CLASSES[steel.ductility]
     scope = CheckResult(
-        "scope", GROUPS[0], "Materials within scope", PASS if steel_ok else FAIL,
+        "scope", GROUP_SCOPE, "Materials within scope", PASS if steel_ok else FAIL,
         result=f"{conc.name}, fyk = {steel.fyk:g} MPa",
         working=[
             f"Concrete {conc.name}: fck = {conc.fck:g} MPa ≤ 50 MPa (classes up to C50/60)",
@@ -358,7 +368,7 @@ def _scope_checks(inp):
     long_side, short_side = max(sec.b, sec.h), min(sec.b, sec.h)
     ratio = long_side / short_side
     wall = CheckResult(
-        "wall", GROUPS[0], "Column, not a wall", PASS if ratio <= 4 else WARN,
+        "wall", GROUP_SCOPE, "Column, not a wall", PASS if ratio <= 4 else WARN,
         result=f"{ratio:.2f} {_cmp(ratio <= 4)} 4", value=ratio, limit=4.0,
         working=[f"Long side / short side = {long_side:.0f} / {short_side:.0f} = {ratio:.2f}"],
         refs=refs("ch5_walls"),
@@ -388,7 +398,7 @@ def _cover_checks(inp):
         if not ok and res["bs8500_below"]:
             notes.append(f"BS 8500 may allow {res['bs8500_below'][-1]} + Δcdev with a higher concrete class.")
         dur = CheckResult(
-            "cover_durability", GROUPS[1], "Cover for durability", PASS if ok else FAIL,
+            "cover_durability", GROUP_DURABILITY, "Cover for durability", PASS if ok else FAIL,
             result=f"{sec.cover:g} {'≥' if ok else '<'} {required:g} mm", value=sec.cover, limit=required,
             unit="mm", utilisation=required / sec.cover if sec.cover else math.inf,
             working=head + [
@@ -401,7 +411,7 @@ def _cover_checks(inp):
     else:
         spec = res["spec"]
         dur = CheckResult(
-            "cover_durability", GROUPS[1], "Cover for durability", FAIL,
+            "cover_durability", GROUP_DURABILITY, "Cover for durability", FAIL,
             result=f"{conc.name} below minimum {spec['class']}",
             working=head + [f"This exposure needs at least {spec['class']} "
                             f"(with {res['cover']} + Δcdev cover); {conc.name} is not recommended."],
@@ -412,7 +422,7 @@ def _cover_checks(inp):
     req_link = max(c_b_link, 10) + dc
     ok_link = sec.cover >= req_link
     bond = CheckResult(
-        "cover_bond", GROUPS[1], "Cover for bond (links)", PASS if ok_link else FAIL,
+        "cover_bond", GROUP_DURABILITY, "Cover for bond (links)", PASS if ok_link else FAIL,
         result=f"{sec.cover:g} {'≥' if ok_link else '<'} {req_link:g} mm", value=sec.cover, limit=req_link,
         unit="mm", utilisation=req_link / sec.cover if sec.cover else math.inf,
         working=[
@@ -426,7 +436,7 @@ def _cover_checks(inp):
     req_main = sec.bar_dia + extra + dc
     ok_main = c_main >= req_main
     main = CheckResult(
-        "cover_main", GROUPS[1], "Cover to main bars", PASS if ok_main else FAIL,
+        "cover_main", GROUP_DURABILITY, "Cover to main bars", PASS if ok_main else FAIL,
         result=f"{c_main:g} {'≥' if ok_main else '<'} {req_main:g} mm", value=c_main, limit=req_main,
         unit="mm", utilisation=req_main / c_main,
         working=[
@@ -441,15 +451,15 @@ def _fire_checks(inp):
     sec = inp.section
     if inp.fire_period == "none":
         na = "No fire resistance period specified."
-        return [CheckResult("fire_table", GROUPS[2], "Fire resistance", NA, result="Not required",
+        return [CheckResult("fire_table", GROUP_FIRE, "Fire resistance", NA, result="Not required",
                             note=na, refs=refs("ch5_table2"), target="cover"),
-                CheckResult("fire_validity", GROUPS[2], "Conditions for the fire table", NA, result="Not required",
+                CheckResult("fire_validity", GROUP_FIRE, "Conditions for the fire table", NA, result="Not required",
                             note=na, refs=refs("ch5_table2"))]
     if not inp.braced:
         na = "The tabulated fire method covers braced columns only."
-        return [CheckResult("fire_table", GROUPS[2], "Fire resistance", NA, result="Not applicable",
+        return [CheckResult("fire_table", GROUP_FIRE, "Fire resistance", NA, result="Not applicable",
                             note=na, refs=refs("ch5_table2", "ch5_unbraced"), target="cover"),
-                CheckResult("fire_validity", GROUPS[2], "Conditions for the fire table", NA, result="Not applicable",
+                CheckResult("fire_validity", GROUP_FIRE, "Conditions for the fire table", NA, result="Not applicable",
                             note=na, refs=refs("ch5_table2"))]
 
     b_min, a = min(sec.b, sec.h), sec.axis_distance
@@ -467,7 +477,7 @@ def _fire_checks(inp):
         extra += f", {o['note']}" if o["note"] else ""
         lines.append(f"Option bmin/a = {o['b_min']}/{o['a']}{extra}: {'satisfied' if o['ok'] else 'not satisfied'}")
     table = CheckResult(
-        "fire_table", GROUPS[2], f"Fire resistance {inp.fire_period}", PASS if ok else FAIL,
+        "fire_table", GROUP_FIRE, f"Fire resistance {inp.fire_period}", PASS if ok else FAIL,
         result=f"{b_min:.0f}/{a:.0f} vs {gov['b_min']}/{gov['a']} mm",
         utilisation=max(gov["b_min"] / b_min, gov["a"] / a), working=lines,
         refs=refs("ch5_table2"), target="cover",
@@ -486,7 +496,7 @@ def _fire_checks(inp):
     conditions.append((f"As/Ac = {100 * rho:.2f} % ≤ 4 %", rho <= 0.04))
     valid = all(ok for _, ok in conditions)
     validity = CheckResult(
-        "fire_validity", GROUPS[2], "Conditions for the fire table", PASS if valid else WARN,
+        "fire_validity", GROUP_FIRE, "Conditions for the fire table", PASS if valid else WARN,
         result="Conditions met" if valid else "Outside the table limits",
         working=[f"{text}: {'yes' if ok else 'no'}" for text, ok in conditions],
         refs=refs("ch5_table2"),
@@ -521,7 +531,7 @@ def _slenderness_checks(inp, axes, n):
         verdict = ("slender: second-order effects are added" if ax.slender
                    else "not slender: second-order effects ignored, MEd = M02")
         out.append(CheckResult(
-            f"slenderness_{ax.name}", GROUPS[3], f"Slenderness about {AXIS_NAME[ax.name]}", INFO,
+            f"slenderness_{ax.name}", GROUP_SLENDERNESS, f"Slenderness about {AXIS_NAME[ax.name]}", INFO,
             result=f"λ = {ax.lam:.1f} {'≥' if ax.slender else '<'} λlim = {ax.lam_lim:.1f}: "
                    f"{'slender' if ax.slender else 'not slender'}",
             value=ax.lam, limit=ax.lam_lim,
@@ -574,7 +584,7 @@ def _moment_checks(inp, axes, n, omega):
         else:
             lines.append(f"Not slender about {AXIS_NAME[ax.name]}: MEd = M02 = {kNm(ax.m_ed)} kNm")
         out.append(CheckResult(
-            f"moments_{ax.name}", GROUPS[4], f"Design moment about {AXIS_NAME[ax.name]}", INFO,
+            f"moments_{ax.name}", GROUP_MOMENTS, f"Design moment about {AXIS_NAME[ax.name]}", INFO,
             result=f"MEd = {kNm(ax.m_ed)} kNm", value=ax.m_ed / 1e6, unit="kNm", working=lines,
             refs=refs("ch5_design_moments", "ch5_fig3", "ch5_creep", clauses=("5.8.8",)),
             target="elevation"))
@@ -588,7 +598,7 @@ def _resistance_checks(inp, axes, n):
     sigma = model.stress(EPS_C3)
     ok_n = inp.n_ed <= n_max
     out = [CheckResult(
-        "axial", GROUPS[5], "Axial resistance", PASS if ok_n else FAIL,
+        "axial", GROUP_RESISTANCE, "Axial resistance", PASS if ok_n else FAIL,
         result=f"{kN(inp.n_ed)} {_cmp(ok_n)} {kN(n_max)} kN", value=inp.n_ed / 1e3, limit=n_max / 1e3,
         unit="kN", utilisation=inp.n_ed / n_max,
         working=[
@@ -612,14 +622,14 @@ def _resistance_checks(inp, axes, n):
                     f"{req:.0f} mm²" if req is not None else "not achievable with this section")
         if ax.m_rd is None:
             out.append(CheckResult(
-                f"bending_{ax.name}", GROUPS[5], f"Axial + bending about {AXIS_NAME[ax.name]}", FAIL,
+                f"bending_{ax.name}", GROUP_RESISTANCE, f"Axial + bending about {AXIS_NAME[ax.name]}", FAIL,
                 result="NEd exceeds the section capacity", working=[chart],
                 refs=refs("ch5_fig7_8", "ch5_resistance", "ch5_fig9"), target="section",
                 note="The axial load alone exceeds the resistance of the section."))
             continue
         ok = ax.m_ed <= ax.m_rd
         out.append(CheckResult(
-            f"bending_{ax.name}", GROUPS[5], f"Axial + bending about {AXIS_NAME[ax.name]}", PASS if ok else FAIL,
+            f"bending_{ax.name}", GROUP_RESISTANCE, f"Axial + bending about {AXIS_NAME[ax.name]}", PASS if ok else FAIL,
             result=f"MEd {kNm(ax.m_ed)} {_cmp(ok)} MRd {kNm(ax.m_rd)} kNm", value=ax.m_ed / 1e6,
             limit=ax.m_rd / 1e6, unit="kNm", utilisation=ax.m_ed / ax.m_rd if ax.m_rd > 0 else math.inf,
             working=[
@@ -641,13 +651,13 @@ def _biaxial_check(inp, axes):
     title = "Biaxial bending"
     if inp.bending == "uniaxial":
         return CheckResult(
-            "biaxial", GROUPS[5], title, NA, result="Not required: uniaxial bending",
+            "biaxial", GROUP_RESISTANCE, title, NA, result="Not required: uniaxial bending",
             note="Moments act about y–y only; each axis is checked on its own, with the imperfection "
                  "taken in each direction in turn.",
             refs=refs("ch5_biaxial"), target="section")
     ay, az = axes["y"], axes["z"]
     if ay.m_rd is None or az.m_rd is None or ay.m_rd <= 0 or az.m_rd <= 0:
-        return CheckResult("biaxial", GROUPS[5], title, NA, result="Axial resistance exceeded",
+        return CheckResult("biaxial", GROUP_RESISTANCE, title, NA, result="Axial resistance exceeded",
                            refs=refs("ch5_biaxial"), target="section")
     n_rd = sec.Ac * conc.fcd + sec.As * steel.fyd
     ratio = inp.n_ed / n_rd
@@ -667,7 +677,7 @@ def _biaxial_check(inp, axes):
     ok = value <= 1.0
     lines.append(f"Governing value {value:.3f} {_cmp(ok)} 1.0")
     return CheckResult(
-        "biaxial", GROUPS[5], title, PASS if ok else FAIL, result=f"{value:.3f} {_cmp(ok)} 1.0",
+        "biaxial", GROUP_RESISTANCE, title, PASS if ok else FAIL, result=f"{value:.3f} {_cmp(ok)} 1.0",
         value=value, limit=1.0, utilisation=value, working=lines,
         refs=refs("ch5_biaxial", "ch5_table5", clauses=("5.8.9",)), target="section",
         note="Imperfections are applied only in the more unfavourable direction (EC2 5.8.9(2)).")
@@ -692,7 +702,7 @@ def _detailing_checks(inp):
 
     ok = phi >= 12
     out.append(CheckResult(
-        "min_bar", GROUPS[6], "Minimum bar diameter", PASS if ok else FAIL,
+        "min_bar", GROUP_DETAILING, "Minimum bar diameter", PASS if ok else FAIL,
         result=f"φ{phi} {'≥' if ok else '<'} φ12", value=phi, limit=12, unit="mm",
         working=[f"Longitudinal bars φ = {phi} mm; recommended minimum 12 mm"],
         refs=refs("ch5_steel_areas", "ch10_columns"), target="bars"))
@@ -700,7 +710,7 @@ def _detailing_checks(inp):
     as_min = max(0.10 * inp.n_ed / steel.fyd, 0.002 * sec.Ac)
     ok = sec.As >= as_min
     out.append(CheckResult(
-        "as_min", GROUPS[6], "Minimum reinforcement", PASS if ok else FAIL,
+        "as_min", GROUP_DETAILING, "Minimum reinforcement", PASS if ok else FAIL,
         result=f"{sec.As:.0f} {'≥' if ok else '<'} {as_min:.0f} mm²", value=sec.As, limit=as_min, unit="mm²",
         utilisation=as_min / sec.As,
         working=[f"As,min = max(0.10·NEd/fyd, 0.002·Ac) = max({0.10 * inp.n_ed / steel.fyd:.0f}, "
@@ -711,7 +721,7 @@ def _detailing_checks(inp):
     as_max = 0.04 * sec.Ac
     ok = sec.As <= as_max
     out.append(CheckResult(
-        "as_max", GROUPS[6], "Maximum reinforcement", PASS if ok else FAIL,
+        "as_max", GROUP_DETAILING, "Maximum reinforcement", PASS if ok else FAIL,
         result=f"{sec.As:.0f} {_cmp(ok)} {as_max:.0f} mm²", value=sec.As, limit=as_max, unit="mm²",
         utilisation=sec.As / as_max,
         working=[f"As,max = 0.04·Ac = 0.04 × {sec.Ac:.0f} = {as_max:.0f} mm² outside laps "
@@ -724,7 +734,7 @@ def _detailing_checks(inp):
     s_prov = min(s_b, s_h)
     ok = s_prov >= s_min
     out.append(CheckResult(
-        "bar_spacing", GROUPS[6], "Clear spacing between bars", PASS if ok else FAIL,
+        "bar_spacing", GROUP_DETAILING, "Clear spacing between bars", PASS if ok else FAIL,
         result=f"{s_prov:.0f} {'≥' if ok else '<'} {s_min:.0f} mm", value=s_prov, limit=s_min, unit="mm",
         utilisation=s_min / s_prov if s_prov > 0 else math.inf,
         working=[f"Clear gap along b-face = {s_b:.0f} mm ({sec.n_b} bars); along h-face = {s_h:.0f} mm "
@@ -735,14 +745,14 @@ def _detailing_checks(inp):
     link_min = max(6.0, phi / 4)
     ok = link >= link_min
     out.append(CheckResult(
-        "link_dia", GROUPS[6], "Link diameter", PASS if ok else FAIL,
+        "link_dia", GROUP_DETAILING, "Link diameter", PASS if ok else FAIL,
         result=f"φ{link} {'≥' if ok else '<'} {link_min:g} mm", value=link, limit=link_min, unit="mm",
         working=[f"φlink ≥ max(6, φ/4) = max(6, {phi}/4) = {link_min:g} mm; provided φ{link}"],
         refs=refs("ch5_steel_areas", "ch10_columns"), target="links"))
 
     sp = link_spacing(sec)
     out.append(CheckResult(
-        "link_spacing", GROUPS[6], "Link spacing (calculated)", INFO,
+        "link_spacing", GROUP_DETAILING, "Link spacing (calculated)", INFO,
         result=f"H{link} @ {sp['near']} mm, {sp['far']} mm elsewhere", value=sp["near"], limit=sp["s_max"], unit="mm",
         working=[f"s ≤ min(12φ, 0.6·bmin, 240) = min(12 × {phi}, 0.6 × {min(sec.b, sec.h):g}, 240) "
                  f"= min({12 * phi}, {0.6 * min(sec.b, sec.h):.0f}, 240) = {sp['s_max']:.0f} mm",
@@ -754,18 +764,18 @@ def _detailing_checks(inp):
     gap = sec.max_unrestrained_gap()
     if inp.cross_ties:
         restraint = CheckResult(
-            "bar_restraint", GROUPS[6], "Restraint of bars by links", PASS, result="All bars tied",
+            "bar_restraint", GROUP_DETAILING, "Restraint of bars by links", PASS, result="All bars tied",
             working=["Every intermediate bar is held by a cross-tie or link"],
             refs=refs("ch5_spacing", clauses=("9.5.3(6)",)), target="links")
     elif sec.n_b <= 2 and sec.n_h <= 2:
         restraint = CheckResult(
-            "bar_restraint", GROUPS[6], "Restraint of bars by links", PASS, result="Corner bars only",
+            "bar_restraint", GROUP_DETAILING, "Restraint of bars by links", PASS, result="Corner bars only",
             working=["Only corner bars, each held by the perimeter link"],
             refs=refs("ch5_spacing", clauses=("9.5.3(6)",)), target="links")
     else:
         ok = gap <= 150
         restraint = CheckResult(
-            "bar_restraint", GROUPS[6], "Restraint of bars by links", PASS if ok else FAIL,
+            "bar_restraint", GROUP_DETAILING, "Restraint of bars by links", PASS if ok else FAIL,
             result=f"{gap:.0f} {_cmp(ok)} 150 mm", value=gap, limit=150, unit="mm", utilisation=gap / 150,
             working=["Only corner bars are held by the perimeter link (no cross-ties)",
                      f"Largest clear distance from an intermediate bar to a restrained bar = {gap:.0f} mm",
@@ -777,12 +787,12 @@ def _detailing_checks(inp):
     mult = tables.compression_lap(conc.name, 100)
     if mult is None:
         out.append(CheckResult(
-            "lap", GROUPS[6], "Compression lap length", NA, result="Not tabulated",
+            "lap", GROUP_DETAILING, "Compression lap length", NA, result="Not tabulated",
             note="Table 13 starts at C20/25.", refs=refs("ch10_table13")))
     else:
         lap = math.ceil(mult * phi / 10) * 10
         out.append(CheckResult(
-            "lap", GROUPS[6], "Compression lap length", INFO, result=f"{lap} mm ({mult}φ)",
+            "lap", GROUP_DETAILING, "Compression lap length", INFO, result=f"{lap} mm ({mult}φ)",
             value=lap, unit="mm",
             working=[f"{conc.name}, bars in compression, 100 % lapped in one location, good bond: "
                      f"{mult}φ = {mult} × {phi} = {mult * phi} mm, use {lap} mm"],
@@ -839,13 +849,69 @@ def _input_echo(inp):
 
 
 def check_column(data):
+    mode = data.get("actions", {}).get("mode", "direct") if isinstance(data.get("actions"), dict) else "direct"
+    frame_res = None
+    col_act = None
+    member_id = None
+    if mode == "frame":
+        from .frame import analyse_frame, column_actions
+        frame_res = analyse_frame(data)
+        member_id = data.get("actions", {}).get("member")
+        if not member_id:
+            raise ValidationError({"actions.member": "Choose a column member from the frame."})
+        col_act = column_actions(frame_res, member_id, frame_res["elements"], frame_res["supports"])
+
+        # Update a copy of data with design values extracted from frame
+        data = dict(data)
+        actions = dict(data.get("actions", {}))
+        actions["NEd"] = col_act["NEd"]
+        actions["My_top"] = col_act["M_top"]
+        actions["My_bottom"] = col_act["M_bottom"]
+        actions["My_curvature"] = col_act["curvature"]
+        data["actions"] = actions
+        geo = dict(data.get("geometry", {}))
+        if not geo.get("l"):
+            geo["l"] = col_act["l"]
+        m_def = next((m for m in frame_res["elements"] if str(m["id"]) == str(member_id)), None)
+        if m_def:
+            if not geo.get("b"):
+                geo["b"] = m_def.get("b", 300)
+            if not geo.get("h"):
+                geo["h"] = m_def.get("h", 300)
+        data["geometry"] = geo
+
     inp = parse_input(data)
     sec, conc, steel = inp.section, inp.concrete, inp.steel
     n = inp.n_ed / (sec.Ac * conc.fcd)
     omega = sec.As * steel.fyd / (sec.Ac * conc.fcd)
     axes = {axis: analyse_axis(inp, axis, n, omega) for axis in AXES}
 
-    checks = _scope_checks(inp) + _cover_checks(inp) + _fire_checks(inp)
+    action_checks = []
+    if mode == "frame" and col_act is not None:
+        k_t = col_act["k_top"]
+        k_b = col_act["k_bottom"]
+        k_top_str = "pinned" if (math.isinf(k_t) if isinstance(k_t, float) else k_t == "pinned") else (f"{k_t:.1f}" if k_t == 0.1 else f"{k_t:.2f}")
+        k_bot_str = "pinned" if (math.isinf(k_b) if isinstance(k_b, float) else k_b == "pinned") else (f"{k_b:.1f}" if k_b == 0.1 else f"{k_b:.2f}")
+        working = [
+            f"Member {member_id}: l = {col_act['l']:.2f} m, combination 1.35G + 1.5Q",
+            f"Axial force: NEd = {col_act['NEd']:.1f} kN (compression)",
+            f"In-plane bending (y–y): My,top = {col_act['M_top_signed']:.1f} kNm ({col_act['top_node']}), "
+            f"My,bottom = {col_act['M_bottom_signed']:.1f} kNm ({col_act['bottom_node']})",
+            f"Curvature: {col_act['curvature']}",
+            f"Suggested end restraint: k_top = {k_top_str} ({col_act['top_node']}), "
+            f"k_bottom = {k_bot_str} ({col_act['bottom_node']})",
+        ]
+        action_checks.append(CheckResult(
+            "design_actions_frame",
+            GROUP_ACTIONS,
+            "Design actions from the frame analysis",
+            INFO,
+            result=f"NEd = {col_act['NEd']:.0f} kN, My = {col_act['M_top']:.1f} / {col_act['M_bottom']:.1f} kNm",
+            working=working,
+            refs=refs("ch5_design_moments"),
+        ))
+
+    checks = _scope_checks(inp) + _cover_checks(inp) + _fire_checks(inp) + action_checks
     checks += _slenderness_checks(inp, axes, n) + _moment_checks(inp, axes, n, omega)
     resistance, as_req = _resistance_checks(inp, axes, n)
     checks += resistance + _detailing_checks(inp)
@@ -857,6 +923,21 @@ def check_column(data):
             "NEd": inp.n_ed / 1e3, "MEd": ax.m_ed / 1e6, "M02": ax.m02 / 1e6,
             "MRd": None if ax.m_rd is None else ax.m_rd / 1e6, "Nmax": ax.model.n_max() / 1e3,
         }
+
+    plots = {
+        "section": {
+            "b": sec.b, "h": sec.h, "cover": sec.cover, "link_dia": sec.link_dia, "bar_dia": sec.bar_dia,
+            "n_b": sec.n_b, "n_h": sec.n_h, "a": sec.axis_distance,
+            "bars": [{"x": bar.x, "y": bar.y, "dia": bar.dia, "corner": bar.corner} for bar in sec.bars()],
+        },
+        "interaction": curves,
+    }
+    if frame_res:
+        from reports.frame_figures import frame_figures
+        frame_res["figures"] = frame_figures(frame_res, member=member_id)
+        plots["frame"] = frame_res
+        plots["figures"] = frame_res["figures"]
+
     return {
         "element": "column",
         "project": inp.project,
@@ -872,12 +953,5 @@ def check_column(data):
             "l": inp.l, "axes": {axis: _axis_summary(inp, ax, as_req[axis]) for axis, ax in axes.items()},
             "links": {"dia": sec.link_dia, **link_spacing(sec)}, "bending": inp.bending,
         },
-        "plots": {
-            "section": {
-                "b": sec.b, "h": sec.h, "cover": sec.cover, "link_dia": sec.link_dia, "bar_dia": sec.bar_dia,
-                "n_b": sec.n_b, "n_h": sec.n_h, "a": sec.axis_distance,
-                "bars": [{"x": bar.x, "y": bar.y, "dia": bar.dia, "corner": bar.corner} for bar in sec.bars()],
-            },
-            "interaction": curves,
-        },
+        "plots": plots,
     }

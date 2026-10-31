@@ -115,6 +115,100 @@ def test_helpers(client):
 
 
 
+def test_column_analysis_api_200_and_400(client):
+    frame_payload = {
+        "materials": {"concrete": "C30/37"},
+        "frame": {
+            "nodes": [
+                {"id": "N1", "x": 0.0, "y": 0.0},
+                {"id": "N2", "x": 0.0, "y": 3.5},
+                {"id": "N3", "x": 5.0, "y": 0.0},
+                {"id": "N4", "x": 5.0, "y": 3.5},
+            ],
+            "members": [
+                {"id": "C1", "node1": "N1", "node2": "N2", "b": 300, "h": 300},
+                {"id": "C2", "node1": "N3", "node2": "N4", "b": 300, "h": 300},
+                {"id": "B1", "node1": "N2", "node2": "N4", "b": 300, "h": 450},
+            ],
+            "supports": [
+                {"node": "N1", "type": "fixed"},
+                {"node": "N3", "type": "fixed"},
+            ],
+            "loads": [
+                {"type": "udl", "member": "B1", "w": 25.0, "case": "G"},
+            ],
+            "self_weight": True,
+            "E_method": "concrete",
+        },
+        "actions": {"mode": "frame", "member": "C1"},
+    }
+
+    res = client.post("/api/column/analysis", json=frame_payload)
+    assert res.status_code == 200
+    data = res.get_json()
+    assert "frame" in data
+    assert "figures" in data
+    assert set(data["vertical_members"]) == {"C1", "C2"}
+    assert data["column_actions"] is not None
+    assert data["column_actions"]["member"] == "C1"
+    assert data["column_actions"]["NEd"] > 0
+
+    # 400 with invalid frame
+    bad = client.post("/api/column/analysis", json={"frame": {"nodes": []}})
+    assert bad.status_code == 400
+    assert "errors" in bad.get_json()
+
+
+def test_column_check_in_frame_mode(client, example):
+    frame_payload = {
+        "project": {"name": "Portal column", "ref": "C1"},
+        "materials": example["materials"],
+        "geometry": {"b": 300, "h": 300, "l": 3.5},
+        "reinforcement": example["reinforcement"],
+        "restraint": example["restraint"],
+        "durability": example["durability"],
+        "actions": {
+            "mode": "frame",
+            "member": "C1",
+            "bending": "uniaxial",
+            "phi_ef": 1.7,
+            "lambda_lim_method": "simplified",
+        },
+        "frame": {
+            "nodes": [
+                {"id": "N1", "x": 0.0, "y": 0.0},
+                {"id": "N2", "x": 0.0, "y": 3.5},
+                {"id": "N3", "x": 5.0, "y": 0.0},
+                {"id": "N4", "x": 5.0, "y": 3.5},
+            ],
+            "members": [
+                {"id": "C1", "node1": "N1", "node2": "N2", "b": 300, "h": 300},
+                {"id": "C2", "node1": "N3", "node2": "N4", "b": 300, "h": 300},
+                {"id": "B1", "node1": "N2", "node2": "N4", "b": 300, "h": 450},
+            ],
+            "supports": [
+                {"node": "N1", "type": "fixed"},
+                {"node": "N3", "type": "fixed"},
+            ],
+            "loads": [
+                {"type": "udl", "member": "B1", "w": 25.0, "case": "G"},
+            ],
+            "self_weight": True,
+            "E_method": "concrete",
+        },
+    }
+
+    res = client.post("/api/column/check", json=frame_payload)
+    assert res.status_code == 200
+    report = res.get_json()
+    assert report["plots"]["frame"] is not None
+    checks_by_id = {c["id"]: c for c in report["checks"]}
+    assert "design_actions_frame" in checks_by_id
+    chk = checks_by_id["design_actions_frame"]
+    assert chk["group"] == "Design actions"
+    assert chk["status"] == "info"
+
+
 def test_non_finite_numbers_are_sent_as_null():
     """A utilisation over zero cover is infinite; the browser cannot parse Infinity, so it goes out as null."""
     assert json.loads(app.json.dumps({"u": math.inf, "v": [math.nan, 1.5]})) == {"u": None, "v": [None, 1.5]}

@@ -13,6 +13,7 @@ from ec2 import actions, creep, durability, fire, tables
 from ec2 import slenderness as sl
 from ec2.beam import analyse_input, check_beam
 from ec2.column import check_column
+from ec2.frame import analyse_frame, column_actions
 from ec2.foundation import check_foundation
 from ec2.slab import analyse_input as analyse_slab_input, check_slab
 from ec2.inputs import ValidationError
@@ -23,6 +24,7 @@ from reports.beam_figures import beam_figures
 from reports.beam_pdf import build_beam_pdf
 from reports.column_pdf import build_column_pdf
 from reports.foundation_figures import foundation_figures
+from reports.frame_figures import frame_figures
 from reports.foundation_pdf import build_foundation_pdf
 from reports.slab_figures import slab_figures
 from reports.slab_pdf import build_slab_pdf
@@ -238,6 +240,41 @@ def api_slab_analysis():
         return jsonify({"errors": exc.errors}), 400
     figures = slab_figures({"plots": result})
     return jsonify({**result, "figures": figures})
+
+
+@app.post("/api/column/analysis")
+def api_column_analysis():
+    """Analysis only, for the live diagrams on the column input page."""
+    data = _payload()
+    try:
+        frame_res = analyse_frame(data)
+    except ValidationError as exc:
+        return jsonify({"errors": exc.errors}), 400
+    except ValueError as exc:
+        return jsonify({"errors": {"frame": str(exc)}}), 400
+
+    member_id = data.get("actions", {}).get("member") if isinstance(data.get("actions"), dict) else None
+    col_act = None
+    if member_id and str(member_id) in frame_res.get("vertical_members", []):
+        try:
+            col_act = column_actions(frame_res, member_id, frame_res["elements"], frame_res["supports"])
+        except ValueError:
+            col_act = None
+
+    if col_act:
+        col_act = dict(col_act)
+        if math.isinf(col_act.get("k_top", 0)):
+            col_act["k_top"] = "pinned"
+        if math.isinf(col_act.get("k_bottom", 0)):
+            col_act["k_bottom"] = "pinned"
+
+    figures = frame_figures(frame_res, member=member_id)
+    return jsonify({
+        "frame": frame_res,
+        "figures": figures,
+        "vertical_members": frame_res.get("vertical_members", []),
+        "column_actions": col_act,
+    })
 
 
 @app.errorhandler(400)
