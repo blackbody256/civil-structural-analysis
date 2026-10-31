@@ -13,7 +13,7 @@ export const STATUS_SVG = {
 export const SEVERITY = { fail: 4, warn: 3, pass: 2, info: 1, na: 0 };
 export const PDF_PAGE_OFFSET = 4;
 
-export const ELEMENT_TITLES = { column: "Column", beam: "Beam", slab: "Slab" };
+export const ELEMENT_TITLES = { column: "Column", beam: "Beam", slab: "Slab", foundation: "Pad foundation" };
 
 /** The element a page belongs to, from its path: /beam, /beam/run, /beam/report. */
 export function currentElement() {

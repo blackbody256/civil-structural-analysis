@@ -1,9 +1,13 @@
 import { currentElement, el, ELEMENT_TITLES, keysFor, postJSON, SEVERITY, STATUS_SVG, store, verdictText } from "./common.js";
 import { drawBeamSection, drawSection, drawSlabSection } from "./drawings.js";
+import { renderFigure } from "./figure-spec.js";
 
 const element = currentElement();
 const KEYS = keysFor(element);
-const draw = { column: drawSection, beam: drawBeamSection, slab: drawSlabSection }[element];
+// the pad is drawn by the server: plain while the tests run, its failed parts red once they have all run
+const drawPad = (target, _section, { done = false } = {}, result) =>
+  renderFigure(target, result.plots.figures[done ? "plan" : "plan_plain"], "Pad foundation plan");
+const draw = { column: drawSection, beam: drawBeamSection, slab: drawSlabSection, foundation: drawPad }[element];
 
 const list = document.getElementById("run-list");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -44,7 +48,7 @@ async function animate(result) {
   const counts = { pass: 0, fail: 0, warn: 0, info: 0, na: 0 };
   const done = [];
   document.getElementById("n-total").textContent = items.length;
-  draw(document.getElementById("run-section"), result.plots.section, {});
+  draw(document.getElementById("run-section"), result.plots.section, {}, result);
   for (const [i, item] of items.entries()) {
     item.row.classList.add("active");
     if (!skip && !reduceMotion) item.row.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -61,10 +65,11 @@ async function animate(result) {
     document.getElementById("run-bar").style.width = `${((i + 1) / items.length) * 100}%`;
     document.getElementById("run-hint").textContent = item.check.group;
     if (item.check.target) {
-      draw(document.getElementById("run-section"), result.plots.section, { status: sectionStatus(done) });
+      draw(document.getElementById("run-section"), result.plots.section, { status: sectionStatus(done) }, result);
     }
     await wait(40);
   }
+  if (element === "foundation") draw(document.getElementById("run-section"), result.plots.section, { done: true }, result);
   const verdict = result.summary.verdict;
   const stamp = document.getElementById("stamp");
   stamp.className = `stamp ${verdict}`;

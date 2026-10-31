@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pad foundation · EC2 Checker</title>
+  <script>(function(){var p="system";try{p=localStorage.getItem("ec2.theme")||"system"}catch(e){}var d=p==="dark"||(p!=="light"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e6479'/%3E%3Crect x='12' y='6' width='8' height='20' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/form.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">EC2 Checker</span></a>
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Elements</a><span class="sep">/</span><span>Pad foundation</span></nav>
+    <span class="spacer"></span>
+    <a class="link" href="/reference/guide.pdf#page=47" target="_blank" rel="noopener">Guide, chapter 6</a>
+    <span id="theme-slot"></span>
+  </header>
+
+  <main class="page wide">
+    <div class="page-head">
+      <h1>Pad foundation</h1>
+      <p class="lede">A rectangular pad under a column. Enter the characteristic column loads: the bearing pressure is
+        checked against a presumed allowable value, then the base is designed for 1.35 G<sub>k</sub> + 1.5 Q<sub>k</sub>.</p>
+    </div>
+
+    <form id="foundation-form" class="form-layout" novalidate autocomplete="off">
+      <div class="form-main">
+        <div class="form-tools">
+          <span>Click a section to edit it.</span>
+          <span class="spacer"></span>
+          <button type="button" class="btn quiet small" id="expand-all">Expand all</button>
+          <button type="button" class="btn quiet small" id="collapse-all">Collapse all</button>
+        </div>
+
+        <details class="section" data-section="project">
+          <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="p-name">Project</label>
+                <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="Campus block A"></div></div>
+              <div class="field"><label for="p-ref">Element reference</label>
+                <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="F1 under C2"></div></div>
+              <div class="field"><label for="p-eng">Engineer</label>
+                <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
+              <div class="field"><label for="p-date">Date</label>
+                <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" data-section="geometry" open>
+          <summary><span class="s-title">Column and base</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="c-cx">Column c<sub>x</sub> (along L)</label>
+                <div class="control"><input id="c-cx" name="column.cx" type="number" step="25" min="100" max="3000" required><span class="unit">mm</span></div></div>
+              <div class="field"><label for="c-cy">Column c<sub>y</sub> (along B)</label>
+                <div class="control"><input id="c-cy" name="column.cy" type="number" step="25" min="100" max="3000" required><span class="unit">mm</span></div></div>
+              <div class="field"><label for="b-l">Base length L</label>
+                <div class="control"><input id="b-l" name="base.L" type="number" step="0.05" min="0.3" max="20" required><span class="unit">m</span></div>
+                <span class="help">The moment acts along L</span></div>
+              <div class="field"><label for="b-b">Base width B</label>
+                <div class="control"><input id="b-b" name="base.B" type="number" step="0.05" min="0.3" max="20" required><span class="unit">m</span></div></div>
+              <div class="field"><label for="b-h">Base depth h</label>
+                <div class="control"><input id="b-h" name="base.h" type="number" step="25" min="150" max="3000" required><span class="unit">mm</span></div></div>
+              <div class="field"><label for="b-hs">Soil over the base</label>
+                <div class="control"><input id="b-hs" name="base.soil_depth" type="number" step="0.05" min="0" max="10"><span class="unit">m</span></div>
+                <span class="help">Backfill from the top of the base to ground level</span></div>
+            </div>
+            <details class="more">
+              <summary><span>More options: soil unit weight</span></summary>
+              <div class="fields">
+                <div class="field"><label for="b-gs">Unit weight of the soil</label>
+                  <div class="control"><input id="b-gs" name="base.gamma_soil" type="number" step="0.5" min="10" max="25"><span class="unit">kN/m³</span></div></div>
+              </div>
+            </details>
+          </div>
+        </details>
+
+        <details class="section" data-section="ground" open>
+          <summary><span class="s-title">Ground</span><span class="s-sum" data-sum="ground"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field" style="grid-column: span 2"><label for="s-type">Type of soil</label>
+                <div class="control"><select id="s-type" name="soil.type" data-options="soils"></select></div>
+                <span class="help" id="soil-help">Presumed allowable bearing values (BS 8004), for preliminary design</span></div>
+              <div class="field"><label for="s-q">Allowable bearing pressure</label>
+                <div class="control"><input id="s-q" name="soil.q_allow" type="number" step="5" min="1" max="5000"><span class="unit">kPa</span></div>
+                <span class="help">Or the value from the site investigation</span></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" data-section="actions" open>
+          <summary><span class="s-title">Column loads (characteristic)</span><span class="s-sum" data-sum="actions"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="a-gk">Permanent G<sub>k</sub></label>
+                <div class="control"><input id="a-gk" name="actions.Gk" type="number" step="10" min="0" max="100000" required><span class="unit">kN</span></div></div>
+              <div class="field"><label for="a-qk">Variable Q<sub>k</sub></label>
+                <div class="control"><input id="a-qk" name="actions.Qk" type="number" step="10" min="0" max="100000"><span class="unit">kN</span></div></div>
+              <div class="field"><label for="a-cat">Variable load category</label>
+                <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
+                <span class="help">ψ<sub>2</sub> for crack control</span></div>
+              <div class="field"><label for="a-mg">Moment from G<sub>k</sub>, M<sub>Gk</sub></label>
+                <div class="control"><input id="a-mg" name="actions.MGk" type="number" step="5" min="0" max="100000"><span class="unit">kNm</span></div></div>
+              <div class="field"><label for="a-mq">Moment from Q<sub>k</sub> or wind, M<sub>Qk</sub></label>
+                <div class="control"><input id="a-mq" name="actions.MQk" type="number" step="5" min="0" max="100000"><span class="unit">kNm</span></div>
+                <span class="help">At the underside of the base, along L</span></div>
+              <div class="field"><span class="label">Design load (STR)</span>
+                <div class="computed" id="design-load">—</div></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" data-section="materials">
+          <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="m-concrete">Concrete class</label>
+                <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
+                <span class="help" id="concrete-help"></span></div>
+              <div class="field"><label for="m-fyk">Rebar yield strength f<sub>yk</sub></label>
+                <div class="control"><input id="m-fyk" name="materials.fyk" type="number" step="10" min="200" max="700" required><span class="unit">MPa</span></div></div>
+              <div class="field"><label for="m-duct">Ductility class</label>
+                <div class="control"><select id="m-duct" name="materials.ductility">
+                  <option value="A">A (normal)</option><option value="B">B (high)</option><option value="C">C (very high)</option></select></div></div>
+              <div class="field"><label for="m-dg">Largest aggregate d<sub>g</sub></label>
+                <div class="control"><input id="m-dg" name="materials.dg" type="number" step="1" min="5" max="63" required><span class="unit">mm</span></div></div>
+            </div>
+            <details class="more">
+              <summary>More options: National Annex factors</summary>
+              <div class="fields">
+                <div class="field"><label for="m-gc">γ<sub>c</sub> concrete</label>
+                  <div class="control"><input id="m-gc" name="materials.gamma_c" type="number" step="0.05" min="1" max="2"></div></div>
+                <div class="field"><label for="m-gs">γ<sub>s</sub> reinforcement</label>
+                  <div class="control"><input id="m-gs" name="materials.gamma_s" type="number" step="0.05" min="1" max="1.5"></div></div>
+                <div class="field"><label for="m-acc">α<sub>cc</sub></label>
+                  <div class="control"><input id="m-acc" name="materials.alpha_cc" type="number" step="0.05" min="0.8" max="1"></div>
+                  <span class="help">UK values: 1.5, 1.15, 0.85</span></div>
+              </div>
+            </details>
+          </div>
+        </details>
+
+        <details class="section" data-section="reinforcement" open>
+          <summary><span class="s-title">Bottom reinforcement</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="r-xd">Bars along L (bottom layer)</label>
+                <div class="control"><select id="r-xd" name="reinforcement.x_dia" data-options="bars" aria-label="Bar size along L"></select>
+                  <span class="unit">@</span><input name="reinforcement.x_s" type="number" step="25" min="50" max="500" aria-label="Spacing of the bars along L"><span class="unit">mm</span></div>
+                <span class="help" id="x-help"></span></div>
+              <div class="field"><label for="r-yd">Bars along B (second layer)</label>
+                <div class="control"><select id="r-yd" name="reinforcement.y_dia" data-options="bars" aria-label="Bar size along B"></select>
+                  <span class="unit">@</span><input name="reinforcement.y_s" type="number" step="25" min="50" max="500" aria-label="Spacing of the bars along B"><span class="unit">mm</span></div>
+                <span class="help" id="y-help"></span></div>
+              <div class="field"><label for="r-cover">Nominal cover c<sub>nom</sub></label>
+                <div class="control"><input id="r-cover" name="reinforcement.cover" type="number" step="5" min="0" max="200" required><span class="unit">mm</span></div></div>
+              <div class="field"><label for="r-cast">Base cast</label>
+                <div class="control"><select id="r-cast" name="reinforcement.cast">
+                  <option value="blinding">On blinding (c<sub>nom</sub> ≥ 40 mm)</option>
+                  <option value="soil">Directly against the soil (c<sub>nom</sub> ≥ 75 mm)</option></select></div></div>
+            </div>
+            <details class="more">
+              <summary><span>More options: Δc<sub>dev</sub></span></summary>
+              <div class="fields">
+                <div class="field"><label for="r-dc">Allowance Δc<sub>dev</sub></label>
+                  <div class="control"><select id="r-dc" name="reinforcement.delta_c_dev">
+                    <option value="10">10 mm (normal)</option><option value="5">5 mm (with QA)</option></select></div></div>
+              </div>
+            </details>
+          </div>
+        </details>
+
+        <details class="section" data-section="durability">
+          <summary><span class="s-title">Durability</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field" style="grid-column: span 2"><label for="d-exp">Exposure</label>
+                <div class="control"><select id="d-exp" name="durability.exposure" data-options="exposure"></select></div>
+                <span class="help" id="exposure-help"></span></div>
+              <div class="field"><label for="d-cem">Cement type</label>
+                <div class="control"><select id="d-cem" name="durability.cement_group"></select></div></div>
+            </div>
+          </div>
+        </details>
+
+        <div class="form-bar">
+          <button type="button" class="btn small" id="files-button" popovertarget="files-menu">Examples and files <span class="caret"></span></button>
+          <span class="spacer"></span>
+          <span class="form-message" id="form-message" role="alert"></span>
+          <button type="submit" class="btn primary">Run checks</button>
+        </div>
+      </div>
+
+      <aside class="preview" aria-label="Live drawings">
+        <section class="panel">
+          <div class="panel-head"><h3>Plan</h3><span class="hint" id="live-hint">to scale</span></div>
+          <div class="panel-body" id="preview-plan"></div>
+          <div class="stats">
+            <div><div class="k">Bearing p<sub>max</sub></div><div class="v" id="st-p">—</div></div>
+            <div><div class="k">Allowable</div><div class="v" id="st-q">—</div></div>
+            <div><div class="k">N<sub>Ed</sub> / M<sub>Ed</sub></div><div class="v" id="st-n">—</div></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h3>Section and ground pressure</h3><span class="hint">along L</span></div>
+          <div class="panel-body" id="preview-section"></div>
+          <div class="stats">
+            <div><div class="k">A<sub>s</sub> along L, prov / req</div><div class="v" id="st-asx">—</div></div>
+            <div><div class="k">A<sub>s</sub> along B, prov / req</div><div class="v" id="st-asy">—</div></div>
+            <div><div class="k">Checks</div><div class="v" id="st-verdict">—</div></div>
+          </div>
+        </section>
+      </aside>
+    </form>
+  </main>
+
+  <div id="files-menu" class="menu" popover role="menu">
+    <button type="button" role="menuitem" data-example="pass">Pad foundation (correct)<span class="sub">400 × 400 column, 3.2 × 3.0 × 0.6 m base on stiff clay, wind moment. All 17 checks pass</span></button>
+    <button type="button" role="menuitem" data-example="fail">Pad foundation with mistakes<span class="sub">2.6 × 2.6 × 0.45 m base on firm clay, H12 @ 200, cast against the soil. 8 checks fail</span></button>
+    <hr>
+    <button type="button" role="menuitem" id="import">Open inputs file (JSON)…</button>
+    <button type="button" role="menuitem" id="reset">Reset to the correct example</button>
+  </div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+
+  <script type="module" src="/static/js/foundation-form.js"></script>
+</body>
+</html>

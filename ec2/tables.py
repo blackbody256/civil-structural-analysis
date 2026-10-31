@@ -284,3 +284,29 @@ MAXPANS_PER_M2 = 8
 
 # Square welded fabric (BS 4483 A-series) for the topping: steel area in mm²/m each way.
 MESHES = {"A98": 98, "A142": 142, "A193": 193, "A252": 252, "A393": 393}
+
+
+# ---------------------------------------------------------------- pad foundations (Chapter 6)
+
+# Table 5: presumed allowable bearing values under static loading (from BS 8004), for preliminary
+# design. "value" is the figure the page suggests: the lower end of a range, or a value below an
+# upper bound; very soft clay has no presumed value.
+PRESUMED_BEARING = [
+    {"id": "dense_gravel", "group": "Non-cohesive", "soil": "Dense gravel, or dense sand and gravel", "range": "> 600", "value": 600},
+    {"id": "medium_gravel", "group": "Non-cohesive", "soil": "Medium dense gravel, or medium dense sand and gravel",
+     "range": "< 200 to 600", "value": 200},
+    {"id": "loose_gravel", "group": "Non-cohesive", "soil": "Loose gravel, or loose sand and gravel", "range": "< 200", "value": 100},
+    {"id": "compact_sand", "group": "Non-cohesive", "soil": "Compact sand", "range": "> 300", "value": 300},
+    {"id": "medium_sand", "group": "Non-cohesive", "soil": "Medium dense sand", "range": "100 to 300", "value": 100},
+    {"id": "loose_sand", "group": "Non-cohesive", "soil": "Loose sand", "range": "< 100", "value": 50},
+    {"id": "boulder_clay", "group": "Cohesive", "soil": "Very stiff boulder clay and hard clay", "range": "300 to 600", "value": 300},
+    {"id": "stiff_clay", "group": "Cohesive", "soil": "Stiff clay", "range": "150 to 300", "value": 150},
+    {"id": "firm_clay", "group": "Cohesive", "soil": "Firm clay", "range": "75 to 150", "value": 75},
+    {"id": "soft_clay", "group": "Cohesive", "soil": "Soft clay and silt", "range": "< 75", "value": 40},
+    {"id": "very_soft_clay", "group": "Cohesive", "soil": "Very soft clay and silt", "range": "Not applicable", "value": None},
+]
+PRESUMED_BEARING_BY_ID = {row["id"]: row for row in PRESUMED_BEARING}
+
+# EC2 Table 6.1: k for the moment transferred to a rectangular column by unbalanced bending, by c1/c2
+PUNCHING_K_RATIO = np.array([0.5, 1.0, 2.0, 3.0])
+PUNCHING_K = np.array([0.45, 0.60, 0.70, 0.80])

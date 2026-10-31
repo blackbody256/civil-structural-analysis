@@ -149,6 +149,33 @@ $b_{eff} = 450$ mm, $V_{Ed} = 12.55$ kN against $V_{Rd,c} = 15.2$ kN. The moment
 the app uses a pattern-loaded elastic analysis ($M^+ = 8.37$, $M^- = 9.41$ kNm) where the notes use coefficients with
 20 % redistribution ($M = 0.086FL = 8.1$ kNm). The app's $F_1$ follows the guide's formula (0.8) where the notes take 0.85.
 
+## Pad foundation (Chapter 6)
+
+A rectangular pad $L \times B \times h$ under a rectangular column $c_x \times c_y$ at its centre. The inputs are the
+characteristic column loads $G_k$, $Q_k$ and moments $M_{Gk}$, $M_{Qk}$ (at the underside of the base, along $L$), the
+soil over the base, and the ground: a soil type from Table 5 (presumed allowable bearing values from BS 8004, which
+fills in a value) or the allowable pressure from the site investigation.
+
+| Group | Check |
+|---|---|
+| Durability & cover | $c_{nom} \ge \max(c_{min,dur} + \Delta c_{dev},\ \phi + \Delta c_{dev})$ and $\ge 40$ mm on blinding or 75 mm against the soil |
+| Bearing | Characteristic $P = G_k + Q_k +$ base + soil; $e = M/P$; $p_{max} = P/A\,(1 + 6e/L)$, or $2P/[3B(L/2 - e)]$ when $e > L/6$ (warning: part of the base lifts off), against the allowable value |
+| Overturning (EQU) | $1.1M_{Gk} + 1.5M_{Qk} \le 0.9\,(G_k + \text{base} + \text{soil})\,L/2$ |
+| Bending | $N_{Ed} = 1.35G_k + 1.5Q_k$, $M_{Ed} = 1.35M_{Gk} + 1.5M_{Qk}$; net pressure on the cantilever at each column face; $K \le K'$ (no compression steel), $A_{s,req}$ against the bars both ways |
+| Beam shear | At $d$ from each face: $v_{Ed} = V_{Ed}/(b\,d) \le v_{Rd,c}$ (Table 6) |
+| Punching | Column face: $\beta (V_{Ed} - \Delta V_{Ed})/(u_0 d) \le v_{Rd,max} = 0.5\nu f_{cd}$ (Table 7). Control perimeters (rounded corners) from $0.5d$ to $2d$, the ground reaction inside each deducted, $\beta = 1 + k\,M_{Ed}u/(V_{Ed,red}W)$: $v_{Ed} \le v_{Rd,c}\cdot 2d/a$ at the critical one |
+| Detailing | $A_{s,min}$ both ways, $A_{s,max} = 0.04A_c$, clear spacing, crack control ($w_{max} = 0.3$ mm, quasi-permanent stress) |
+
+Checked by hand (tests/test_foundation.py): 400 × 400 column, 3.0 × 3.0 × 0.6 m base, $G_k = 1000$, $Q_k = 500$ kN:
+bearing 1635 kN / 9 m² = 181.7 kPa; net design pressure 233.3 kPa, $M = 233.3 \times 3 \times 1.3^2/2 = 591.5$ kNm,
+$A_{s,req} = 2642$ mm² ($d = 542$); beam shear 530.6 kN, $v_{Ed} = 0.326 \le v_{Rd,c} = 0.391$ MPa; punching at the face
+2.41 ≤ 5.28 MPa.
+
+Examples: **Pad foundation (correct)**: 400 × 400 column, 3.2 × 3.0 × 0.6 m base under 0.5 m of soil on stiff clay
+(200 kPa), $G_k = 1000$, $Q_k = 500$ kN, $M_{Gk} = 20$, $M_{Qk} = 60$ kNm (wind), C30/37, H16 @ 150 both ways, cover 50
+on blinding, XC2. All 17 checks pass. **With mistakes**: 300 × 300 column on a 2.6 × 2.6 × 0.45 m base on firm clay
+(150 kPa), $M_{Qk} = 150$ kNm, C25/30, H12 @ 200, cast against the soil with 50 mm cover. Exactly 8 checks fail.
+
 ## Tests
 
 ```bash
@@ -167,9 +194,9 @@ ec2/                calculation engine (no web code)
   slenderness.py    effective length, slenderness, nominal curvature
   flexure.py        bending, shear and span/depth for beams and slabs
   analysis.py       matrix stiffness beam analysis (the client's BeamViz Pro solver)
-  column.py · beam.py · slab.py · ribbed.py   each element's procedure → report data
+  column.py · beam.py · slab.py · ribbed.py · foundation.py   each element's procedure → report data
 reports/            PDF reports (reportlab): pdf_base.py shared layout, one module per element;
-                    beam_figures.py and slab_figures.py draw analysis figures for page and PDF
+                    beam_figures.py, slab_figures.py and foundation_figures.py draw figures for page and PDF
 static/             HTML pages, JS, and fonts (IBM Plex for the pages, Liberation Serif for the PDF)
   css/base.css      theme tokens (light and dark) and shared components
   css/landing.css · form.css · run.css · report.css   one stylesheet per page
@@ -182,7 +209,8 @@ tests/              pytest suite
 
 ## Limits
 
-Rectangular columns; rectangular, T and L beams; solid one-way and two-way slabs; ribbed slabs on Maxpans; normal-weight concrete up to C50/60; 50-year durability
+Rectangular columns; rectangular, T and L beams; solid one-way and two-way slabs; ribbed slabs on Maxpans;
+rectangular pad foundations under one central column (moment along one axis, bearing by presumed values); normal-weight concrete up to C50/60; 50-year durability
 covers with 20 mm aggregate. Fire is checked by the tabulated method. The beam and slab analysis is linear elastic
 (no redistribution) with the gross section unless I is entered. The tool is for learning and preliminary
 checking: a qualified structural engineer must verify the inputs and results.

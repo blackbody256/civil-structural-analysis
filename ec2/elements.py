@@ -41,9 +41,11 @@ ELEMENTS = [
     },
     {
         "id": "foundation", "title": "Pad foundation", "subtitle": "Spread footing", "chapter": 6, "page": 43,
-        "status": "planned",
-        "summary": "Pad footings designed to Eurocode 7 and Eurocode 2.",
-        "checks": ["Bearing pressure", "Overturning (EQU)", "Bending", "Beam shear & punching shear"],
+        "status": "active", "url": "/foundation",
+        "summary": "Rectangular pad under a column: bearing pressure by the prescriptive method, overturning, "
+                   "then bending at the column faces, beam shear, punching shear and detailing.",
+        "checks": ["Bearing pressure (presumed values)", "Overturning (EQU)", "Bending at the column faces",
+                   "Beam shear at d", "Punching shear with the ground reaction deducted", "Min/max steel, spacing & cracks"],
     },
     {
         "id": "retaining-wall", "title": "Retaining wall", "subtitle": "Cantilever wall", "chapter": 9,

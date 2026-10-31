@@ -1,12 +1,15 @@
-import { el, getJSON } from "./common.js";
+import { el, getJSON, postJSON } from "./common.js";
 import { drawBeamModel } from "./beam-canvas.js";
 import { beamSectionFromInputs, drawBeamSection, drawElevation, drawSection, drawSlabSection, s, sectionFromInputs } from "./drawings.js";
+import { renderFigure } from "./figure-spec.js";
+import { EXAMPLES as PAD_EXAMPLES } from "./foundation-examples.js";
 
 // Card accents from Beam Pro palette
 const CARD_ACCENTS = {
   beam: { light: "#6366F1", dark: "#818CF8" },
   column: { light: "#8B5CF6", dark: "#A78BFA" },
   slab: { light: "#10B981", dark: "#34D399" },
+  foundation: { light: "#EC4899", dark: "#F472B6" },
 };
 
 const PLANNED_ACCENTS = {
@@ -19,6 +22,13 @@ const PLANNED_ACCENTS = {
 
 // Each element's worked example, drawn with the app's own drawing code.
 const ART = {
+  async foundation(section, elevation) {
+    // the pad's drawings come from the server, for its worked example
+    const res = await postJSON("/api/foundation/check", PAD_EXAMPLES.pass);
+    if (!res.ok) return;
+    renderFigure(section, res.data.plots.figures.plan_plain, "Pad foundation plan");
+    renderFigure(elevation, res.data.plots.figures.section, "Pad foundation section and ground pressure");
+  },
   column(section, elevation) {
     const sample = { b: 350, h: 350, cover: 30, link_dia: 8, bar_dia: 20, n_b: 3, n_h: 3 };
     drawSection(section, sectionFromInputs(sample), { linkLabel: "H8 @ 200" });

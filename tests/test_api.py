@@ -16,6 +16,7 @@ def client():
     "/", "/column", "/column/run", "/column/report",
     "/beam", "/beam/run", "/beam/report",
     "/slab", "/slab/run", "/slab/report",
+    "/foundation", "/foundation/run", "/foundation/report",
 ])
 def test_pages(client, path):
     res = client.get(path)
@@ -24,7 +25,7 @@ def test_pages(client, path):
 
 def test_elements_and_meta(client):
     elements = client.get("/api/elements").get_json()
-    assert [e["id"] for e in elements if e["status"] == "active"] == ["column", "beam", "slab"]
+    assert [e["id"] for e in elements if e["status"] == "active"] == ["column", "beam", "slab", "foundation"]
     meta = client.get("/api/meta").get_json()
     assert "C30/37" in [c["name"] for c in meta["concrete"]]
     assert len(meta["table4"]["F"]) == 11

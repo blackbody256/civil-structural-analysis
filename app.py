@@ -13,6 +13,7 @@ from ec2 import actions, creep, durability, fire, tables
 from ec2 import slenderness as sl
 from ec2.beam import analyse_input, check_beam
 from ec2.column import check_column
+from ec2.foundation import check_foundation
 from ec2.slab import analyse_input as analyse_slab_input, check_slab
 from ec2.inputs import ValidationError
 from ec2.elements import ELEMENTS
@@ -21,6 +22,8 @@ from ec2.references import GUIDE, PDF_PAGE_OFFSET
 from reports.beam_figures import beam_figures
 from reports.beam_pdf import build_beam_pdf
 from reports.column_pdf import build_column_pdf
+from reports.foundation_figures import foundation_figures
+from reports.foundation_pdf import build_foundation_pdf
 from reports.slab_figures import slab_figures
 from reports.slab_pdf import build_slab_pdf
 
@@ -65,11 +68,19 @@ def check_slab_with_figures(data):
     return report
 
 
+def check_foundation_with_figures(data):
+    """The pad foundation check, with the section and plan drawn for the page and the report."""
+    report = check_foundation(data)
+    report["plots"]["figures"] = foundation_figures(report)
+    return report
+
+
 # element: (check function, PDF builder)
 ELEMENT_HANDLERS = {
     "column": (check_column, build_column_pdf),
     "beam": (check_beam_with_figures, build_beam_pdf),
     "slab": (check_slab_with_figures, build_slab_pdf),
+    "foundation": (check_foundation_with_figures, build_foundation_pdf),
 }
 
 PAGES = {"/": "index.html"}
@@ -109,6 +120,7 @@ def api_meta():
         "maxpans": [{"id": k, **v} for k, v in tables.MAXPANS.items()],
         "maxpans_per_m2": tables.MAXPANS_PER_M2,
         "meshes": [{"id": k, "As": v} for k, v in tables.MESHES.items()],
+        "presumed_bearing": tables.PRESUMED_BEARING,
         "ductility": [{"id": k, "k": v[0], "eps_uk": v[1]} for k, v in DUCTILITY_CLASSES.items()],
         "exposure": [{"id": r["id"], "classes": r["classes"], "example": r["example"],
                       "groups": list(r["groups"]), "note": r.get("note", "")}
