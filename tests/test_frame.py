@@ -1,0 +1,206 @@
+"""Tests for 2D frame stiffness analysis (ec2/frame.py)."""
+import pytest
+from ec2.frame import solve
+
+
+def test_fixed_fixed_beam_midspan_point_load():
+    """Fixed-fixed beam 5m with 150 kN downward load at midspan."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0},
+        {"id": "B", "x": 2.5, "y": 0.0},
+        {"id": "C", "x": 5.0, "y": 0.0},
+    ]
+    members = [
+        {"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+        {"id": "E2", "node1": "B", "node2": "C", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+    ]
+    supports = [
+        {"node": "A", "dx": True, "dy": True, "rz": True},
+        {"node": "C", "dx": True, "dy": True, "rz": True},
+    ]
+    loads = [{"node": "B", "fx": 0.0, "fy": -150.0, "mz": 0.0}]
+
+    res = solve(nodes, members, supports, loads)
+    assert res["reactions"]["A"]["Ry"] == pytest.approx(75.0, abs=1e-2)
+    assert res["reactions"]["C"]["Ry"] == pytest.approx(75.0, abs=1e-2)
+    assert res["reactions"]["A"]["Mz"] == pytest.approx(93.75, abs=1e-2)
+    assert res["reactions"]["C"]["Mz"] == pytest.approx(-93.75, abs=1e-2)
+
+    m1 = res["members"][0]
+    m2 = res["members"][1]
+    assert m1["moment_start"] == pytest.approx(-93.75, abs=1e-2)
+    assert m1["moment_end"] == pytest.approx(93.75, abs=1e-2)
+    assert m2["moment_start"] == pytest.approx(93.75, abs=1e-2)
+    assert m2["moment_end"] == pytest.approx(-93.75, abs=1e-2)
+
+
+def test_propped_cantilever_udl():
+    """Propped cantilever 6m, fixed A, roller B, UDL 20 kN/m down."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0},
+        {"id": "B", "x": 6.0, "y": 0.0},
+    ]
+    members = [
+        {"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+    ]
+    supports = [
+        {"node": "A", "dx": True, "dy": True, "rz": True},
+        {"node": "B", "dx": False, "dy": True, "rz": False},
+    ]
+    loads = [{"member": "E1", "load_type": "udl", "w": -20.0}]
+
+    res = solve(nodes, members, supports, loads)
+    assert res["reactions"]["A"]["Ry"] == pytest.approx(75.0, abs=1e-2)
+    assert res["reactions"]["B"]["Ry"] == pytest.approx(45.0, abs=1e-2)
+    assert res["reactions"]["A"]["Mz"] == pytest.approx(90.0, abs=1e-2)
+    assert res["members"][0]["moment_start"] == pytest.approx(-90.0, abs=1e-2)
+    assert res["members"][0]["moment_end"] == pytest.approx(0.0, abs=1e-2)
+
+
+def test_portal_frame_client_example():
+    """Portal frame from client tool examples with lateral loads and beam UDLs."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0},
+        {"id": "B", "x": 0.0, "y": 4.0},
+        {"id": "E", "x": 0.0, "y": 8.0},
+        {"id": "D", "x": 5.0, "y": 0.0},
+        {"id": "C", "x": 5.0, "y": 4.0},
+        {"id": "F", "x": 5.0, "y": 8.0},
+    ]
+    members = [
+        {"id": "Col1", "node1": "A", "node2": "B", "E": 2e8, "A": 2e-2, "I": 1.6e-4},
+        {"id": "Col3", "node1": "B", "node2": "E", "E": 2e8, "A": 2e-2, "I": 1.6e-4},
+        {"id": "Col2", "node1": "D", "node2": "C", "E": 2e8, "A": 2e-2, "I": 1.6e-4},
+        {"id": "Col4", "node1": "C", "node2": "F", "E": 2e8, "A": 2e-2, "I": 1.6e-4},
+        {"id": "Beam1", "node1": "B", "node2": "C", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+        {"id": "Beam2", "node1": "E", "node2": "F", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+    ]
+    supports = [
+        {"node": "A", "dx": True, "dy": True, "rz": True},
+        {"node": "D", "dx": True, "dy": True, "rz": True},
+    ]
+    loads = [
+        {"node": "B", "fx": 30.0, "fy": 0.0, "mz": 0.0},
+        {"node": "E", "fx": 50.0, "fy": 0.0, "mz": 0.0},
+        {"member": "Beam1", "load_type": "udl", "w": -15.0},
+        {"member": "Beam2", "load_type": "udl", "w": -20.0},
+    ]
+
+    res = solve(nodes, members, supports, loads)
+    assert res["reactions"]["A"]["Rx"] == pytest.approx(-37.267, abs=0.01)
+    assert res["reactions"]["A"]["Ry"] == pytest.approx(26.037, abs=0.01)
+    assert res["reactions"]["A"]["Mz"] == pytest.approx(102.712, abs=0.01)
+
+    assert res["reactions"]["D"]["Rx"] == pytest.approx(-42.733, abs=0.01)
+    assert res["reactions"]["D"]["Ry"] == pytest.approx(148.963, abs=0.01)
+    assert res["reactions"]["D"]["Mz"] == pytest.approx(109.973, abs=0.01)
+
+    m_by_id = {m["id"]: m for m in res["members"]}
+    assert m_by_id["Col1"]["axial"] == pytest.approx(-26.037, abs=0.01)
+    assert m_by_id["Col1"]["moment_start"] == pytest.approx(-102.712, abs=0.01)
+    assert m_by_id["Col1"]["moment_end"] == pytest.approx(46.355, abs=0.01)
+
+    assert m_by_id["Beam1"]["moment_start"] == pytest.approx(65.078, abs=0.01)
+    assert m_by_id["Beam1"]["moment_end"] == pytest.approx(-123.172, abs=0.01)
+
+    assert m_by_id["Col2"]["axial"] == pytest.approx(-148.963, abs=0.01)
+    assert m_by_id["Col2"]["moment_start"] == pytest.approx(-109.973, abs=0.01)
+    assert m_by_id["Col2"]["moment_end"] == pytest.approx(60.960, abs=0.01)
+
+    assert res["determinacy"]["value"] == 6
+
+
+def test_point_load_at_a_zero_defect_fix():
+    """Client tool defect: ld.a || L/2 sends a=0 to midspan. Verify a=0 works correctly."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0},
+        {"id": "B", "x": 4.0, "y": 0.0},
+    ]
+    members = [
+        {"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+    ]
+    supports = [
+        {"node": "A", "dx": True, "dy": True, "rz": False},
+        {"node": "B", "dx": False, "dy": True, "rz": False},
+    ]
+    loads = [{"member": "E1", "load_type": "point", "P": -10.0, "a": 0.0}]
+
+    res = solve(nodes, members, supports, loads)
+    assert res["reactions"]["A"]["Ry"] == pytest.approx(10.0, abs=1e-3)
+    assert res["reactions"]["B"]["Ry"] == pytest.approx(0.0, abs=1e-3)
+
+
+def test_gravity_udl_on_inclined_member():
+    """Gravity UDL on an inclined member: vertical reactions sum to w*L, no horizontal reaction."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0},
+        {"id": "B", "x": 3.0, "y": 4.0},
+    ]
+    members = [
+        {"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+    ]
+    supports = [
+        {"node": "A", "dx": True, "dy": True, "rz": False},
+        {"node": "B", "dx": False, "dy": True, "rz": False},
+    ]
+    # Length is 5m, w = 10 kN/m downward -> total gravity load = 50 kN
+    loads = [{"member": "E1", "load_type": "udl_gravity", "w": 10.0}]
+
+    res = solve(nodes, members, supports, loads)
+    rA = res["reactions"]["A"]
+    rB = res["reactions"]["B"]
+    assert rA["Rx"] == pytest.approx(0.0, abs=1e-3)
+    assert (rA["Ry"] + rB["Ry"]) == pytest.approx(50.0, abs=1e-3)
+
+
+def test_unstable_frame_raises_error():
+    """Unstable frame with insufficient supports raises ValueError."""
+    nodes = [
+        {"id": "A", "x": 0.0, "y": 0.0},
+        {"id": "B", "x": 3.0, "y": 0.0},
+    ]
+    members = [
+        {"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 1.5e-2, "I": 1.2e-4},
+    ]
+    # Free roller in x only
+    supports = [
+        {"node": "A", "dx": False, "dy": True, "rz": False},
+        {"node": "B", "dx": False, "dy": True, "rz": False},
+    ]
+    loads = [{"node": "B", "fx": 10.0, "fy": 0.0, "mz": 0.0}]
+
+    with pytest.raises(ValueError, match="The frame is unstable: check the supports"):
+        solve(nodes, members, supports, loads)
+
+
+def test_invalid_topology_errors():
+    """Invalid topology inputs raise descriptive ValueErrors."""
+    nodes = [{"id": "A", "x": 0.0, "y": 0.0}, {"id": "B", "x": 3.0, "y": 0.0}]
+    supports = [{"node": "A", "dx": True, "dy": True, "rz": True}]
+
+    # Zero length member
+    with pytest.raises(ValueError, match="zero length"):
+        solve(
+            [{"id": "A", "x": 0.0, "y": 0.0}, {"id": "B", "x": 0.0, "y": 0.0}],
+            [{"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 0.01, "I": 1e-4}],
+            supports,
+            [],
+        )
+
+    # Unknown node
+    with pytest.raises(ValueError, match="references unknown node"):
+        solve(
+            nodes,
+            [{"id": "E1", "node1": "A", "node2": "C", "E": 2e8, "A": 0.01, "I": 1e-4}],
+            supports,
+            [],
+        )
+
+    # Connect node to itself
+    with pytest.raises(ValueError, match="connects node 'A' to itself"):
+        solve(
+            nodes,
+            [{"id": "E1", "node1": "A", "node2": "A", "E": 2e8, "A": 0.01, "I": 1e-4}],
+            supports,
+            [],
+        )
