@@ -126,6 +126,12 @@ details[open] > summary .chev { transform: rotate(-135deg) translateY(-2px); }
   .util-row { grid-template-columns: 1fr; gap: 4px; }
   .calc thead { display: none; }
   .calc tr, .calc td { display: block; border-left: 0 !important; border-right: 0 !important; width: auto !important; }
+  /* one block per check: its result under its working, a firm rule before the next check */
+  .calc td { border-bottom: 0; }
+  .calc td.out { padding-top: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+  .calc td.out .res { margin-bottom: 0; }
+  .calc td.out .meter { flex-basis: 100%; margin-top: 6px; }
+  .calc tr + tr { border-top: 1.5px solid var(--line-strong); }
   .flow-branch { grid-template-columns: 1fr; }
   .governing .big .u { font-size: 36px; }
 }

@@ -291,10 +291,16 @@ details.more > .fields + .check { margin-top: 14px; }
 .design-counts { font-size: 13.5px; color: var(--muted); margin-bottom: 14px; }
 .design-checks-group { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .design-group-title { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-.design-check-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 7px 10px; border-radius: 6px; font-size: 13.5px; }
+/* the first column fits the longest status label, "Not applicable" */
+.design-check-row { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 7px 10px; border-radius: 6px; font-size: 13.5px; }
 .design-check-row.is-fail { background: var(--fail-soft); }
 .design-check-row .check-title { font-weight: 500; }
 .design-check-row .check-res { font-family: var(--font-mono); font-size: 13px; color: var(--text-2); text-align: right; }
+@media (max-width: 560px) {
+  .design-check-row { grid-template-columns: 5.5rem minmax(0, 1fr); gap: 2px 10px; }
+  .design-check-row .status { white-space: normal; }
+  .design-check-row .check-res { grid-column: 2; text-align: left; }
+}
 
 @keyframes checkRowFadeIn {
   from { opacity: 0; transform: translateY(6px); }
