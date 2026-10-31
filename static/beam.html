@@ -166,9 +166,6 @@
                     <span class="help">Finishes and walls carried; not the beam itself</span></div>
                   <div class="field"><label for="a-qk">Variable q<sub>k</sub></label>
                     <div class="control"><input id="a-qk" name="actions.qk" type="number" step="0.5" min="0" max="10000"><span class="unit">kN/m</span></div></div>
-                  <div class="field"><label for="a-cat">Variable load category</label>
-                    <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
-                    <span class="help">ψ<sub>2</sub> for the quasi-permanent load</span></div>
                 </div>
                 <label class="check"><input type="checkbox" name="actions.self_weight"> <span>Add the beam's self-weight to g<sub>k</sub> (25 kN/m³)</span></label>
               </div>
@@ -227,14 +224,6 @@
             </div>
           </details>
 
-          <div class="panel" style="margin-top: 14px;">
-            <div class="fields">
-              <div class="field"><label for="m-concrete">Concrete class (sets E<sub>cm</sub> for the analysis)</label>
-                <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
-                <span class="help" id="concrete-help"></span></div>
-            </div>
-          </div>
-
           <div class="analysis-action-bar">
             <button type="button" class="btn primary" id="btn-analyse">Analyse</button>
             <span class="hint" id="analysis-note"></span>
@@ -275,6 +264,9 @@
                   <span class="unit">kN</span>
                 </div>
               </div>
+              <div class="field"><label for="a-cat">Variable load category</label>
+                <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
+                <span class="help">ψ<sub>2</sub> for the quasi-permanent load, used for deflection and crack control</span></div>
             </div>
           </section>
 
@@ -299,6 +291,9 @@
             <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
               <div class="fields">
+                <div class="field"><label for="m-concrete">Concrete class</label>
+                  <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
+                  <span class="help" id="concrete-help"></span></div>
                 <div class="field"><label for="m-fyk">Rebar yield strength f<sub>yk</sub></label>
                   <div class="control"><input id="m-fyk" name="materials.fyk" type="number" step="10" min="200" max="700" required><span class="unit">MPa</span></div>
                   <span class="help">B500 is 500 MPa. Eurocode 2 covers 400–600.</span></div>

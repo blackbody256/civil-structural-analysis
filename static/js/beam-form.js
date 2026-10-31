@@ -223,7 +223,7 @@ function syncVisibility() {
   const conc = meta.concrete.find((c) => c.name === valueOf("materials.concrete"));
   if (conc) {
     $("concrete-help").textContent = `fck ${conc.fck} MPa, fctm ${conc.fctm} MPa, Ecm ${conc.Ecm} GPa`;
-    $("e-help").textContent = valueOf("stiffness.E_method") === "enter" ? "" : `Ecm = ${conc.Ecm} GPa`;
+    $("e-help").textContent = valueOf("stiffness.E_method") === "enter" ? "" : `Ecm = ${conc.Ecm} GPa (${conc.name}, set on the Design tab)`;
   }
   const b = Number(valueOf("section.b")), h = Number(valueOf("section.h"));
   $("i-help").textContent = valueOf("stiffness.I_method") === "section" && b > 0 && h > 0

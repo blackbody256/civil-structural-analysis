@@ -66,7 +66,7 @@
           </fieldset>
 
           <details class="section" data-section="geometry" open>
-            <summary><span class="s-title">Slab thickness & concrete</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
+            <summary><span class="s-title">Slab dimensions</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
               <div class="fields">
                 <div class="field solid-only"><label for="sl-h">Slab thickness h</label>
@@ -80,9 +80,6 @@
                   <div class="control"><input id="rb-hf" name="slab.hf" type="number" step="5" min="40" max="200"><span class="unit">mm</span></div></div>
                 <div class="field ribbed-only" style="grid-column: 1 / -1"><span class="label">Rib geometry and own weight</span>
                   <div class="computed" id="rb-geometry">—</div></div>
-                <div class="field"><label for="m-concrete">Concrete class (sets E<sub>cm</sub>)</label>
-                  <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
-                  <span class="help" id="concrete-help"></span></div>
               </div>
             </div>
           </details>
@@ -217,9 +214,6 @@
                     <span class="help">Finishes, screed, ceilings; excluding slab self-weight</span></div>
                   <div class="field"><label for="a-qk">Variable q<sub>k</sub></label>
                     <div class="control"><input id="a-qk" name="actions.qk" type="number" step="0.25" min="0" max="100"><span class="unit">kN/m²</span></div></div>
-                  <div class="field"><label for="a-cat">Variable load category</label>
-                    <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
-                    <span class="help">ψ<sub>2</sub> for the quasi-permanent load</span></div>
                 </div>
                 <label class="check" style="margin-top: 6px;"><input type="checkbox" name="actions.self_weight" checked> <span class="solid-only">Add the slab's self-weight to g<sub>k</sub> (25 kN/m³ · h)</span><span class="ribbed-only">Add the own weight of the concrete (25 kN/m³) and of the Maxpans</span></label>
                 <div class="one-way-only" style="margin-top: 6px;">
@@ -297,12 +291,20 @@
                 <div class="control"><input id="dv-tw-ved" type="number" step="0.1" min="0" max="1000000" readonly><span class="unit">kN/m</span></div>
               </div>
             </div>
+                      <div class="fields">
+              <div class="field"><label for="a-cat">Variable load category</label>
+                <div class="control"><select id="a-cat" name="actions.category" data-options="psi"></select></div>
+                <span class="help">ψ<sub>2</sub> for the quasi-permanent load, used for deflection and crack control</span></div>
+            </div>
           </section>
 
           <details class="section" data-section="materials" open>
             <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
               <div class="fields">
+                <div class="field"><label for="m-concrete">Concrete class</label>
+                  <div class="control"><select id="m-concrete" name="materials.concrete" data-options="concrete"></select></div>
+                  <span class="help" id="concrete-help"></span></div>
                 <div class="field"><label for="m-fyk">Rebar yield strength f<sub>yk</sub></label>
                   <div class="control"><input id="m-fyk" name="materials.fyk" type="number" step="10" min="200" max="700" required><span class="unit">MPa</span></div>
                   <span class="help">B500 is 500 MPa. Eurocode 2 covers 400–600.</span></div>

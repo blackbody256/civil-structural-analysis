@@ -297,7 +297,7 @@ function syncVisibility() {
     const conc = meta.concrete.find((c) => c.name === valueOf("materials.concrete"));
     if (conc) {
       $("concrete-help").textContent = `fck ${conc.fck} MPa, fctm ${conc.fctm} MPa, Ecm ${conc.Ecm} GPa`;
-      if ($("e-help")) $("e-help").textContent = valueOf("stiffness.E_method") === "enter" ? "" : `Ecm = ${conc.Ecm} GPa`;
+      if ($("e-help")) $("e-help").textContent = valueOf("stiffness.E_method") === "enter" ? "" : `Ecm = ${conc.Ecm} GPa (${conc.name}, set on the Design tab)`;
     }
   }
 }
@@ -1111,7 +1111,7 @@ async function init() {
   // Reinforcement and geometry inputs change live preview
   form.addEventListener("input", (e) => {
     updateStatsAndPreview();
-    if (e.target.name?.startsWith("actions.") || e.target.name?.startsWith("span.") || e.target.name?.startsWith("panel.") || e.target.name?.startsWith("slab.")) {
+    if (e.target.name && e.target.closest("#panel-analysis")) {
       markAnalysisDirty();
       runLiveAnalysis();
     }
