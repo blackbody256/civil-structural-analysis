@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
+from flask.json.provider import DefaultJSONProvider
 
 from ec2 import actions, creep, durability, fire, tables
 from ec2 import slenderness as sl
@@ -29,6 +30,25 @@ GUIDE_PDF = ROOT / "How-to-design-concrete-structures-using-Eurocode-2.pdf"
 
 app = Flask(__name__, static_folder=str(STATIC), static_url_path="/static")
 
+
+def _finite(obj):
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _finite(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_finite(v) for v in obj]
+    return obj
+
+
+class FiniteJSON(DefaultJSONProvider):
+    """Browsers cannot parse Infinity or NaN (e.g. a utilisation over zero cover), so they are sent as null."""
+
+    def dumps(self, obj, **kwargs):
+        return super().dumps(_finite(obj), **kwargs)
+
+
+app.json = FiniteJSON(app)
 
 
 def check_beam_with_figures(data):
@@ -86,6 +106,9 @@ def api_meta():
                      for n, v in CONCRETE_TABLE.items()],
         "bar_sizes": BAR_SIZES,
         "link_sizes": LINK_SIZES,
+        "maxpans": [{"id": k, **v} for k, v in tables.MAXPANS.items()],
+        "maxpans_per_m2": tables.MAXPANS_PER_M2,
+        "meshes": [{"id": k, "As": v} for k, v in tables.MESHES.items()],
         "ductility": [{"id": k, "k": v[0], "eps_uk": v[1]} for k, v in DUCTILITY_CLASSES.items()],
         "exposure": [{"id": r["id"], "classes": r["classes"], "example": r["example"],
                       "groups": list(r["groups"]), "note": r.get("note", "")}

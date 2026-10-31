@@ -118,7 +118,7 @@ details[open] > summary .chev { transform: rotate(-135deg) translateY(-2px); }
 .assumptions li { margin: 5px 0; }
 
 @media (max-width: 1000px) {
-  .summary, .figures { grid-template-columns: 1fr; }
+  .summary, .figures { grid-template-columns: minmax(0, 1fr); }
   .report-head { grid-template-columns: 1fr; }
   .report-head .actions { justify-content: flex-start; }
 }

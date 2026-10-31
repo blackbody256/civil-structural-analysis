@@ -512,7 +512,101 @@ export function drawBeamSection(target, sec, opts = {}) {
   return svg;
 }
 
+// Two ribs of a ribbed slab on Maxpans, to scale: topping, ribs, crossed clay blocks, bars, links and fabric.
+function drawRibbedSection(target, sec, opts = {}) {
+  const W = opts.width || 420;
+  const H = opts.height || 300;
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Ribbed slab cross-section, two ribs" });
+  const id = `conc${++uid}`;
+  svg.append(s("defs", {}, concretePattern(id)));
+
+  const { h, hf, ph, bw, spacing } = sec;
+  const cover = Number(sec.cover) || 25;
+  const link = Number(sec.link_dia) || 0;
+  const width = 2 * spacing;
+  const ribs = [spacing / 2, (3 * spacing) / 2];
+
+  const padL = 48, padR = 48, padT = 46, padB = 84;
+  const scale = Math.min((W - padL - padR) / width, (H - padT - padB) / h);
+  const x0 = padL + (W - padL - padR - width * scale) / 2;
+  const yBase = padT + h * scale + (H - padT - padB - h * scale) / 2;
+  const X = (x) => x0 + x * scale;
+  const Y = (y) => yBase - y * scale;
+  const status = opts.status || {};
+  const cls = (part) => `part ${part}${status[part] === "fail" ? " is-fail" : ""}`;
+
+  // concrete: the topping over the full width and the ribs below it, with break lines at both ends
+  const midY = (Y(ph) + Y(h)) / 2;
+  const pts = [[X(0), Y(h)], [X(width), Y(h)], [X(width), midY - 4], [X(width) + 4, midY - 1], [X(width) - 4, midY + 1],
+    [X(width), midY + 4], [X(width), Y(ph)]];
+  for (const c of [...ribs].reverse()) {
+    pts.push([X(c + bw / 2), Y(ph)], [X(c + bw / 2), Y(0)], [X(c - bw / 2), Y(0)], [X(c - bw / 2), Y(ph)]);
+  }
+  pts.push([X(0), Y(ph)], [X(0), midY + 4], [X(0) - 4, midY + 1], [X(0) + 4, midY - 1], [X(0), midY - 4]);
+  svg.append(s("polygon", {
+    points: pts.map(([x, y]) => `${x},${y}`).join(" "),
+    fill: `url(#${id})`, stroke: INK, "stroke-width": 1.6, "stroke-linejoin": "round",
+    class: cls("section"), "data-part": "section",
+  }));
+
+  // Maxpans between the ribs (and half a pan at each end), drawn crossed
+  const pans = [[0, ribs[0] - bw / 2], [ribs[0] + bw / 2, ribs[1] - bw / 2], [ribs[1] + bw / 2, width]];
+  for (const [a, b] of pans) {
+    svg.append(s("rect", { x: X(a), y: Y(ph), width: (b - a) * scale, height: ph * scale, fill: PAPER, stroke: MUTED, "stroke-width": 1 }));
+    svg.append(s("line", { x1: X(a), y1: Y(ph), x2: X(b), y2: Y(0), stroke: MUTED, "stroke-width": 0.8 }));
+    svg.append(s("line", { x1: X(a), y1: Y(0), x2: X(b), y2: Y(ph), stroke: MUTED, "stroke-width": 0.8 }));
+  }
+
+  // fabric at mid-depth of the topping
+  if (sec.mesh) {
+    svg.append(s("line", {
+      x1: X(0), y1: Y(h - hf / 2), x2: X(width), y2: Y(h - hf / 2),
+      stroke: ACCENT, "stroke-width": 1.4, "stroke-dasharray": "6 4", class: cls("bars"),
+    }));
+  }
+
+  // links and bars in each rib
+  const barsGroup = s("g", { class: cls("bars"), "data-part": "bars" });
+  for (const c of ribs) {
+    if (link) {
+      svg.append(s("rect", {
+        x: X(c - bw / 2 + cover), y: Y(h - cover), width: (bw - 2 * cover) * scale, height: (h - 2 * cover) * scale,
+        rx: 3, fill: "none", stroke: ACCENT, "stroke-width": Math.max(link * scale, 1.2), class: cls("links"), "data-part": "links",
+      }));
+    }
+    for (const [bars, at] of [[sec.bottom, (dia) => cover + link + dia / 2], [sec.top, (dia) => h - cover - link - dia / 2]]) {
+      const n = Number(bars?.n) || 0;
+      const dia = Number(bars?.dia) || 0;
+      if (!n || !dia) continue;
+      const lo = c - bw / 2 + cover + link + dia / 2;
+      const hi = c + bw / 2 - cover - link - dia / 2;
+      for (const xb of spread(lo, hi, n)) barsGroup.append(s("circle", { cx: X(xb), cy: Y(at(dia)), r: Math.max((dia / 2) * scale, 2.5), fill: STEEL }));
+    }
+  }
+  svg.append(barsGroup);
+
+  // dimensions: rib width, rib centres, overall depth and topping
+  const c0 = ribs[0];
+  svg.append(dimH(X(c0 - bw / 2), X(c0 + bw / 2), yBase + 14, `bw ${bw}`, yBase));
+  svg.append(dimH(X(ribs[0]), X(ribs[1]), yBase + 40, `${spacing} centres`, yBase));
+  svg.append(dimV(Y(h), Y(0), X(0) - 22, `h ${h}`, X(0)));
+  svg.append(text(X(width) + 6, Y(h - hf / 2) + 4, `hf ${hf}`, { fill: MUTED, "font-size": 10.5, class: "num" }));
+
+  const label = (b) => (b?.n && b?.dia ? `${b.n}H${b.dia}` : "none");
+  const coverColour = status.cover === "fail" ? COLORS.fail : MUTED;
+  svg.append(text(X(0), Y(h) - 24, `Top per rib: ${label(sec.top)}${sec.mesh ? `; ${sec.mesh} fabric` : "; no fabric"}`,
+    { fill: INK, "font-size": 11, "font-weight": 700 }));
+  svg.append(symText(X(0), Y(h) - 9, [`Maxpan ${sec.maxpan || ""} (${ph} mm); c`, sub("nom"), ` = ${cover} mm`],
+    { fill: coverColour, "font-size": 10.5 }));
+  svg.append(text(X(0), yBase + 76, `Bottom per rib: ${label(sec.bottom)}${link ? `; H${link} links` : "; no links"}`,
+    { fill: INK, "font-size": 11, "font-weight": 700 }));
+
+  target.replaceChildren(svg);
+  return svg;
+}
+
 export function drawSlabSection(target, sec, opts = {}) {
+  if (sec?.slab_type === "ribbed") return drawRibbedSection(target, sec, opts);
   const W = opts.width || 420;
   const H = opts.height || 300;
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Slab 1 m strip cross-section" });

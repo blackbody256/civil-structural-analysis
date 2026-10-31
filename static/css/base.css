@@ -252,6 +252,12 @@ svg .part.is-hl { filter: drop-shadow(0 0 4px var(--accent)); }
 /* beam analysis: full-width figures and data tables */
 .figures .wide { grid-column: 1 / -1; }
 .data-wrap { overflow-x: auto; }
+/* design values strip above the analysis figures (form pages and report) */
+.analysis-env-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 14px 0; }
+.analysis-env-item { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.analysis-env-item .k { font-size: 12px; color: var(--muted); }
+.analysis-env-item .v { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--text); margin-top: 2px; }
+.analysis-env-item .sub { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
 .data { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data th { text-align: left; font-weight: 600; color: var(--muted); font-size: 13px; padding: 7px 10px; border-bottom: 1.5px solid var(--line-strong); }
 .data td { padding: 6px 10px; border-bottom: 1px solid var(--line); }

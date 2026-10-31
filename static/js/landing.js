@@ -319,16 +319,7 @@ function feature(item) {
   return card;
 }
 
-function planned(items) {
-  const allPlanned = [
-    ...items,
-    {
-      id: "ribbed-slab",
-      title: "Ribbed slab",
-      chapter: 3,
-      checks: ["Ribbed slab: data being gathered"],
-    },
-  ];
+function planned(allPlanned) {
   return el("section", { class: "planned-section" },
     el("h3", {}, "Coming next"),
     el("p", { class: "lede" }, "The other elements in the guide, planned in this order."),

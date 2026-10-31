@@ -91,3 +91,17 @@ def test_slab_api_routes_ribbed(ex3):
     assert res["derived"]["slab_type"] == "ribbed" and "strip" in res["plots"]["figures"]
     assert c.post("/api/slab/analysis", json=ex3).status_code == 200
     assert c.post("/api/slab/report.pdf", json=ex3).data.startswith(b"%PDF")
+
+
+def test_failing_slab_gives_valid_json(ex3):
+    """No fabric and no top bars: the answer must still parse in the browser (no Infinity or NaN)."""
+    import json
+
+    from app import app
+
+    def reject(name):
+        raise ValueError(name)
+
+    ex3["reinforcement"].update(top_dia="none", mesh="none")
+    text = app.test_client().post("/api/slab/check", json=ex3).get_data(as_text=True)
+    assert json.loads(text, parse_constant=reject)["summary"]["verdict"] == "fail"

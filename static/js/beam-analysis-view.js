@@ -27,6 +27,14 @@ export function spec(name, fig, label) {
   return box;
 }
 
+// Design values from an analysis: the worst over the pattern load cases when the server gives them, else Case A.
+export function designValues(a) {
+  if (a?.design) return { sag: Math.abs(a.design.sag || 0), hog: Math.abs(a.design.hog || 0), V: Math.abs(a.design.V || 0) };
+  const env = a?.envelope || {};
+  const shear = env.shear?.V ?? env.V?.V ?? 0;
+  return { sag: Math.abs(env.sagging?.M ?? 0), hog: Math.abs(env.hogging?.M ?? 0), V: Math.abs(shear) };
+}
+
 export function buildAnalysisView(data, { onContinue, showContinue = false } = {}) {
   const a = data.analysis;
   const figs = data.figures || {};
@@ -52,10 +60,16 @@ export function buildAnalysisView(data, { onContinue, showContinue = false } = {
       at ? el("div", { class: "sub" }, `at ${at}`) : null
     );
 
+  // with pattern loading the design values are the worst over the load cases, not those of Case A drawn below
+  const des = a.design;
+  const at = (x, kase) => `${num(x)} m${kase ? `, case ${kase}` : ""}`;
   const envStrip = el("div", { class: "analysis-env-grid" },
-    statItem("Largest sagging M⁺", `${num(sag.M)} kN·m`, `${num(sag.x)} m`),
-    statItem("Largest hogging M⁻", `${num(hog.M)} kN·m`, `${num(hog.x)} m`),
-    statItem("Largest |V|", `${num(Math.abs(vEnv.V))} kN`, `${num(vEnv.x)} m`),
+    des ? statItem("Design sagging M⁺Ed", `${num(Math.abs(des.sag))} kN·m`, at(des.x_sag, des.case_sag))
+      : statItem("Largest sagging M⁺", `${num(sag.M)} kN·m`, `${num(sag.x)} m`),
+    des ? statItem("Design hogging M⁻Ed", `${num(Math.abs(des.hog))} kN·m`, at(des.x_hog, des.case_hog))
+      : statItem("Largest hogging M⁻", `${num(hog.M)} kN·m`, `${num(hog.x)} m`),
+    des ? statItem("Design shear VEd", `${num(Math.abs(des.V))} kN`, at(des.x_v, des.case_v))
+      : statItem("Largest |V|", `${num(Math.abs(vEnv.V))} kN`, `${num(vEnv.x)} m`),
     statItem("δmax", `${num(Math.abs(defl.d))} mm`, `${num(defl.x)} m`),
     statItem("Design line load w", wVal !== null && wVal !== undefined ? `${num(wVal)} kN/m` : "direct", null)
   );

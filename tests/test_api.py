@@ -1,3 +1,6 @@
+import json
+import math
+
 import pytest
 
 from app import app
@@ -109,3 +112,8 @@ def test_helpers(client):
     assert k["pinned"] is True
 
 
+
+
+def test_non_finite_numbers_are_sent_as_null():
+    """A utilisation over zero cover is infinite; the browser cannot parse Infinity, so it goes out as null."""
+    assert json.loads(app.json.dumps({"u": math.inf, "v": [math.nan, 1.5]})) == {"u": None, "v": [None, 1.5]}

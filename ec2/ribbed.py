@@ -532,7 +532,7 @@ def _detailing_checks(inp, geo, act, res_sag, res_hog):
         ok = clear >= s_min
         out.append(CheckResult(f"bar_spacing_{name}", GROUPS[7], f"Clear spacing, {name} bars in the rib",
                                PASS if ok else FAIL, result=f"{clear:.0f} {'≥' if ok else '<'} {s_min:.0f} mm",
-                               utilisation=s_min / clear if clear > 0 else math.inf,
+                               utilisation=s_min / clear if clear > 0 else None,
                                working=[f"{n} bars of {dia} mm in a rib {inp.bw:g} mm wide: clear gap = {clear:.0f} mm",
                                         f"Minimum = max(φ, dg + 5, 20) = {s_min:.0f} mm"], target="bars"))
     need = 0.0013 * 1000 * inp.hf
@@ -540,7 +540,7 @@ def _detailing_checks(inp, geo, act, res_sag, res_hog):
     ok = have >= need
     out.append(CheckResult("mesh", GROUPS[7], "Fabric in the topping", PASS if ok else FAIL,
                            result=f"{inp.mesh or 'none'}: {have} {'≥' if ok else '<'} {need:.0f} mm²/m",
-                           utilisation=need / have if have else math.inf,
+                           utilisation=need / have if have else None,
                            working=[f"Light fabric in the topping for crack control: As ≥ 0.13 %·b·hf = 0.0013 × 1000 × "
                                     f"{inp.hf:g} = {need:.0f} mm²/m", f"Provided {inp.mesh or 'no fabric'} = {have} mm²/m"],
                            note="" if ok else "Add a mesh such as A98 or A142 in the topping."))

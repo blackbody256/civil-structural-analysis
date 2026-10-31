@@ -1,11 +1,11 @@
-// Slab form: Analysis, Design and Report tabs for solid one-way and two-way slabs.
+// Slab form: Analysis, Design and Report tabs for solid one-way and two-way slabs and ribbed slabs.
 import { downloadBlob, el, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
 import { BeamCanvas, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { drawSlabSection, s } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
 import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
-import { buildAnalysisView, num, spec, table } from "./beam-analysis-view.js";
+import { buildAnalysisView, designValues, num, spec, table } from "./beam-analysis-view.js";
 
 const KEYS = keysFor("slab");
 const PROJECT = { name: "", ref: "", engineer: "", date: "" };
@@ -133,6 +133,42 @@ export const EXAMPLES = {
   },
 };
 
+EXAMPLES.ribbed = {
+  // worked example 3: 200 mm ribbed slab on 6" Maxpans, three 4.5 m spans on beams
+  project: { ...PROJECT },
+  slab: { type: "ribbed", maxpan: '6"', bw: 150, hf: 50 },
+  materials: { ...MATERIALS, concrete: "C25/30" },
+  span: {
+    l: 13.5, preset: "three_spans",
+    supports: [
+      { x: 0, type: "pin" },
+      { x: 4.5, type: "roller" },
+      { x: 9.0, type: "roller" },
+      { x: 13.5, type: "roller" },
+    ],
+  },
+  reinforcement: {
+    bottom_n: 2, bottom_dia: 10, top_n: 2, top_dia: 10, link_dia: "none", legs: 2,
+    cover: 25, delta_c_dev: 10, mesh: "A98",
+  },
+  actions: {
+    mode: "analysis", gk: 1.2, qk: 3.0, self_weight: true, category: "B",
+    loads: [], pattern: true, partitions: false,
+    M_sag: 0, M_hog: 0, VEd: 0,
+  },
+  stiffness: { ...STIFF },
+  durability: { exposure: "XC1", cement_group: "All", fire_period: "none" },
+};
+EXAMPLES.ribbed_wrong = {
+  ...structuredClone(EXAMPLES.ribbed),
+  slab: { type: "ribbed", maxpan: '4"', bw: 100, hf: 50 },
+  materials: { ...MATERIALS, concrete: "C20/25" },
+  reinforcement: {
+    bottom_n: 2, bottom_dia: 8, top_n: 2, top_dia: "none", link_dia: "none", legs: 2,
+    cover: 15, delta_c_dev: 10, mesh: "none",
+  },
+};
+
 const PRESETS = {
   simply_supported: (L) => [{ x: 0, type: "pin" }, { x: L, type: "roller" }],
   two_spans: (L) => [{ x: 0, type: "pin" }, { x: Number((L / 2).toFixed(3)), type: "roller" }, { x: L, type: "roller" }],
@@ -148,7 +184,8 @@ const PRESETS = {
 const SUPPORT_LABEL = { pin: "Pinned", roller: "Roller", fixed: "Fixed" };
 const LOAD_LABEL = { point: "Point load", udl: "Uniform", linear: "Varying", moment: "Moment" };
 const CASES = [["Ed", "Design"], ["G", "gk × 1.35"], ["Q", "qk × 1.5"]];
-const NUMERIC = /^reinforcement\.(bottom_x_dia|bottom_x_s|bottom_y_dia|bottom_y_s|top_x_s|top_y_s|cover|delta_c_dev)$/;
+const NUMERIC = /^reinforcement\.(bottom_x_dia|bottom_x_s|bottom_y_dia|bottom_y_s|top_x_s|top_y_s|bottom_dia|legs|cover|delta_c_dev)$/;
+const OPTIONAL_DIA = /^reinforcement\.(top_x_dia|top_y_dia|top_dia|link_dia)$/;
 
 const form = document.getElementById("slab-form");
 const $ = (id) => document.getElementById(id);
@@ -168,6 +205,8 @@ let designDone = false;
 let analysisDirty = false;
 
 const slabType = () => form.querySelector('input[name="slab.type"]:checked')?.value || "one_way";
+// one-way slabs and ribbed slabs are both analysed as a beam along the span (a 1 m strip or one rib)
+const isStrip = (type = slabType()) => type === "one_way" || type === "ribbed";
 const valueOf = (name) => form.elements[name]?.value;
 const length = () => Number(valueOf("span.l")) || 0;
 const r3 = (x) => Number(Number(x).toFixed(3));
@@ -249,9 +288,15 @@ function show(selector, on) {
 }
 
 function syncVisibility() {
-  const isOneWay = slabType() === "one_way";
-  show(".one-way-only", isOneWay);
-  show(".two-way-only", !isOneWay);
+  const type = slabType();
+  show(".one-way-only", isStrip(type));
+  show(".two-way-only", type === "two_way");
+  show(".solid-only", type !== "ribbed");
+  show(".ribbed-only", type === "ribbed");
+  // per metre width for a solid slab, per rib for a ribbed slab
+  for (const node of form.querySelectorAll("[data-unit]")) {
+    node.textContent = (node.dataset.unit === "moment" ? "kNm" : "kN") + (type === "ribbed" ? "" : "/m");
+  }
 
   show(".e-enter", valueOf("stiffness.E_method") === "enter");
 
@@ -281,7 +326,8 @@ function cellInput(path, value, attrs = {}) {
 }
 
 function cellSelect(path, current, options, onChange) {
-  const sel = el("select", {}, options.map(([v, l]) => option(v, l, v === current)));
+  const sel = el("select", {}, options.map(([v, l]) => option(v, l)));
+  sel.value = current;
   sel.addEventListener("change", () => {
     setPath(model, path, sel.value);
     if (onChange) onChange(sel.value);
@@ -481,7 +527,66 @@ function drawPanelPlan() {
 
 // ------------------------------------------------------------------ Live Preview & Side Panel
 
+const barArea = (dia) => (Math.PI * dia * dia) / 4;
+
+function setStats(rows) {
+  rows.forEach(([label, value], i) => {
+    $(`st-k${i + 1}`).innerHTML = label;
+    $(`st-${["asbx", "asby", "astx", "asty"][i]}`).textContent = value;
+  });
+}
+
+function updateRibbedPreview() {
+  const pan = meta?.maxpans.find((p) => p.id === valueOf("slab.maxpan")) || { id: '6"', height: 150, mass: 8.5, width: 300, length: 300 };
+  const bw = Number(valueOf("slab.bw")) || 0;
+  const hf = Number(valueOf("slab.hf")) || 0;
+  const h = pan.height + hf;
+  const spacing = bw + pan.width;
+  const cover = Number(valueOf("reinforcement.cover")) || 25;
+  const link = valueOf("reinforcement.link_dia");
+  const linkDia = link && link !== "none" ? Number(link) : null;
+
+  const nb = Number(valueOf("reinforcement.bottom_n")) || 0;
+  const db = Number(valueOf("reinforcement.bottom_dia")) || 10;
+  const top = valueOf("reinforcement.top_dia");
+  const dt = top && top !== "none" ? Number(top) : null;
+  const nt = dt ? Number(valueOf("reinforcement.top_n")) || 0 : 0;
+  const mesh = valueOf("reinforcement.mesh");
+  const asb = nb * barArea(db);
+  const ast = dt ? nt * barArea(dt) : 0;
+
+  // own weight of one rib per metre run: concrete of the rib and the topping, plus one row of Maxpans
+  const swC = (25 * (bw * pan.height + spacing * hf)) / 1e6;
+  const swPan = (pan.mass * 9.81e-3) / (pan.length / 1000);
+  $("rb-geometry").textContent = bw && hf
+    ? `h = ${pan.height} + ${hf} = ${h} mm; ribs at ${spacing} mm centres (${bw} + ${pan.width}); `
+      + `own weight per rib ${(swC + swPan).toFixed(3)} kN/m (concrete ${swC.toFixed(3)}, Maxpans ${swPan.toFixed(3)})`
+    : "—";
+  $("rb-pan-help").textContent = `Clay blocks ${pan.length} × ${pan.width} × ${pan.height} mm, ${pan.mass.toFixed(2)} kg, ${meta?.maxpans_per_m2 ?? 8} per m²`;
+  $("rb-bot-help").textContent = `As = ${Math.round(asb)} mm² per rib (sagging)`;
+  $("rb-top-help").textContent = dt ? `As = ${Math.round(ast)} mm² per rib over the supports` : "none: needed over continuous supports";
+
+  setStats([
+    ["A<sub>s</sub> bottom per rib", `${Math.round(asb)} mm²`],
+    ["A<sub>s</sub> top per rib", dt ? `${Math.round(ast)} mm²` : "none"],
+    ["Depth h / centres", `${h} / ${spacing} mm`],
+    ["Fabric", mesh && mesh !== "none" ? mesh : "none"],
+  ]);
+
+  const sec = {
+    slab_type: "ribbed", h, hf, ph: pan.height, bw, spacing, cover, link_dia: linkDia, maxpan: pan.id,
+    bottom: { n: nb, dia: db, As: asb }, top: { n: nt, dia: dt, As: ast },
+    mesh: mesh && mesh !== "none" ? mesh : null,
+  };
+  const previewBox = $("preview-section");
+  if (previewBox && bw && hf) drawSlabSection(previewBox, sec, { width: 380, height: 230 });
+}
+
 function updateStatsAndPreview() {
+  if (slabType() === "ribbed") {
+    updateRibbedPreview();
+    return;
+  }
   const h = Number(valueOf("slab.h")) || 200;
   const cover = Number(valueOf("reinforcement.cover")) || 25;
   const type = slabType();
@@ -506,10 +611,12 @@ function updateStatsAndPreview() {
   const ty_s = Number(valueOf("reinforcement.top_y_s")) || 200;
   const asty = has_ty ? Math.round((Math.PI * ty_dia * ty_dia / 4.0) * 1000.0 / ty_s) : 0;
 
-  $("st-asbx").textContent = `${asbx} mm²/m`;
-  $("st-asby").textContent = `${asby} mm²/m`;
-  $("st-astx").textContent = astx ? `${astx} mm²/m` : "none";
-  $("st-asty").textContent = asty ? `${asty} mm²/m` : "none";
+  setStats([
+    ["A<sub>s</sub> bottom x", `${asbx} mm²/m`],
+    ["A<sub>s</sub> bottom y", `${asby} mm²/m`],
+    ["A<sub>s</sub> top x", astx ? `${astx} mm²/m` : "none"],
+    ["A<sub>s</sub> top y", asty ? `${asty} mm²/m` : "none"],
+  ]);
 
   if ($("bx-as-help")) $("bx-as-help").textContent = `As = ${asbx} mm²/m`;
   if ($("by-as-help")) $("by-as-help").textContent = `As = ${asby} mm²/m`;
@@ -537,8 +644,8 @@ function refresh() {
   syncVisibility();
   drawPanelPlan();
   updateStatsAndPreview();
-  if (canvas && slabType() === "one_way") {
-    canvas.setModel({ length: length(), supports: model.supports, loads: model.loads });
+  if (canvas && isStrip()) {
+    canvas.setModel({ length: length(), supports: model.supports, loads: model.loads, w: lastAnalysis?.analysis?.w || 0 });
   }
 }
 
@@ -554,7 +661,7 @@ function serialize() {
       setPath(data, path, input.checked);
     } else if (input.type === "number") {
       setPath(data, path, input.value === "" ? null : Number(input.value));
-    } else if (path === "reinforcement.top_x_dia" || path === "reinforcement.top_y_dia") {
+    } else if (OPTIONAL_DIA.test(path)) {
       setPath(data, path, input.value === "none" ? "none" : Number(input.value));
     } else if (NUMERIC.test(path)) {
       setPath(data, path, Number(input.value));
@@ -571,7 +678,7 @@ function serialize() {
   const adjust = $("adjust-design-values")?.checked;
   if (adjust) {
     data.actions.mode = "direct";
-    if (data.slab?.type === "one_way") {
+    if (isStrip(data.slab?.type)) {
       data.actions.M_sag = Number($("dv-ms")?.value) || 0;
       data.actions.M_hog = Number($("dv-mh")?.value) || 0;
       data.actions.VEd = Number($("dv-ved")?.value) || 0;
@@ -600,7 +707,7 @@ export function fill(data) {
   }
   if (data.span?.supports) {
     model.supports = data.span.supports.map((sp) => ({ ...sp }));
-  } else if (data.slab?.type === "one_way") {
+  } else if (isStrip(data.slab?.type)) {
     model.supports = PRESETS.three_spans(data.span?.l || 13.5);
   } else {
     model.supports = [];
@@ -608,9 +715,7 @@ export function fill(data) {
   model.loads = (data.actions?.loads || []).map((ld) => ({ ...ld }));
 
   renderTables();
-  syncVisibility();
-  drawPanelPlan();
-  updateStatsAndPreview();
+  refresh();
   markAnalysisDirty();
   runLiveAnalysis();
 }
@@ -635,17 +740,16 @@ async function runLiveAnalysis() {
 
   lastAnalysis = res.data;
   $("analysis-hint").textContent = "live";
+  if (canvas && isStrip(data.slab?.type)) canvas.setModel({ ...canvas.model, w: res.data.analysis?.w || 0 });
 
-  if (data.slab?.type === "one_way") {
+  if (isStrip(data.slab?.type)) {
+    const ribbed = data.slab.type === "ribbed";
     if (res.data.figures?.diagrams) {
       renderFigure($("preview-analysis"), res.data.figures.diagrams, "Shear force and bending moment");
     }
-    const env = res.data.analysis?.envelope;
-    if (env) {
-      const sag = env.sagging?.M != null ? Math.abs(env.sagging.M) : 0;
-      const hog = env.hogging?.M != null ? Math.abs(env.hogging.M) : 0;
-      const shr = env.shear?.V != null ? Math.abs(env.shear.V) : (env.V?.V != null ? Math.abs(env.V.V) : 0);
-      $("st-w").textContent = `${(res.data.analysis.w || 0).toFixed(2)} kN/m`;
+    if (res.data.analysis?.envelope) {
+      const { sag, hog, V: shr } = designValues(res.data.analysis);
+      $("st-w").textContent = `${(res.data.analysis.w || 0).toFixed(2)} kN/m${ribbed ? " per rib" : ""}`;
       $("st-m").textContent = `${sag.toFixed(1)} / ${hog.toFixed(1)} kNm`;
       $("st-v").textContent = `${shr.toFixed(1)} kN`;
 
@@ -772,7 +876,7 @@ async function performAnalysis() {
     $("analysis-note").textContent = "";
     updateTabStates();
 
-    if (data.slab.type === "one_way") {
+    if (isStrip(data.slab.type)) {
       const view = buildAnalysisView(res.data, {
         showContinue: true,
         onContinue: () => switchTab("design"),
@@ -850,7 +954,8 @@ async function performDesignChecks(e) {
     if (frame) {
       frame.src = "/slab/report?embed=1";
     }
-  } catch {
+  } catch (err) {
+    console.error(err);
     $("form-message").textContent = "Could not reach the server.";
   } finally {
     if (btn) btn.disabled = false;
@@ -958,6 +1063,9 @@ function populateSelects() {
     if (kind === "concrete") opts = meta.concrete.map((c) => [c.name, c.name]);
     if (kind === "bars") opts = meta.bar_sizes.map((d) => [d, `H${d}`]);
     if (kind === "bars-or-none") opts = [["none", "None"], ...meta.bar_sizes.map((d) => [d, `H${d}`])];
+    if (kind === "links-or-none") opts = [["none", "None"], ...meta.link_sizes.map((d) => [d, `H${d}`])];
+    if (kind === "maxpans") opts = meta.maxpans.map((p) => [p.id, `${p.id} (${p.height} mm, ${p.mass.toFixed(2)} kg)`]);
+    if (kind === "meshes-or-none") opts = [["none", "None"], ...meta.meshes.map((m) => [m.id, `${m.id} (${m.As} mm²/m)`])];
     if (kind === "exposure") opts = meta.exposure_all.map((r) => [r.id, `${r.classes}: ${r.example}`]);
     if (kind === "fire") opts = meta.fire_periods.map((p) => [p, p === "none" ? "None required" : p]);
     if (kind === "psi") opts = meta.psi_categories.map((c) => [c.id, `${c.id}: ${c.label} (ψ2 ${c.psi[2]})`]);
@@ -1018,7 +1126,7 @@ async function init() {
   // Reinforcement and geometry inputs change live preview
   form.addEventListener("input", (e) => {
     updateStatsAndPreview();
-    if (e.target.name?.startsWith("actions.") || e.target.name?.startsWith("span.") || e.target.name?.startsWith("panel.") || e.target.name === "slab.h") {
+    if (e.target.name?.startsWith("actions.") || e.target.name?.startsWith("span.") || e.target.name?.startsWith("panel.") || e.target.name?.startsWith("slab.")) {
       markAnalysisDirty();
       runLiveAnalysis();
     }

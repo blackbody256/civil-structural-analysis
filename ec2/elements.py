@@ -25,10 +25,11 @@ ELEMENTS = [
                    "Flange longitudinal shear", "Min/max steel, spacing & cracking"],
     },
     {
-        "id": "slab", "title": "Slab", "subtitle": "Solid one-way & two-way", "chapter": 3, "page": 17,
+        "id": "slab", "title": "Slab", "subtitle": "Solid one-way & two-way, ribbed", "chapter": 3, "page": 17,
         "status": "active", "url": "/slab",
-        "summary": "Solid one-way and two-way slabs: loads analysed first, then bending, shear, deflection, fire and detailing per metre width. Ribbed slabs: coming later.",
-        "checks": ["Pattern-loaded strip analysis & two-way coefficients", "Durability, cover & fire",
+        "summary": "Solid one-way and two-way slabs, per metre width, and ribbed slabs on Maxpans, per rib as a T-beam: "
+                   "loads analysed first, then bending, shear, deflection, fire and detailing.",
+        "checks": ["Pattern-loaded strip analysis & two-way coefficients", "Ribbed slabs on Maxpans", "Durability, cover & fire",
                    "Sagging and hogging bending", "Shear resistance without links (vRd,c)",
                    "Deflection of every span", "Min/max steel, spacing & crack control"],
     },

@@ -1,27 +1,31 @@
-// Slab report: 1 m wide strip cross-section, structural analysis or panel moments, and design path.
+// Slab report: 1 m wide strip (or ribbed) cross-section, structural analysis or panel moments, and design path.
 import { el, fmt, worst } from "./common.js";
 import { drawSlabSection } from "./drawings.js";
 import { buildAnalysisView, num, spec, table } from "./beam-analysis-view.js";
 import { arrow, block, figure, node, targetStatus } from "./report-parts.js";
 
+const isRibbed = (result) => result.derived?.slab_type === "ribbed";
+
 function oneWayDesignValues(result) {
   const d = result.derived || {};
   const a = result.plots?.analysis;
+  const ribbed = isRibbed(result);
+  const per = ribbed ? "" : "/m";
   const rows = [
-    ["Largest sagging moment M+Ed", d.MEd_sag ? `${num(d.MEd_sag)} kNm/m` : "none", d.x_sag !== null && d.MEd_sag ? `${num(d.x_sag)} m` : ""],
-    ["Largest hogging moment M−Ed", d.MEd_hog ? `${num(d.MEd_hog)} kNm/m` : "none", d.x_hog !== null && d.MEd_hog ? `${num(d.x_hog)} m` : ""],
-    ["Largest shear VEd", d.VEd ? `${num(d.VEd)} kN/m` : "none", d.x_v !== null && d.VEd ? `${num(d.x_v)} m` : ""],
+    ["Largest sagging moment M+Ed", d.MEd_sag ? `${num(d.MEd_sag)} kNm${per}` : "none", d.x_sag !== null && d.MEd_sag ? `${num(d.x_sag)} m` : ""],
+    ["Largest hogging moment M−Ed", d.MEd_hog ? `${num(d.MEd_hog)} kNm${per}` : "none", d.x_hog !== null && d.MEd_hog ? `${num(d.x_hog)} m` : ""],
+    ["Largest shear VEd", d.VEd ? `${num(d.VEd)} kN${per}` : "none", d.x_v !== null && d.VEd ? `${num(d.x_v)} m` : ""],
   ];
   if (a && a.envelope?.deflection) {
     rows.push(["Elastic deflection δmax", `${num(Math.abs(a.envelope.deflection.d))} mm`, `${num(a.envelope.deflection.x)} m`]);
   }
   const body = el("div", {},
-    a && a.w !== null ? el("p", { class: "data-lede" }, `Design strip load w = ${num(a.w)} kN/m (G = 1.35·gk, Q = 1.5·qk)`)
-      : el("p", { class: "data-lede" }, "Design actions per metre width"),
+    a && a.w !== null ? el("p", { class: "data-lede" }, `Design ${ribbed ? "load per rib" : "strip load"} w = ${num(a.w)} kN/m (G = 1.35·gk, Q = 1.5·qk)`)
+      : el("p", { class: "data-lede" }, ribbed ? "Design actions per rib" : "Design actions per metre width"),
     table(["Design value", "Value", "At x"], rows),
     a && a.reactions ? table(["Support (node)", "x (m)", "Ry (kN)", "M (kNm)"],
       a.reactions.map((r) => [`${r.node} · ${r.type}`, num(r.x), num(r.Ry), r.M === null ? "—" : num(r.M)]),
-      "Reactions upwards per metre width.") : null);
+      ribbed ? "Reactions upwards for one rib." : "Reactions upwards per metre width.") : null);
   return figure("Design values from the analysis", body, "Every non-zero value is designed for; a zero moment or shear is skipped.");
 }
 
@@ -56,7 +60,9 @@ export function figures(state) {
   }));
 
   const top = el("div", { class: "figures" },
-    figure("1 m strip cross-section", sectionBox, "Cross-section to scale. Bar callouts show size and spacing."),
+    isRibbed(result)
+      ? figure("Ribbed slab cross-section", sectionBox, "Two ribs to scale on the Maxpans. Each rib is designed as a T-beam.")
+      : figure("1 m strip cross-section", sectionBox, "Cross-section to scale. Bar callouts show size and spacing."),
     isTwoWay ? twoWayDesignValues(result) : oneWayDesignValues(result)
   );
 
@@ -89,6 +95,7 @@ export function designPath(result) {
   const deflStatus = defl ? defl.status : "na";
 
   const flow = [];
+  if (isRibbed(result)) return ribbedDesignPath(result, by, { shear, defl, deflStatus, detailing });
   if (isTwoWay) {
     const p = result.plots?.panel || {};
     const ratio = p.lx ? p.ly / p.lx : 1.0;
@@ -144,5 +151,34 @@ export function designPath(result) {
     node("Detailing", detailing === "fail" ? "Some detailing checks failed" : "All detailing checks pass", detailing === "fail" ? "fail" : "pass")
   );
 
+  return block("Design path", { open: true }, el("div", { class: "flow" }, ...flow));
+}
+
+function ribbedDesignPath(result, by, { shear, defl, deflStatus, detailing }) {
+  const a = result.plots?.analysis;
+  const d = result.derived || {};
+  const barNode = (title, c) => (!c || c.status === "na"
+    ? node(title, "Not applicable (no moment)", "off")
+    : node(title, c.markup?.result || c.result || "", c.status));
+  const flow = [
+    node("Loading per rib", `ribs at ${num(d.spacing, 0)} mm: w = ${num(d.w)} kN/m`),
+    arrow(),
+  ];
+  if (a) flow.push(node("Rib analysis (pattern loading)", `${a.nodes.length} nodes · envelope over load cases`), arrow());
+  flow.push(
+    node("Design values", `M<sup>+</sup><sub>Ed</sub> = ${num(d.MEd_sag)} · M<sup>−</sup><sub>Ed</sub> = ${num(d.MEd_hog)} kNm<br>V<sub>Ed</sub> = ${num(d.VEd)} kN`),
+    arrow(),
+    el("div", { class: "flow-branch" },
+      el("div", { class: "col on" }, el("span", { class: "tag-line" }, `Sagging: T-section, beff ${num(d.beff, 0)} mm`), barNode("Bottom bars", by.bending_sag)),
+      el("div", { class: `col ${by.bending_hog && by.bending_hog.status !== "na" ? "on" : "off"}` },
+        el("span", { class: "tag-line" }, `Hogging: rib width ${num(d.bw, 0)} mm`), barNode("Top bars", by.bending_hog))
+    ),
+    arrow(),
+    node("Shear in the rib", by.shear ? by.shear.markup?.result || by.shear.result : "Shear check", shear),
+    arrow(),
+    node("Deflection", defl ? defl.markup?.result || defl.result : "Span/depth check", deflStatus),
+    arrow(),
+    node("Detailing and fabric", detailing === "fail" ? "Some detailing checks failed" : "All detailing checks pass", detailing === "fail" ? "fail" : "pass")
+  );
   return block("Design path", { open: true }, el("div", { class: "flow" }, ...flow));
 }

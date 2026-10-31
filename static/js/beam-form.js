@@ -4,7 +4,7 @@ import { CanvasEditor } from "./canvas-editor.js";
 import { beamSectionFromInputs, drawBeamSection } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
 import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
-import { buildAnalysisView } from "./beam-analysis-view.js";
+import { buildAnalysisView, designValues } from "./beam-analysis-view.js";
 
 const KEYS = keysFor("beam");
 const PROJECT = { engineer: "", date: "" };
@@ -520,11 +520,11 @@ async function runAnalysis() {
   const a = res.data.analysis;
   $("analysis-hint").textContent = "live";
   renderFigure($("preview-analysis"), res.data.figures.diagrams, "Shear force and bending moment");
-  const env = a.envelope, ld = res.data.loads;
+  const ld = res.data.loads;
+  const des = designValues(a);
   $("st-w").textContent = `${ld.w.toFixed(2)} kN/m`;
-  $("st-m").textContent = `${env.sagging.M.toFixed(1)} / ${(-env.hogging.M).toFixed(1)}`;
-  const shearV = env.shear?.V != null ? env.shear.V : (env.V?.V != null ? env.V.V : 0);
-  $("st-v").textContent = `${shearV.toFixed(1)} kN`;
+  $("st-m").textContent = `${des.sag.toFixed(1)} / ${des.hog.toFixed(1)}`;
+  $("st-v").textContent = `${des.V.toFixed(1)} kN`;
   $("analysis-reactions").replaceChildren(el("table", { class: "mini" },
     el("thead", {}, el("tr", {}, el("th", {}, "Support"), el("th", {}, "Ry (kN)"), el("th", {}, "M (kNm)"))),
     el("tbody", {}, a.reactions.map((r) => el("tr", {}, el("td", {}, `Node ${r.node} · ${r.x} m`),
@@ -562,10 +562,7 @@ async function performAnalysis() {
     updateTabStates();
 
     // Populate design values box
-    const env = res.data.analysis.envelope;
-    const sag = env.sagging?.M != null ? Math.abs(env.sagging.M) : 0;
-    const hog = env.hogging?.M != null ? Math.abs(env.hogging.M) : 0;
-    const shr = env.shear?.V != null ? Math.abs(env.shear.V) : (env.V?.V != null ? Math.abs(env.V.V) : 0);
+    const { sag, hog, V: shr } = designValues(res.data.analysis);
     $("dv-ms").value = sag.toFixed(1);
     $("dv-mh").value = hog.toFixed(1);
     $("dv-ved").value = shr.toFixed(1);
@@ -595,10 +592,7 @@ function setupAdjustDesignValues() {
       form.elements["actions.M_hog"].value = $("dv-mh").value;
       form.elements["actions.VEd"].value = $("dv-ved").value;
     } else if (lastAnalysis) {
-      const env = lastAnalysis.analysis.envelope;
-      const sag = env.sagging?.M != null ? Math.abs(env.sagging.M) : 0;
-      const hog = env.hogging?.M != null ? Math.abs(env.hogging.M) : 0;
-      const shr = env.shear?.V != null ? Math.abs(env.shear.V) : (env.V?.V != null ? Math.abs(env.V.V) : 0);
+      const { sag, hog, V: shr } = designValues(lastAnalysis.analysis);
       $("dv-ms").value = sag.toFixed(1);
       $("dv-mh").value = hog.toFixed(1);
       $("dv-ved").value = shr.toFixed(1);

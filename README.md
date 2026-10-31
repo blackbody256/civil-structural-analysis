@@ -85,10 +85,10 @@ The **Examples and files** menu provides:
 | Deflection | For every span: basic span/depth ratio × F1 × F2 × F3 against the actual l/d (K from the span's end conditions); the elastic deflection for information |
 | Detailing | As,min of each tension face, As,max, clear spacing of the bottom and top bars, crack control |
 
-## Slab (solid, one-way and two-way) (Chapter 3)
+## Slab (solid one-way and two-way, ribbed) (Chapter 3)
 
-The slab module checks solid reinforced concrete slabs designed per metre width ($b = 1000$ mm).
-> **Ribbed slabs: not yet** (the client is gathering the data for ribbed slabs; shown as "Ribbed slab: coming later").
+The slab module checks solid reinforced concrete slabs designed per metre width ($b = 1000$ mm), and ribbed
+slabs on Maxpan clay blocks designed per rib (see "Ribbed slab" below).
 
 ### Method
 * **One-way solid slab**: Analysed as a 1 m wide continuous strip across supports.
@@ -119,6 +119,35 @@ The slab module checks solid reinforced concrete slabs designed per metre width 
 2. **One-way slab with mistakes**: Same spans and loads, but $h = 125$ mm, C25/30 concrete, bottom x H8 @ 300, no top bars, cover 15 mm, exposure XC3/4, fire R90. Exactly 7 checks fail.
 3. **Two-way slab (correct)**: Interior panel $5.0 \times 6.0$ m with all four edges continuous, $h = 200$ mm, C30/37 concrete, $g_k = 1.5$ kN/m² + self-weight, $q_k = 2.5$ kN/m², XC1, R60, cover 25 mm. Reinforcement: H10 @ 200 in all layers. All 16 checks pass.
 4. **Two-way slab with mistakes**: Same panel with all four edges discontinuous, $h = 140$ mm, bottom bars H8 @ 300 both ways, no top bars. Exactly 5 checks fail.
+5. **Ribbed slab, worked example 3 (correct)**: see below. All 14 checks pass.
+6. **Ribbed slab with mistakes**: 4" Maxpans, 100 mm ribs, C20/25, 2H8 bottom, no top bars, no fabric, cover 15 mm. Exactly 6 checks fail
+   (cover, sagging, hogging, shear, deflection, fabric).
+
+### Ribbed slab (client's notes LN11, Example 3)
+
+The user picks the Maxpan size and enters the rib width $b_w$ and the topping $h_f$; the slab is then
+$h = $ pan height $+ h_f$ deep with ribs at $s = b_w + 300$ mm centres. The span, supports and loads are entered
+as for a one-way slab (continuous edges become continuous spans) and **one rib is analysed as a beam**.
+
+| Maxpan | 4" | 5" | 6" | 7" | 8" | 9" | 12" |
+|---|---|---|---|---|---|---|---|
+| Mass (kg) | 6.80 | 7.50 | 8.50 | 9.80 | 11.0 | 12.3 | 16.5 |
+| Height (mm) | 100 | 125 | 150 | 175 | 200 | 230 | 300 |
+
+All pans are 300 × 300 mm, 8 per m². Loads per rib (kN/m): concrete $25\,(b_w\,h_{pan} + s\,h_f)$, Maxpans
+$m \cdot 9.81\times10^{-3}/0.3$, finishes $g_k\,s$, imposed $q_k\,s$; $w = 1.35\,g + 1.5\,q$.
+
+The rib is then checked like a beam: sagging as a T-section with $b_{eff} = b_w + 2\min(0.2b_1 + 0.1l_0, 0.2l_0, b_1)$,
+hogging as a rectangle of width $b_w$, shear in the rib ($V_{Rd,c}$, links designed if they are entered), span/depth
+with $F_1 = 1 - 0.1(b_{eff}/b_w - 1) \ge 0.8$, minimum and maximum steel, bar spacing in the rib, crack control,
+and the fabric in the topping ($\ge 0.13\%$ of $1000\,h_f$). Fire uses the beam table for the rib and the slab
+table for the topping.
+
+Example 3 (200 mm slab: 6" pans, $b_w = 150$, $h_f = 50$, three 4.5 m spans, C25/30, $g_k = 1.2$, $q_k = 3.0$
+kN/m², 2H10 top and bottom, A98) matches the notes: loads 1.943 + 1.35 kN/m per rib, $w = 4.65$ kN/m,
+$b_{eff} = 450$ mm, $V_{Ed} = 12.55$ kN against $V_{Rd,c} = 15.2$ kN. The moments differ a little from the notes because
+the app uses a pattern-loaded elastic analysis ($M^+ = 8.37$, $M^- = 9.41$ kNm) where the notes use coefficients with
+20 % redistribution ($M = 0.086FL = 8.1$ kNm). The app's $F_1$ follows the guide's formula (0.8) where the notes take 0.85.
 
 ## Tests
 
@@ -138,7 +167,7 @@ ec2/                calculation engine (no web code)
   slenderness.py    effective length, slenderness, nominal curvature
   flexure.py        bending, shear and span/depth for beams and slabs
   analysis.py       matrix stiffness beam analysis (the client's BeamViz Pro solver)
-  column.py · beam.py · slab.py   each element's procedure → report data
+  column.py · beam.py · slab.py · ribbed.py   each element's procedure → report data
 reports/            PDF reports (reportlab): pdf_base.py shared layout, one module per element;
                     beam_figures.py and slab_figures.py draw analysis figures for page and PDF
 static/             HTML pages, JS, and fonts (IBM Plex for the pages, Liberation Serif for the PDF)
@@ -153,7 +182,7 @@ tests/              pytest suite
 
 ## Limits
 
-Rectangular columns; rectangular, T and L beams; solid one-way and two-way slabs; normal-weight concrete up to C50/60; 50-year durability
+Rectangular columns; rectangular, T and L beams; solid one-way and two-way slabs; ribbed slabs on Maxpans; normal-weight concrete up to C50/60; 50-year durability
 covers with 20 mm aggregate. Fire is checked by the tabulated method. The beam and slab analysis is linear elastic
 (no redistribution) with the gross section unless I is entered. The tool is for learning and preliminary
 checking: a qualified structural engineer must verify the inputs and results.
