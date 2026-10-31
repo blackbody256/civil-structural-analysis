@@ -12,7 +12,7 @@ export const EXAMPLES = {
     materials: { concrete: "C32/40", fyk: 500, ductility: "B", dg: 20, gamma_c: 1.5, gamma_s: 1.15, alpha_cc: 0.85 },
     geometry: { b: 350, h: 350, l: 3.5 },
     reinforcement: { bar_dia: 20, n_b: 3, n_h: 3, link_dia: 8, cross_ties: false, cover: 30, delta_c_dev: 10 },
-    restraint: { braced: true, y: { method: "k", k_top: 0.25, k_bottom: 0.1 }, z: { method: "k", k_top: 0.25, k_bottom: 0.1 } },
+    restraint: { braced: true, y: { method: "k", k_top: 0.343, k_bottom: 0.1 }, z: { method: "k", k_top: 0.343, k_bottom: 0.1 } },
     actions: {
       mode: "frame", member: "C1", bending: "uniaxial",
       phi_ef: 1.7, lambda_lim_method: "simplified",
@@ -141,6 +141,7 @@ let frameModel = {
 let selectedMemberId = "C1";
 let lastAnalysis = null;
 let lastColumnActions = null;
+let lastColumnActionsError = null;   // why the chosen member cannot be designed as a column
 
 const TAB_NAMES = ["analysis", "design", "report"];
 let currentTab = "analysis";
@@ -373,10 +374,10 @@ function renderNodes() {
     return el("tr", {},
       el("td", { class: "idx" }, String(i + 1)),
       el("td", {}, el("div", { class: "control" }, el("input", {
-        type: "text", value: nd.id || "", "data-path": `${p}.id`, style: "width:60px",
+        type: "text", value: nd.id || "", "data-path": `${p}.id`, "aria-label": `${p.includes("nodes") ? "Node" : "Member"} ${i + 1} id`,
       }))),
-      el("td", {}, cellInput(`${p}.x`, nd.x, { label: `Node ${i + 1} x`, unit: "m" })),
-      el("td", {}, cellInput(`${p}.y`, nd.y, { label: `Node ${i + 1} y`, unit: "m" })),
+      el("td", {}, cellInput(`${p}.x`, nd.x, { label: `Node ${i + 1} x (m)` })),
+      el("td", {}, cellInput(`${p}.y`, nd.y, { label: `Node ${i + 1} y (m)` })),
       el("td", {}, removeButton(() => {
         frameModel.nodes.splice(i, 1);
         renderTables();
@@ -394,12 +395,12 @@ function renderMembers() {
     return el("tr", {},
       el("td", { class: "idx" }, String(i + 1)),
       el("td", {}, el("div", { class: "control" }, el("input", {
-        type: "text", value: m.id || "", "data-path": `${p}.id`, style: "width:60px",
+        type: "text", value: m.id || "", "data-path": `${p}.id`, "aria-label": `${p.includes("nodes") ? "Node" : "Member"} ${i + 1} id`,
       }))),
       el("td", {}, cellSelect(`${p}.node1`, m.node1, nodeOpts, `Member ${i + 1} node 1`)),
       el("td", {}, cellSelect(`${p}.node2`, m.node2, nodeOpts, `Member ${i + 1} node 2`)),
-      el("td", {}, cellInput(`${p}.b`, m.b, { label: `Member ${i + 1} b`, unit: "mm", step: "5" })),
-      el("td", {}, cellInput(`${p}.h`, m.h, { label: `Member ${i + 1} h`, unit: "mm", step: "5" })),
+      el("td", {}, cellInput(`${p}.b`, m.b, { label: `Member ${i + 1} b (mm)`, step: "5" })),
+      el("td", {}, cellInput(`${p}.h`, m.h, { label: `Member ${i + 1} h (mm)`, step: "5" })),
       el("td", {}, removeButton(() => {
         frameModel.members.splice(i, 1);
         renderTables();
@@ -433,7 +434,7 @@ function renderLoads() {
   const nodeOpts = frameModel.nodes.map((n) => [n.id, n.id]);
   const memOpts = frameModel.members.map((m) => [m.id, m.id]);
   const loadTypes = [["udl", "Uniform load"], ["point", "Point load"], ["node", "Node load"]];
-  const cases = [["Ed", "Design (Ed)"], ["G", "Permanent (G)"], ["Q", "Variable (Q)"]];
+  const cases = [["G", "G"], ["Q", "Q"], ["Ed", "Ed"]];
 
   tbody.replaceChildren(...frameModel.loads.map((ld, i) => {
     const p = `frame.loads.${i}`;
@@ -518,14 +519,47 @@ function onTableInput(event) {
     return;
   }
 
-  if (event.target.tagName === "SELECT" || prop === "id" || prop === "node" || prop === "node1" || prop === "node2" || prop === "member" || prop === "type" || prop === "case") {
+  if (prop === "id") {
+    if (event.type === "change") renameId(tableKey, index, event.target);
+    return;
+  }
+  if (event.target.tagName === "SELECT") {
     list[index][prop] = event.target.value;
-    if (prop === "id" && (tableKey === "nodes" || tableKey === "members")) {
-      renderTables();
-    }
   } else {
     list[index][prop] = event.target.value === "" ? null : Number(event.target.value);
   }
+  refresh();
+}
+
+// A node or member id is committed when the field is left: an empty or repeated id is refused, and the new id
+// replaces the old one in the members, supports, loads and the column choice that refer to it.
+function renameId(tableKey, index, input) {
+  const list = frameModel[tableKey];
+  const old = list[index].id;
+  const id = input.value.trim();
+  if (id === old) return;
+  const kind = tableKey === "nodes" ? "Node" : "Member";
+  if (!id || list.some((item, i) => i !== index && item.id === id)) {
+    input.value = old;
+    $("analysis-note").textContent = id ? `${kind} ${id} already exists` : `A ${kind.toLowerCase()} needs an id`;
+    return;
+  }
+  list[index].id = id;
+  if (tableKey === "nodes") {
+    for (const m of frameModel.members) {
+      if (m.node1 === old) m.node1 = id;
+      if (m.node2 === old) m.node2 = id;
+    }
+    for (const sp of frameModel.supports) if (sp.node === old) sp.node = id;
+    for (const ld of frameModel.loads) if (ld.type === "node" && ld.node === old) ld.node = id;
+  } else {
+    for (const ld of frameModel.loads) if (ld.type !== "node" && ld.member === old) ld.member = id;
+    if (selectedMemberId === old) {
+      selectedMemberId = id;
+      form.elements["actions.member"].value = id;
+    }
+  }
+  renderTables();
   refresh();
 }
 
@@ -556,18 +590,18 @@ export function serialize() {
   }
   if ($("same-axes").checked) data.restraint.z = structuredClone(data.restraint.y);
 
+  // the frame is kept in the inputs in both modes, so switching to direct values (or adjusting them) loses nothing
+  data.frame = {
+    nodes: frameModel.nodes.map((n) => ({ ...n })),
+    members: frameModel.members.map((m) => ({ ...m })),
+    supports: frameModel.supports.map((s) => ({ ...s })),
+    loads: frameModel.loads.map((l) => ({ ...l })),
+    self_weight: form.elements["frame.self_weight"].checked,
+    E_method: form.elements["frame.E_method"].value,
+    E: data.frame?.E ?? null,
+  };
+  data.actions.member = selectedMemberId || form.elements["actions.member"].value;
   if (data.actions?.mode === "frame") {
-    data.frame = {
-      nodes: frameModel.nodes.map((n) => ({ ...n })),
-      members: frameModel.members.map((m) => ({ ...m })),
-      supports: frameModel.supports.map((s) => ({ ...s })),
-      loads: frameModel.loads.map((l) => ({ ...l })),
-      self_weight: form.elements["frame.self_weight"] ? form.elements["frame.self_weight"].checked : true,
-      E_method: form.elements["frame.E_method"] ? form.elements["frame.E_method"].value : "concrete",
-      E: form.elements["frame.E"] && form.elements["frame.E"].value ? Number(form.elements["frame.E"].value) : undefined,
-    };
-    data.actions.member = selectedMemberId || form.elements["actions.member"]?.value || "C1";
-
     if ($("adjust-design-values").checked) {
       data.actions.mode = "direct";
       data.actions.NEd = Number($("dv-ned").value);
@@ -581,6 +615,8 @@ export function serialize() {
 }
 
 export function fill(data) {
+  // inputs saved before the frame analysis existed have no mode: they were entered directly (as the server reads them)
+  if (data.actions && !data.actions.mode) data.actions.mode = "direct";
   if (data.actions && !data.actions.bending) {
     data.actions.bending = Number(data.actions.Mz_top) || Number(data.actions.Mz_bottom) ? "biaxial" : "uniaxial";
   }
@@ -610,8 +646,8 @@ export function fill(data) {
   const r = data.restraint || {};
   $("same-axes").checked = JSON.stringify(r.y) === JSON.stringify(r.z);
 
-  // Frame data
-  const fr = data.frame || EXAMPLES.frame_pass.frame;
+  // Frame data (inputs entered directly on main have none: start from the example frame)
+  const fr = data.frame?.nodes ? data.frame : EXAMPLES.frame_pass.frame;
   frameModel = {
     nodes: (fr.nodes || []).map((n) => ({ ...n })),
     members: (fr.members || []).map((m) => ({ ...m })),
@@ -692,6 +728,8 @@ function summaries(d) {
       : (a.bending === "biaxial"
         ? `NEd ${f(a.NEd)} kN · biaxial · My ${f(a.My_top ?? 0)}/${f(a.My_bottom ?? 0)} · Mz ${f(a.Mz_top ?? 0)}/${f(a.Mz_bottom ?? 0)} kNm`
         : `NEd ${f(a.NEd)} kN · uniaxial · My ${f(a.My_top ?? 0)}/${f(a.My_bottom ?? 0)} kNm`),
+    bending: `${a.bending === "biaxial" ? `biaxial · Mz ${f(a.Mz_top ?? 0)}/${f(a.Mz_bottom ?? 0)} kNm` : "uniaxial"}`
+      + ` · φef ${f(a.phi_ef)}`,
     durability: `${(meta.exposure.find((r) => r.id === du.exposure) || {}).classes || du.exposure} · `
       + `${du.fire_period === "none" ? "no fire period" : `fire ${du.fire_period}`}`,
   };
@@ -846,7 +884,8 @@ function renderAnalysisView(resData) {
         el("td", {}, rx.Ry != null ? Number(rx.Ry).toFixed(2) : "—"),
         el("td", {}, rx.Mz != null ? Number(rx.Mz).toFixed(2) : "—")
       )))
-    )
+    ),
+    el("p", { class: "help-line" }, "Rx to the right, Ry upwards, Mz anticlockwise.")
   );
 
   const forcesTable = el("div", { class: "table-scroll", style: "margin-top: 14px;" },
@@ -868,7 +907,9 @@ function renderAnalysisView(resData) {
         el("td", {}, elem.shear_end != null ? Number(elem.shear_end).toFixed(1) : "—"),
         el("td", {}, elem.moment_end != null ? Number(elem.moment_end).toFixed(1) : "—")
       )))
-    )
+    ),
+    el("p", { class: "help-line" }, "N: tension positive. V and M along the member from end 1 to end 2, sagging "
+      + "moments positive.")
   );
 
   const vertMembers = resData.vertical_members || [];
@@ -881,7 +922,9 @@ function renderAnalysisView(resData) {
 
   function updateCard(colAct) {
     if (!colAct) {
-      cardContent.replaceChildren(el("p", { class: "muted" }, "No actions available."));
+      const why = lastColumnActionsError
+        || (vertMembers.length ? "Choose the column to design." : "The frame has no vertical member to design as a column.");
+      cardContent.replaceChildren(el("p", { class: "error-line" }, why));
       return;
     }
     const topK = colAct.k_top === "pinned" ? "pinned" : Number(colAct.k_top).toFixed(3);
@@ -907,6 +950,7 @@ function renderAnalysisView(resData) {
     if (res.ok) {
       lastAnalysis = res.data;
       lastColumnActions = res.data.column_actions;
+      lastColumnActionsError = res.data.column_actions_error;
       figs.model = res.data.figures.model;
       figs.M = res.data.figures.M;
       figs.N = res.data.figures.N;
@@ -978,15 +1022,18 @@ async function performAnalysis() {
     selectedMemberId = curMem;
 
     let colAct = res.data.column_actions;
-    if (!colAct || colAct.member !== selectedMemberId) {
+    lastColumnActionsError = res.data.column_actions_error;
+    if (selectedMemberId && (!colAct || colAct.member !== selectedMemberId)) {
       const reData = { ...data, actions: { ...data.actions, member: selectedMemberId } };
       const reRes = await postJSON("/api/column/analysis", reData);
       if (reRes.ok) {
         lastAnalysis = reRes.data;
         colAct = reRes.data.column_actions;
+        lastColumnActionsError = reRes.data.column_actions_error;
       }
     }
     lastColumnActions = colAct;
+    form.elements["actions.member"].value = selectedMemberId;
 
     applyColumnActionsToDesign(colAct);
     renderAnalysisView(lastAnalysis);
@@ -1297,7 +1344,7 @@ async function init() {
       $("analysis-note").textContent = "Inputs changed: analyse again";
     }
     if (e.target.dataset.path) {
-      if (e.target.tagName === "SELECT") onTableInput(e);
+      if (e.target.tagName === "SELECT" || e.target.dataset.path.endsWith(".id")) onTableInput(e);
       return;
     }
     if (e.target.name === "actions.mode") {

@@ -346,9 +346,9 @@ details.more > .fields + .check { margin-top: 14px; }
 #loads-table th:nth-child(7) { width: 42px; }
 #loads-table .control { min-width: 0; }
 #supports-table, #segments-table { max-width: 560px; }
-.s-group > .inline-link, .field > .inline-link { align-self: flex-start; justify-self: start; border: 0; background: none; padding: 0;
+.s-group > .inline-link, .field > .inline-link, .s-body > .inline-link { align-self: flex-start; justify-self: start; border: 0; background: none; padding: 0;
   color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
-.s-group > .inline-link:hover { text-decoration: underline; }
+.s-group > .inline-link:hover, .s-body > .inline-link:hover { text-decoration: underline; }
 .s-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
 .group-title { font-size: 13.5px; font-weight: 600; color: var(--text-2); }
 .group-title .muted { font-weight: 400; color: var(--muted); }
@@ -383,3 +383,22 @@ details.more > .fields + .check { margin-top: 14px; }
   .edge-grid select { width: 100%; }
 }
 .beam-canvas .grab-end { cursor: ew-resize; }
+
+/* Column page: frame tables (ids shared with the beam page, so scoped to the column form) */
+#column-form .grid-table .control { min-width: 0; }
+#column-form #nodes-table th:first-child, #column-form #members-table th:first-child,
+#column-form #supports-table th:first-child { width: 26px; }
+#column-form .grid-table th:last-child { width: 40px; }
+#column-form #nodes-table { table-layout: fixed; max-width: 480px; }
+#column-form #nodes-table th:nth-child(2) { width: 24%; }
+#column-form #members-table { table-layout: fixed; min-width: 440px; }
+#column-form #members-table th:nth-child(2) { width: 13%; }
+#column-form #members-table th:nth-child(3), #column-form #members-table th:nth-child(4) { width: 15%; }
+#column-form #supports-table { table-layout: fixed; max-width: 480px; }
+#column-form #loads-table { min-width: 620px; }
+#column-form #loads-table th:nth-child(1) { width: 19%; } #column-form #loads-table th:nth-child(2) { width: 15%; }
+#column-form #loads-table th:nth-child(3) { width: 18%; } #column-form #loads-table th:nth-child(4) { width: 17%; }
+#column-form #loads-table th:nth-child(5) { width: 17%; } #column-form #loads-table th:nth-child(6) { width: 10%; }
+#column-form .s-body > .table-scroll + .inline-link { margin-top: -6px; }
+.frame-errors:not(:has(.error)) { display: none; }
+.error-line { margin: 0; font-size: 13px; color: var(--fail); font-weight: 500; }

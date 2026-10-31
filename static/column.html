@@ -37,7 +37,6 @@
     </nav>
 
     <form id="column-form" class="form-layout" novalidate autocomplete="off">
-      <input type="hidden" name="actions.member" id="a-member" value="C1">
       <div class="form-main">
         <div class="form-tools">
           <span>Click a section to edit it.</span>
@@ -91,7 +90,7 @@
                   </table>
                 </div>
                 <button type="button" class="inline-link" id="add-member">+ Add member</button>
-                <p class="help-line" style="margin-top:6px">Vertical members (same x) are eligible for column design. Depth h is in the frame plane.</p>
+                <p class="help-line">Any vertical member can be designed as the column. h is the depth in the plane of the frame (bending about y–y).</p>
               </div>
             </details>
 
@@ -120,7 +119,7 @@
                   </table>
                 </div>
                 <button type="button" class="inline-link" id="add-load">+ Add load</button>
-                <p class="help-line" style="margin-top:6px">Downward member loads and f<sub>y</sub> positive (gravity); f<sub>x</sub> positive right; m<sub>z</sub> positive anticlockwise. G is multiplied by 1.35 and Q by 1.5.</p>
+                <p class="help-line">Member loads act straight down; node loads: f<sub>x</sub> to the right, f<sub>y</sub> downwards, m<sub>z</sub> anticlockwise. Case G (permanent) is multiplied by 1.35, Q (variable) by 1.5, Ed is a design value used as entered.</p>
               </div>
             </details>
 
@@ -150,6 +149,11 @@
                 </div>
               </div>
             </details>
+
+            <div class="field frame-errors">
+              <input type="hidden" name="actions.member" id="a-member" value="C1">
+              <span data-path="frame" hidden></span>
+            </div>
 
             <div class="analysis-action-bar">
               <button type="button" class="btn primary" id="btn-analyse-frame">Analyse frame</button>
@@ -336,7 +340,7 @@
           </details>
 
           <details class="section" data-section="actions-bending" open>
-            <summary><span class="s-title">Moments about z–z and creep</span><span class="chev" aria-hidden="true"></span></summary>
+            <summary><span class="s-title">Moments about z–z and creep</span><span class="s-sum" data-sum="bending"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
               <div class="fields">
                 <div class="field" style="grid-column: 1 / -1"><label for="a-bend">Bending</label>
