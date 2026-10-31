@@ -160,12 +160,12 @@ def model_figure(result, member=None):
                 # fx > 0 points right
                 dir_x = 1.0 if fx > 0 else -1.0
                 fig.arrow(nx - 42 * dir_x, ny, nx - 2 * dir_x, ny, c="load", sw=1.8, head=8)
-                fig.text(nx - 46 * dir_x, ny - 6, f"{abs(fx):g} kN{lbl_case}", c="load", size=12, a="r" if dir_x > 0 else "l")
+                fig.text(nx - 46 * dir_x, ny - 6, f"{abs(fx):g} kN{lbl_case}", c="load", size=12, a="e" if dir_x > 0 else "s")
             if abs(fy) > 1e-4:
                 # In analyse_frame, fy > 0 is downwards -> on screen points downward
                 dir_y = 1.0 if fy > 0 else -1.0
                 fig.arrow(nx, ny - 42 * dir_y, nx, ny - 2 * dir_y, c="load", sw=1.8, head=8)
-                fig.text(nx + 8, ny - 30 * dir_y, f"{abs(fy):g} kN{lbl_case}", c="load", size=12, a="l")
+                fig.text(nx + 8, ny - 30 * dir_y, f"{abs(fy):g} kN{lbl_case}", c="load", size=12, a="s")
         elif ltype == "udl":
             mid = str(ld.get("member") or ld.get("element"))
             el_def = next((e for e in elements if str(e["id"]) == mid), None)
@@ -245,7 +245,7 @@ def diagram_figure(result, kind):
     diag_sign = -1.0 if kind == "M" else 1.0  # M on tension side (sagging + plots below baseline)
 
     title_map = {"N": "Axial Force Diagram N (kN)", "V": "Shear Force Diagram V (kN)", "M": "Bending Moment Diagram M (kNm)"}
-    fig.text(50, 30, title_map.get(kind, kind), c="ink", size=15, a="l", b=True)
+    fig.text(50, 30, title_map.get(kind, kind), c="ink", size=15, a="s", b=True)
 
     for m in members:
         n1 = node_map.get(str(m["node1"]))

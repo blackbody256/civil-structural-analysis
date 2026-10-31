@@ -208,6 +208,12 @@ def test_column_check_in_frame_mode(client, example):
     assert chk["group"] == "Design actions"
     assert chk["status"] == "info"
 
+    # Test PDF download in frame mode
+    pdf_res = client.post("/api/column/report.pdf", json=frame_payload)
+    assert pdf_res.status_code == 200
+    assert pdf_res.mimetype == "application/pdf"
+    assert pdf_res.data.startswith(b"%PDF")
+
 
 def test_non_finite_numbers_are_sent_as_null():
     """A utilisation over zero cover is infinite; the browser cannot parse Infinity, so it goes out as null."""

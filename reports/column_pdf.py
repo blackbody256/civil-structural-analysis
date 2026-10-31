@@ -2,10 +2,11 @@
 from reportlab.graphics.shapes import Circle, Drawing, Line, PolyLine, Polygon, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import CondPageBreak, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
+from .beam_pdf import render_figure
 from .pdf_base import (ACCENT, CONCRETE, INK, MUTED, RULE, STATUS, build_report, fonts, nice_ticks,
-                       target_status)
+                       styles, target_status)
 
 
 def _section_drawing(report, width=86 * mm, height=78 * mm):
@@ -174,6 +175,77 @@ def _elevation_drawing(report, axis, width=86 * mm, height=78 * mm):
     return d
 
 
+def frame_analysis_section(report):
+    """Section 2 of the PDF when the column was analysed as part of a 2D frame."""
+    frame = report.get("plots", {}).get("frame")
+    if not frame:
+        return None
+    figs = frame.get("figures")
+    if not figs:
+        from reports.frame_figures import frame_figures
+        member_id = None
+        chk = next((c for c in report.get("checks", []) if c.get("id") == "design_actions_frame"), None)
+        if chk and chk.get("working"):
+            for line in chk["working"]:
+                if line.startswith("Member "):
+                    member_id = line.split(":")[0].replace("Member ", "").strip()
+                    break
+        figs = frame_figures(frame, member=member_id)
+
+    st = styles()
+
+    def block(title, spec, caption):
+        return KeepTogether([
+            Paragraph(title, st["h2"]),
+            render_figure(spec),
+            Spacer(1, 1.5 * mm),
+            Paragraph(caption, st["muted"]),
+        ])
+
+    flow = [
+        CondPageBreak(120 * mm),
+        Paragraph("2. Frame analysis", st["h1"]),
+        Paragraph("Linear elastic matrix stiffness analysis of the 2D frame under design loads (1.35G + 1.5Q). "
+                  "Bending moments are drawn on the tension side.", st["body"]),
+        Spacer(1, 2 * mm),
+        block("Analytical model", figs["model"],
+              "Nodes are circled and members boxed. The column member being designed is highlighted."),
+        Spacer(1, 3 * mm),
+        block("Bending moment diagram", figs["M"],
+              "Bending moments M (kNm) drawn on the tension side of each member."),
+        Spacer(1, 4 * mm),
+    ]
+
+    chk = next((c for c in report.get("checks", []) if c.get("id") == "design_actions_frame"), None)
+    if chk and chk.get("working"):
+        rows = [["Design action / parameter", "Value"]]
+        for line in chk["working"]:
+            if ":" in line:
+                k, v = line.split(":", 1)
+                rows.append([k.strip(), v.strip()])
+            else:
+                rows.append([line.strip(), ""])
+        t = Table(rows, colWidths=[80 * mm, 95 * mm])
+        t.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), fonts()["regular"]),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("TEXTCOLOR", (0, 0), (-1, -1), INK),
+            ("FONTNAME", (0, 0), (-1, 0), fonts()["bold"]),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.6, INK),
+            ("LINEBELOW", (0, -1), (-1, -1), 0.6, INK),
+        ]))
+        flow.append(KeepTogether([
+            Paragraph("Design actions taken from the frame analysis", st["h2"]),
+            Spacer(1, 1.5 * mm),
+            t,
+            Spacer(1, 4 * mm),
+        ]))
+
+    return flow
+
+
 def build_column_pdf(report):
     drawings = Table([[_section_drawing(report), _elevation_drawing(report, "y")],
                       [_interaction_drawing(report, "y"), _interaction_drawing(report, "z")]],
@@ -183,4 +255,5 @@ def build_column_pdf(report):
     caption = ("Cross-section to scale (a part drawn red failed a check), moments along the column, and N–M "
                "interaction curves for the reinforcement provided with the design point (MEd, NEd), green when "
                "it lies inside the curve.")
-    return build_report(report, "Column", drawings, caption)
+    extra = frame_analysis_section(report) if report.get("plots", {}).get("frame") else None
+    return build_report(report, "Column", drawings, caption, extra=extra)

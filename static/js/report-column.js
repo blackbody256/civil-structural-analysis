@@ -1,6 +1,7 @@
 // Column report: drawings and the design path.
 import { el, fmt, worst } from "./common.js";
 import { drawElevation, drawInteraction, drawSection, endKinds } from "./drawings.js";
+import { renderFigure } from "./figure-spec.js";
 import { arrow, block, branch, figure, node, question, switcher, targetStatus } from "./report-parts.js";
 
 export function figures(state) {
@@ -24,11 +25,58 @@ export function figures(state) {
     drawInteraction(nmY, result.plots.interaction.y, { axis: "y", status: by.bending_y.status });
     drawInteraction(nmZ, result.plots.interaction.z, { axis: "z", status: by.bending_z.status });
   });
-  return el("div", { class: "figures" },
+
+  const colFigures = el("div", { class: "figures" },
     figure("Cross-section", sectionBox, "To scale. Parts outlined in red failed a check; point at a row below to find its part."),
     figure("Elevation and design moments", elevationBox, "First-order moments dashed, with second-order effects solid.", switcher(drawElev)),
     figure("N–M interaction about y–y", nmY, "The design point must lie inside the capacity curve."),
     figure("N–M interaction about z–z", nmZ, null));
+
+  if (!result.plots || !result.plots.frame) {
+    return colFigures;
+  }
+
+  // Frame analysis figures
+  const figs = result.plots.frame.figures || result.plots.figures || {};
+  const modelBox = el("div", { class: "fig-frame-model" });
+  const mBox = el("div", { class: "fig-frame-m" });
+  const nBox = el("div", { class: "fig-frame-n" });
+
+  queueMicrotask(() => {
+    if (figs.model) renderFigure(modelBox, figs.model, "Analytical model");
+    if (figs.M) renderFigure(mBox, figs.M, "Bending moment diagram");
+    if (figs.N) renderFigure(nBox, figs.N, "Axial force diagram");
+  });
+
+  // Table of design actions from the frame analysis
+  const actChk = result.checks.find((c) => c.id === "design_actions_frame");
+  let tableEl = null;
+  if (actChk && actChk.working && actChk.working.length) {
+    const rows = actChk.working.map((line) => {
+      const idx = line.indexOf(":");
+      if (idx !== -1) {
+        return el("tr", {},
+          el("td", { style: "font-weight:600;padding:4px 8px;border-bottom:1px solid var(--border-color,#e5e7eb)" }, line.slice(0, idx).trim()),
+          el("td", { style: "padding:4px 8px;border-bottom:1px solid var(--border-color,#e5e7eb);text-align:right" }, line.slice(idx + 1).trim())
+        );
+      }
+      return el("tr", {}, el("td", { colspan: "2", style: "padding:4px 8px;color:var(--text-muted,#6b7280)" }, line));
+    });
+    tableEl = el("table", { class: "kv doc", style: "width:100%;border-collapse:collapse;margin-top:6px" }, el("tbody", {}, ...rows));
+  }
+
+  const frameFigures = el("div", { class: "figures", style: "margin-top:14px" },
+    figure("Analytical model", modelBox, "Nodes are circled, elements boxed. Highlighted member is the column being designed."),
+    figure("Bending moments M (kNm)", mBox, "Moments drawn on the tension side (sagging below baseline)."),
+    figure("Axial forces N (kN)", nBox, "Axial force diagram along the members (compression negative)."),
+    tableEl ? figure("Design actions from frame", tableEl, "Actions taken from the frame analysis for column design.") : null
+  );
+
+  return el("div", {},
+    colFigures,
+    el("h2", { style: "margin:24px 0 10px" }, "Frame analysis"),
+    frameFigures
+  );
 }
 
 function flow(result, axis) {
