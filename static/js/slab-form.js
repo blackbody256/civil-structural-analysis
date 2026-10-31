@@ -1,6 +1,6 @@
 // Slab form: Analysis, Design and Report tabs for solid one-way and two-way slabs.
 import { downloadBlob, el, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
-import { BeamCanvas } from "./beam-canvas.js";
+import { BeamCanvas, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { drawSlabSection, s } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
@@ -919,6 +919,14 @@ function initCanvas() {
     },
     onSelect: (sel) => pick(sel),
     onEdit: (sel, screenPoint) => editItem(sel, screenPoint),
+    onLength: (L, oldL) => {
+      // the green grip at the end of the beam was dragged: new length, supports at the end follow it
+      resizeModel(model, oldL, L);
+      const input = form.elements["span.l"];
+      input.value = String(L);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    },
   });
 
   for (const button of document.querySelectorAll(".canvas-tools [data-tool]")) {

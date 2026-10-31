@@ -30,10 +30,10 @@ function arrowDown(g, x, y1, y2, colour, width = 1.4, head = 7) {
   g.append(s("path", { d: `M${x - head * 0.55} ${y2 - head} L${x + head * 0.55} ${y2 - head} L${x} ${y2} Z`, fill: colour }));
 }
 
-function supportShape(g, type, x, length, colour) {
+function supportShape(g, type, x, length, colour, beamLength = length) {
   const yb = BEAM_Y + THICK / 2;
   if (type === "fixed") {
-    const atLeft = x < length * 1e-6, atRight = x > length * (1 - 1e-6);
+    const atLeft = x < beamLength * 1e-6, atRight = x > beamLength * (1 - 1e-6);
     g.append(s("line", { x1: X(x, length), y1: BEAM_Y - 30, x2: X(x, length), y2: BEAM_Y + 30, stroke: colour, "stroke-width": 3 }));
     for (const side of atLeft ? [-1] : atRight ? [1] : [-1, 1]) {
       for (let y = BEAM_Y - 27; y < BEAM_Y + 30; y += 7) {
@@ -62,25 +62,27 @@ function X(x, length) {
 const intensity = (ld, x) => (ld.type === "udl" ? ld.w : ld.w1 + (ld.w2 - ld.w1) * ((x - ld.x1) / (ld.x2 - ld.x1 || 1)));
 
 /** Draws the beam model into an SVG element; returns the SVG. */
-export function drawBeamModel(svg, model, { selected = null, interactive = false } = {}) {
+export function drawBeamModel(svg, model, { selected = null, interactive = false, scaleLength = null } = {}) {
   const L = model.length > 0 ? model.length : 1;
+  // the drawing scale: normally the beam fills the width; while its end is dragged the scale can stay put
+  const S = scaleLength || L;
   svg.replaceChildren();
   // ruler
   const step = niceStep(L);
   const ruler = s("g", { class: "ruler" });
-  ruler.append(s("line", { x1: X0, y1: 222, x2: X1, y2: 222, stroke: RULE, "stroke-width": 1 }));
+  ruler.append(s("line", { x1: X0, y1: 222, x2: X(L, S), y2: 222, stroke: RULE, "stroke-width": 1 }));
   for (let x = 0; x <= L + 1e-9; x += step) {
-    ruler.append(s("line", { x1: X(x, L), y1: 218, x2: X(x, L), y2: 226, stroke: MUTED, "stroke-width": 1 }));
-    ruler.append(s("text", { x: X(x, L), y: 243, "text-anchor": "middle", "font-size": 13, fill: MUTED, class: "num" }, fmt(x)));
+    ruler.append(s("line", { x1: X(x, S), y1: 218, x2: X(x, S), y2: 226, stroke: MUTED, "stroke-width": 1 }));
+    ruler.append(s("text", { x: X(x, S), y: 243, "text-anchor": "middle", "font-size": 13, fill: MUTED, class: "num" }, fmt(x)));
   }
-  ruler.append(s("text", { x: X1 + 8, y: 243, "font-size": 13, fill: MUTED }, "m"));
+  ruler.append(s("text", { x: X(L, S) + 8, y: 243, "font-size": 13, fill: MUTED }, "m"));
   svg.append(ruler);
 
   // the beam (also the click target for placing items)
-  svg.append(s("rect", { x: X0, y: BEAM_Y - THICK / 2, width: X1 - X0, height: THICK, fill: CONCRETE, stroke: INK,
+  svg.append(s("rect", { x: X0, y: BEAM_Y - THICK / 2, width: X(L, S) - X0, height: THICK, fill: CONCRETE, stroke: INK,
     "stroke-width": 1.5, class: interactive ? "beam-hit" : null }));
   if (interactive) {
-    svg.append(s("rect", { x: X0 - 10, y: 20, width: X1 - X0 + 20, height: 180, fill: "transparent", class: "beam-zone" }));
+    svg.append(s("rect", { x: X0 - 10, y: 20, width: X(L, S) - X0 + 20, height: 180, fill: "transparent", class: "beam-zone" }));
   }
 
   const isSel = (kind, i) => selected && selected.kind === kind && selected.index === i;
@@ -88,12 +90,12 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
   if (model.w > 0) {
     const g = s("g", { class: "line-load" });
     const top = BEAM_Y - THICK / 2 - 74;
-    g.append(s("line", { x1: X0, y1: top, x2: X1, y2: top, stroke: MUTED, "stroke-width": 1.2, "stroke-dasharray": "4 3" }));
+    g.append(s("line", { x1: X0, y1: top, x2: X(L, S), y2: top, stroke: MUTED, "stroke-width": 1.2, "stroke-dasharray": "4 3" }));
     for (let i = 0; i <= 20; i++) {
-      const x = X0 + ((X1 - X0) * i) / 20;
+      const x = X0 + ((X(L, S) - X0) * i) / 20;
       arrowDown(g, x, top, BEAM_Y - THICK / 2 - 1, MUTED, 0.8, 5);
     }
-    g.append(s("text", { x: X1, y: top - 7, "text-anchor": "end", "font-size": 14, fill: MUTED, "font-weight": 600 },
+    g.append(s("text", { x: X(L, S), y: top - 7, "text-anchor": "end", "font-size": 14, fill: MUTED, "font-weight": 600 },
       `w = ${model.w.toFixed(2)} kN/m (gk, qk${model.slab ? ", slab" : ""})`));
     svg.append(g);
   }
@@ -105,7 +107,7 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
     const g = s("g", { class: `item${isSel("load", i) ? " selected" : ""}`, "data-kind": "load", "data-index": i });
     const yTop = BEAM_Y - THICK / 2;
     if (ld.type === "point") {
-      const sx = X(ld.x, L);
+      const sx = X(ld.x, S);
       const up = ld.W < 0;
       if (up) {
         g.append(s("line", { x1: sx, y1: yTop - 4, x2: sx, y2: yTop - 70, stroke: colour, "stroke-width": 2.2 }));
@@ -116,7 +118,7 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
       g.append(s("text", { x: sx, y: yTop - 80, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK, class: "load-label-text" }, `${fmt(Math.abs(ld.W))} kN`));
       g.append(s("rect", { x: sx - 12, y: yTop - 96, width: 24, height: 96, fill: "transparent", class: "grab" }));
     } else if (ld.type === "moment") {
-      const sx = X(ld.x, L);
+      const sx = X(ld.x, S);
       const cw = ld.M >= 0;
       const r = 20, cy = yTop - 12;
       const a0 = cw ? 200 : -20, a1 = cw ? -20 : 200;
@@ -131,23 +133,23 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
       g.append(s("text", { x: sx, y: cy - r - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK, class: "load-label-text" }, `${fmt(Math.abs(ld.M))} kN·m`));
       g.append(s("rect", { x: sx - 26, y: cy - r - 24, width: 52, height: r * 2 + 30, fill: "transparent", class: "grab" }));
     } else {
-      const n = Math.max(2, Math.round((X(ld.x2, L) - X(ld.x1, L)) / 30));
+      const n = Math.max(2, Math.round((X(ld.x2, S) - X(ld.x1, S)) / 30));
       const pts = [];
       for (let k = 0; k <= n; k++) {
         const x = ld.x1 + ((ld.x2 - ld.x1) * k) / n;
         const w = intensity(ld, x);
         const hgt = 14 + (48 * Math.abs(w)) / wmax;
-        pts.push([X(x, L), yTop - hgt]);
-        if (Math.abs(w) > 1e-9) arrowDown(g, X(x, L), yTop - hgt, yTop - 1, colour, 1.1, 6);
+        pts.push([X(x, S), yTop - hgt]);
+        if (Math.abs(w) > 1e-9) arrowDown(g, X(x, S), yTop - hgt, yTop - 1, colour, 1.1, 6);
       }
       g.append(s("polyline", { points: pts.map((p) => p.join(",")).join(" "), fill: "none", stroke: colour, "stroke-width": 1.6 }));
       const label = ld.type === "udl" ? `${fmt(ld.w)} kN/m` : `${fmt(ld.w1)} → ${fmt(ld.w2)} kN/m`;
       const top = Math.min(...pts.map((p) => p[1]));
-      g.append(s("text", { x: (X(ld.x1, L) + X(ld.x2, L)) / 2, y: top - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK, class: "load-label-text" }, label));
-      g.append(s("rect", { x: X(ld.x1, L), y: top - 22, width: Math.max(4, X(ld.x2, L) - X(ld.x1, L)), height: yTop - top + 22, fill: "transparent", class: "grab" }));
+      g.append(s("text", { x: (X(ld.x1, S) + X(ld.x2, S)) / 2, y: top - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: INK, class: "load-label-text" }, label));
+      g.append(s("rect", { x: X(ld.x1, S), y: top - 22, width: Math.max(4, X(ld.x2, S) - X(ld.x1, S)), height: yTop - top + 22, fill: "transparent", class: "grab" }));
       if (interactive && isSel("load", i)) {
         for (const end of ["x1", "x2"]) {
-          g.append(s("rect", { x: X(ld[end], L) - 5, y: yTop - 40, width: 10, height: 34, rx: 3, fill: PAPER, stroke: ACCENT,
+          g.append(s("rect", { x: X(ld[end], S) - 5, y: yTop - 40, width: 10, height: 34, rx: 3, fill: PAPER, stroke: ACCENT,
             "stroke-width": 1.5, class: "handle", "data-handle": end }));
         }
       }
@@ -157,18 +159,48 @@ export function drawBeamModel(svg, model, { selected = null, interactive = false
 
   (model.supports || []).forEach((sp, i) => {
     const g = s("g", { class: `item${isSel("support", i) ? " selected" : ""}`, "data-kind": "support", "data-index": i });
-    supportShape(g, sp.type, sp.x, L, isSel("support", i) ? ACCENT : INK);
-    const sx = X(sp.x, L);
+    supportShape(g, sp.type, sp.x, S, isSel("support", i) ? ACCENT : INK, L);
+    const sx = X(sp.x, S);
     g.append(s("rect", { x: sx - 20, y: BEAM_Y - 32, width: 40, height: 70, fill: "transparent", class: "grab" }));
     svg.append(g);
   });
+
+  if (interactive) {
+    // green grip at the free end of the beam: drag it to change the length
+    const ex = X(L, S), GREEN = "var(--pass, #2b7440)";
+    const g = s("g", { class: "end-handle", "data-kind": "end", "data-index": 0 });
+    g.append(s("text", { x: ex + 66, y: BEAM_Y - 22, "text-anchor": "end", "font-size": 13, "font-weight": 700,
+      fill: GREEN, class: "num" }, `L = ${fmt(L)} m`));
+    g.append(s("rect", { x: ex + 22, y: BEAM_Y - 12, width: 44, height: 24, rx: 12, fill: PAPER, stroke: GREEN, "stroke-width": 1.8 }));
+    g.append(s("line", { x1: ex + 32, y1: BEAM_Y, x2: ex + 56, y2: BEAM_Y, stroke: GREEN, "stroke-width": 2 }));
+    g.append(s("path", { d: `M${ex + 27} ${BEAM_Y} l8 -6 v12 z M${ex + 61} ${BEAM_Y} l-8 -6 v12 z`, fill: GREEN }));
+    g.append(s("rect", { x: ex + 18, y: BEAM_Y - 40, width: 54, height: 56, fill: "transparent", class: "grab-end" }));
+    g.append(s("title", {}, "Drag to change the length of the beam"));
+    svg.append(g);
+  }
   return svg;
 }
 
+/** Change the length of a beam model: supports at the old end move with it, anything past a
+ *  shorter end is trimmed or dropped, and a stiffness part that reached the old end reaches the new one. */
+export function resizeModel(model, oldL, newL) {
+  const atEnd = (x) => Math.abs(x - oldL) < 1e-6;
+  model.supports = (model.supports || []).map((sp) => (atEnd(sp.x) ? { ...sp, x: newL } : sp))
+    .filter((sp) => sp.x <= newL + 1e-9);
+  model.loads = (model.loads || []).filter((ld) => (ld.x ?? ld.x1) < newL - 1e-9 || (ld.x !== undefined && ld.x <= newL + 1e-9))
+    .map((ld) => (ld.x2 !== undefined && ld.x2 > newL ? { ...ld, x2: newL } : ld));
+  if (model.segments) {
+    model.segments = model.segments.filter((sg) => sg.x1 < newL - 1e-9)
+      .map((sg) => (atEnd(sg.x2) || sg.x2 > newL ? { ...sg, x2: newL } : sg));
+  }
+  return model;
+}
+
 export class BeamCanvas {
-  constructor(host, { onChange, onSelect, onEdit }) {
+  constructor(host, { onChange, onSelect, onEdit, onLength }) {
     this.host = host;
     this.onChange = onChange;
+    this.onLength = onLength || (() => {});
     this.onSelect = onSelect || (() => {});
     this.onEdit = onEdit || (() => {});
     this.tool = "select";
@@ -214,7 +246,20 @@ export class BeamCanvas {
   }
 
   render() {
+    if (this.drag?.kind === "end") {
+      // while the end is dragged: the beam grows or shrinks under the pointer, the scale only grows to keep it in view
+      const preview = { ...this.model, length: this.drag.length };
+      drawBeamModel(this.svg, preview, { selected: null, interactive: true, scaleLength: Math.max(this.drag.L0, this.drag.length) });
+      return;
+    }
     drawBeamModel(this.svg, this.model, { selected: this.selected, interactive: true });
+  }
+
+  svgX(event) {
+    const pt = this.svg.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    return pt.matrixTransform(this.svg.getScreenCTM().inverse()).x;
   }
 
   select(sel) {
@@ -285,6 +330,12 @@ export class BeamCanvas {
     if (!(L > 0)) return;
     const x = this.toBeam(event);
     const hit = this.hit(event.target);
+    if (hit?.kind === "end") {
+      this.drag = { kind: "end", L0: L, length: L, startX: this.svgX(event) };
+      this.svg.setPointerCapture(event.pointerId);
+      this.render();
+      return;
+    }
     const isTextClick = event.target.tagName === "text" || event.target.classList.contains("load-label-text");
     if (isTextClick && hit) {
       this.select({ kind: hit.kind, index: hit.index });
@@ -325,6 +376,15 @@ export class BeamCanvas {
 
   move(event) {
     if (!this.drag) return;
+    if (this.drag.kind === "end") {
+      const { L0, startX } = this.drag;
+      const raw = L0 + ((this.svgX(event) - startX) / (X1 - X0)) * L0;   // pointer travel, at the scale the drag started with
+      const step = L0 > 30 ? 0.25 : 0.1;
+      this.drag.length = Math.min(Math.max(Math.round(raw / step) * step, 0.5), 60);
+      this.drag.length = Number(this.drag.length.toFixed(2));
+      if (!this.frame) this.frame = requestAnimationFrame(() => { this.frame = null; this.render(); });
+      return;
+    }
     const x = this.toBeam(event);
     const L = this.model.length;
     const { kind, index, handle, start, orig } = this.drag;
@@ -353,6 +413,13 @@ export class BeamCanvas {
 
   up() {
     if (!this.drag) return;
+    if (this.drag.kind === "end") {
+      const { L0, length } = this.drag;
+      this.drag = null;
+      if (Math.abs(length - L0) > 1e-9) this.onLength(length, L0);
+      else this.render();
+      return;
+    }
     const { kind, moved } = this.drag;
     this.drag = null;
     if (kind === "support") {

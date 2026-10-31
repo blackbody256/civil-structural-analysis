@@ -1,5 +1,5 @@
 import { downloadBlob, el, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
-import { BeamCanvas, DEFAULT_LOAD } from "./beam-canvas.js";
+import { BeamCanvas, DEFAULT_LOAD, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { beamSectionFromInputs, drawBeamSection } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
@@ -792,6 +792,14 @@ function setupCanvas() {
     },
     onSelect: (sel) => pick(sel),
     onEdit: (sel, screenPoint) => editItem(sel, screenPoint),
+    onLength: (L, oldL) => {
+      // the green grip at the end of the beam was dragged: new length, supports at the end follow it
+      resizeModel(model, oldL, L);
+      const input = form.elements["span.l"];
+      input.value = String(L);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    },
   });
   for (const button of document.querySelectorAll(".canvas-tools [data-tool]")) {
     button.addEventListener("click", () => {

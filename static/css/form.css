@@ -381,3 +381,4 @@ details.more > .fields + .check { margin-top: 14px; }
   .edge-grid > #panel-plan-interactive { grid-column: 1 / -1 !important; order: -1; }
   .edge-grid select { width: 100%; }
 }
+.beam-canvas .grab-end { cursor: ew-resize; }
