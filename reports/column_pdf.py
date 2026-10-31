@@ -199,12 +199,16 @@ def frame_analysis_section(report):
     figs = report["plots"].get("figures") or frame_figures(frame, member=frame["member"])
 
     def block(title, spec, caption):
-        return KeepTogether([Paragraph(title, st["h2"]), render_figure(spec), Spacer(1, 1.5 * mm),
+        drawing = render_figure(spec, width=150 * mm)      # the model and the moments share a page
+        drawing.hAlign = "CENTER"
+        return KeepTogether([Paragraph(title, st["h2"]), drawing, Spacer(1, 1.5 * mm),
                              Paragraph(caption, st["muted"])])
 
     cell = ParagraphStyle("cell", parent=st["body"], fontSize=11, leading=14)
     rows = [["Design action", "Value"]] + [[para(label, cell), para(value, cell)]
                                            for label, value in frame_actions_rows(frame["actions"])]
+    table = _table(rows, [70 * mm, 104 * mm], st)
+    table.setStyle(TableStyle([("ALIGN", (1, 0), (1, -1), "LEFT")]))
     return [
         CondPageBreak(120 * mm), Paragraph("2. Frame analysis", st["h1"]),
         Paragraph("Linear elastic matrix stiffness analysis of the plane frame under the design loads "
@@ -212,9 +216,9 @@ def frame_analysis_section(report):
                   "member: sagging below a beam, hogging above it.", st["body"]),
         block("Frame and design loads", figs["model"], "Nodes are circled and members boxed; the column being "
               "designed is drawn in colour."),
-        block("Bending moments (kNm)", figs["M"], "Values at the member ends and at the peaks."),
+        block("Bending moments (kNm)", figs["M"], "Values at the member ends and at the peaks; sagging positive."),
         KeepTogether([Paragraph("Design actions for the column", st["h2"]),
-                      _table(rows, [70 * mm, 104 * mm], st),
+                      table, Spacer(1, 1.5 * mm),
                       Paragraph("Bending is in the plane of the frame, about y–y of the column.", st["muted"])]),
     ]
 

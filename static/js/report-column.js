@@ -1,6 +1,7 @@
 // Column report: drawings and the design path.
 import { el, fmt, worst } from "./common.js";
 import { drawElevation, drawInteraction, drawSection, endKinds } from "./drawings.js";
+import { table } from "./beam-analysis-view.js";
 import { renderFigure } from "./figure-spec.js";
 import { arrow, block, branch, figure, node, question, switcher, targetStatus } from "./report-parts.js";
 
@@ -32,51 +33,45 @@ export function figures(state) {
     figure("N–M interaction about y–y", nmY, "The design point must lie inside the capacity curve."),
     figure("N–M interaction about z–z", nmZ, null));
 
-  if (!result.plots || !result.plots.frame) {
-    return colFigures;
-  }
+  const frame = result.plots.frame;
+  if (!frame) return colFigures;
 
-  // Frame analysis figures
-  const figs = result.plots.frame.figures || result.plots.figures || {};
-  const modelBox = el("div", { class: "fig-frame-model" });
-  const mBox = el("div", { class: "fig-frame-m" });
-  const nBox = el("div", { class: "fig-frame-n" });
-
+  const figs = result.plots.figures || {};
+  const modelBox = el("div"), mBox = el("div"), nBox = el("div");
   queueMicrotask(() => {
-    if (figs.model) renderFigure(modelBox, figs.model, "Analytical model");
-    if (figs.M) renderFigure(mBox, figs.M, "Bending moment diagram");
-    if (figs.N) renderFigure(nBox, figs.N, "Axial force diagram");
+    if (figs.model) renderFigure(modelBox, figs.model, "Frame and design loads");
+    if (figs.M) renderFigure(mBox, figs.M, "Bending moment diagram of the frame");
+    if (figs.N) renderFigure(nBox, figs.N, "Axial force diagram of the frame");
   });
-
-  // Table of design actions from the frame analysis
-  const actChk = result.checks.find((c) => c.id === "design_actions_frame");
-  let tableEl = null;
-  if (actChk && actChk.working && actChk.working.length) {
-    const rows = actChk.working.map((line) => {
-      const idx = line.indexOf(":");
-      if (idx !== -1) {
-        return el("tr", {},
-          el("td", { style: "font-weight:600;padding:4px 8px;border-bottom:1px solid var(--border-color,#e5e7eb)" }, line.slice(0, idx).trim()),
-          el("td", { style: "padding:4px 8px;border-bottom:1px solid var(--border-color,#e5e7eb);text-align:right" }, line.slice(idx + 1).trim())
-        );
-      }
-      return el("tr", {}, el("td", { colspan: "2", style: "padding:4px 8px;color:var(--text-muted,#6b7280)" }, line));
-    });
-    tableEl = el("table", { class: "kv doc", style: "width:100%;border-collapse:collapse;margin-top:6px" }, el("tbody", {}, ...rows));
-  }
-
-  const frameFigures = el("div", { class: "figures", style: "margin-top:14px" },
-    figure("Analytical model", modelBox, "Nodes are circled, elements boxed. Highlighted member is the column being designed."),
-    figure("Bending moments M (kNm)", mBox, "Moments drawn on the tension side (sagging below baseline)."),
-    figure("Axial forces N (kN)", nBox, "Axial force diagram along the members (compression negative)."),
-    tableEl ? figure("Design actions from frame", tableEl, "Actions taken from the frame analysis for column design.") : null
-  );
-
   return el("div", {},
     colFigures,
-    el("h2", { style: "margin:24px 0 10px" }, "Frame analysis"),
-    frameFigures
-  );
+    el("h2", {}, "Frame analysis"),
+    el("div", { class: "figures" },
+      figure("Frame and design loads", modelBox, "Nodes are circled and members boxed; the column being designed is "
+        + "drawn in colour. G is multiplied by 1.35 and Q by 1.5; self-weight is included as G."),
+      frameActions(frame),
+      figure("Bending moments (kNm)", mBox, "On the tension side of each member: sagging below a beam, hogging above "
+        + "it. Values at the member ends and at the peaks."),
+      figure("Axial forces (kN)", nBox, "Tension positive, compression negative.")));
+}
+
+// The design actions the column check took from the frame analysis (same rows as the PDF).
+function frameActions(frame) {
+  const a = frame.actions;
+  const k = (v) => (v === "pinned" ? "pinned" : fmt(v, 2));
+  const rows = [
+    ["Column", `${a.member}, ${a.bottom_node} to ${a.top_node}`],
+    ["Clear height l", `${fmt(a.l, 2)} m`],
+    ["Axial force NEd", `${fmt(a.NEd, 1)} kN`],
+    ["Moment at the top Mtop", `${fmt(a.M_top, 1)} kNm (${a.top_node})`],
+    ["Moment at the bottom Mbottom", `${fmt(a.M_bottom, 1)} kNm (${a.bottom_node})`],
+    ["Curvature", a.curvature],
+    ["End stiffness k, top / bottom", `${k(a.k_top)} / ${k(a.k_bottom)}`],
+  ];
+  return figure("Design actions for the column", el("div", {},
+    el("p", { class: "data-lede" }, `Member ${a.member} of the frame, bending about y–y in the plane of the frame`),
+    table(["Design action", "Value"], rows)),
+  "End stiffness k is suggested from the beams framing into each end; the Restraint inputs decide what is used.");
 }
 
 function flow(result, axis) {

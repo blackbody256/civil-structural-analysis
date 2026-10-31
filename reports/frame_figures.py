@@ -1,329 +1,291 @@
-"""Figures for 2D frame analysis: model geometry and N, V, M diagrams.
+"""Figures for the column page's 2D frame analysis: the frame with its loads, and the N, V and M diagrams.
 
-Uses Fig from reports/beam_figures.py so diagrams can be rendered on the web page
-via static/js/figure-spec.js (renderFigure) and in the PDF report via reports/beam_pdf.py.
+Same figure format as reports/beam_figures.py (a 1000-unit-wide spec): the page draws it with
+static/js/figure-spec.js renderFigure and the PDF with reports/beam_pdf.py render_figure.
 
-Conventions:
-- Scale frame to 1000 units wide.
-- Colours:
-  * "ink": general lines, text
-  * "muted": baseline, dimension lines
-  * "accent": member being designed
-  * "load": loads and arrows
-  * "sfd": shear force diagrams (V)
-  * "bmd": bending moment diagrams (M), drawn on the tension side
-  * "react": axial force diagrams (N)
+Every figure places the frame identically, so the model and the diagrams line up. Diagrams are drawn
+perpendicular to each member: bending moments on the tension side (sagging below a beam, hogging above),
+N and V with positive values on the left of node 1 → node 2 (above a left-to-right beam).
+Colours: "ink" members, "accent" the column being designed, "load" loads, "bmd" M, "sfd" V, "react" N.
 """
 import math
 
-from reports.beam_figures import Fig
+from reports.beam_figures import Fig, _fmt
 
 W = 1000
-MARGIN = 90
+TEXT = 20          # ids and load labels
+SMALL = 18         # values on the diagrams and dimensions
+TOP = 110          # room above the frame for loads
+BOTTOM = 105       # room below for supports and the dimension line
+SIDE = 150         # room either side for node loads and the height dimensions
+NODE_R = 15
 
 
-def _bounds(nodes):
+def _layout(nodes):
+    """Scale and placement shared by all the figures of one frame: returns X(x), Y(y), the figure height and the
+    frame's extent on the figure."""
     xs = [float(n["x"]) for n in nodes]
     ys = [float(n["y"]) for n in nodes]
-    return min(xs), max(xs), min(ys), max(ys)
-
-
-def _transformers(nodes):
-    xmin, xmax, ymin, ymax = _bounds(nodes)
-    dx = max(xmax - xmin, 0.5)
-    dy = max(ymax - ymin, 0.5)
-
-    # Frame drawing area inside W=1000
-    avail_w = W - 2 * MARGIN
-    # Choose height to comfortably fit aspect ratio
-    scale_x = avail_w / dx
-    # Let max height be around 550, min 380
-    scale = min(scale_x, 420.0 / dy)
-    scale = max(scale, 10.0)
-
-    frame_w = dx * scale
-    frame_h = dy * scale
-    H = int(max(400, frame_h + 180))
-
+    xmin, xmax, ymin, ymax = min(xs), max(xs), min(ys), max(ys)
+    dx, dy = max(xmax - xmin, 1e-6), max(ymax - ymin, 1e-6)
+    scale = min((W - 2 * SIDE) / dx if xmax > xmin else math.inf, 380.0 / dy if ymax > ymin else math.inf)
+    if math.isinf(scale):
+        scale = 100.0
+    frame_w, frame_h = (xmax - xmin) * scale, (ymax - ymin) * scale
+    H = int(TOP + frame_h + BOTTOM)
     x0 = (W - frame_w) / 2.0
-    y_bot = H - (H - frame_h) / 2.0
 
     def X(x):
         return x0 + (float(x) - xmin) * scale
 
     def Y(y):
-        return y_bot - (float(y) - ymin) * scale
+        return TOP + frame_h - (float(y) - ymin) * scale
 
-    return X, Y, H, scale
+    return X, Y, H, (X(xmin), X(xmax), Y(ymax), Y(ymin))
+
+
+def _members(result):
+    """(definition, result, (x1, y1), (x2, y2)) for every member, in figure units."""
+    nodes = {str(n["id"]): n for n in result.get("nodes", [])}
+    res = {str(m["id"]): m for m in result.get("members", [])}
+    out = []
+    for m in result.get("elements", []):
+        n1, n2 = nodes.get(str(m["node1"])), nodes.get(str(m["node2"]))
+        if n1 and n2:
+            out.append((m, res.get(str(m["id"])), n1, n2))
+    return out
+
+
+def _value(v):
+    return _fmt(v, 1)
+
+
+def _is_vertical(p1, p2):
+    return abs(p2[0] - p1[0]) < 0.05 * math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+
+
+def _supports(fig, result, X, Y):
+    nodes = {str(n["id"]): n for n in result.get("nodes", [])}
+    for sup in result.get("supports", []):
+        n = nodes.get(str(sup["node"]))
+        if not n:
+            continue
+        sx, sy = X(n["x"]), Y(n["y"]) + NODE_R
+        kind = sup.get("type", "pin")
+        if kind == "fixed":
+            fig.line(sx - 26, sy, sx + 26, sy, c="ink", sw=2.6)
+            for hx in range(-24, 25, 8):
+                fig.line(sx + hx, sy, sx + hx - 8, sy + 10, c="muted", sw=1.1)
+            continue
+        fig.poly([(sx, sy - 4), (sx - 15, sy + 20), (sx + 15, sy + 20)], c="ink", f="paper", closed=True, sw=1.4)
+        base = sy + 20
+        if kind == "roller":
+            for cx in (sx - 8, sx + 8):
+                fig.circle(cx, base + 5, 4.5, c="ink", f="paper", sw=1.1)
+            base += 10
+        fig.line(sx - 24, base, sx + 24, base, c="ink", sw=1.6)
+        for hx in range(-22, 23, 8):
+            fig.line(sx + hx, base, sx + hx - 8, base + 9, c="muted", sw=1.1)
+
+
+def _dimensions(fig, result, X, Y, extent):
+    """Bay widths under the frame and storey heights on its right."""
+    left, right, top, bottom = extent
+    xs = sorted({round(float(n["x"]), 6) for n in result.get("nodes", [])})
+    ys = sorted({round(float(n["y"]), 6) for n in result.get("nodes", [])})
+    y_dim = bottom + 70
+    for a, b in zip(xs, xs[1:]):
+        fig.line(X(a), y_dim, X(b), y_dim, c="muted", sw=1.1)
+        fig.text((X(a) + X(b)) / 2, y_dim - 8, f"{b - a:.2f} m", c="muted", size=SMALL)
+    for x in xs if len(xs) > 1 else []:
+        fig.line(X(x) - 6, y_dim + 6, X(x) + 6, y_dim - 6, c="muted", sw=1.4)
+    x_dim = right + 92
+    for a, b in zip(ys, ys[1:]):
+        fig.line(x_dim, Y(a), x_dim, Y(b), c="muted", sw=1.1)
+        fig.text(x_dim + 10, (Y(a) + Y(b)) / 2 + 6, f"{b - a:.2f} m", c="muted", size=SMALL, a="s")
+    for y in ys if len(ys) > 1 else []:
+        fig.line(x_dim - 6, Y(y) + 6, x_dim + 6, Y(y) - 6, c="muted", sw=1.4)
+
+
+def _case(ld):
+    return f" ({ld['case']})" if ld.get("case", "Ed") != "Ed" else ""
+
+
+def _loads(fig, result, X, Y):
+    nodes = {str(n["id"]): n for n in result.get("nodes", [])}
+    members = {str(m["id"]): (n1, n2) for m, _, n1, n2 in _members(result)}
+    loads = result.get("loads", [])
+
+    # uniform loads: one row of arrows per member, the cases on one label
+    udl = {}
+    for ld in loads:
+        if ld.get("type") == "udl" and str(ld.get("member")) in members and abs(float(ld.get("w") or 0)) > 1e-9:
+            udl.setdefault(str(ld["member"]), []).append(ld)
+    for mid, items in udl.items():
+        n1, n2 = members[mid]
+        x1, y1, x2, y2 = X(n1["x"]), Y(n1["y"]), X(n2["x"]), Y(n2["y"])
+        lift = 34
+        count = max(3, min(9, int(abs(x2 - x1) / 55) + 1))
+        for k in range(count):
+            t = (k + 0.5) / count
+            bx, by = x1 + t * (x2 - x1), y1 + t * (y2 - y1)
+            fig.arrow(bx, by - lift, bx, by - 3, c="load", sw=1.3, head=7)
+        fig.line(x1, y1 - lift, x2, y2 - lift, c="load", sw=1.3)
+        label = " + ".join(f"{float(ld['w']):g}{_case(ld)}" for ld in items) + " kN/m"
+        fig.text((x1 + x2) / 2, min(y1, y2) - lift - 9, label, c="load", size=TEXT)
+
+    for ld in loads:
+        kind = ld.get("type")
+        if kind == "point" and str(ld.get("member")) in members:
+            n1, n2 = members[str(ld["member"])]
+            length = math.hypot(float(n2["x"]) - float(n1["x"]), float(n2["y"]) - float(n1["y"]))
+            a = float(ld["a"]) if ld.get("a") is not None else length / 2
+            t = a / length if length else 0.5
+            bx = X(n1["x"]) + t * (X(n2["x"]) - X(n1["x"]))
+            by = Y(n1["y"]) + t * (Y(n2["y"]) - Y(n1["y"]))
+            fig.arrow(bx, by - 58, bx, by - 3, c="load", sw=2.0, head=10)
+            fig.text(bx + 8, by - 62, f"{float(ld['P']):g} kN{_case(ld)}", c="load", size=TEXT, a="s")
+        elif kind == "node" and str(ld.get("node")) in nodes:
+            n = nodes[str(ld["node"])]
+            nx, ny = X(n["x"]), Y(n["y"])
+            fx, fy = float(ld.get("fx") or 0), float(ld.get("fy") or 0)
+            if abs(fx) > 1e-9:
+                s = 1.0 if fx > 0 else -1.0          # arrow pointing the way the force acts
+                tail = nx - s * (NODE_R + 62)
+                fig.arrow(tail, ny, nx - s * (NODE_R + 2), ny, c="load", sw=2.0, head=10)
+                fig.text(tail - s * 6, ny + 7, f"{abs(fx):g} kN{_case(ld)}", c="load", size=TEXT,
+                         a="e" if s > 0 else "s")
+            if abs(fy) > 1e-9:
+                s = 1.0 if fy > 0 else -1.0          # fy is positive downwards
+                tail = ny - s * (NODE_R + 62)
+                fig.arrow(nx, tail, nx, ny - s * (NODE_R + 2), c="load", sw=2.0, head=10)
+                fig.text(nx + 10, tail + (4 if s > 0 else 14), f"{abs(fy):g} kN{_case(ld)}", c="load", size=TEXT, a="s")
+            mz = float(ld.get("mz") or 0)
+            if abs(mz) > 1e-9:
+                a0, a1 = (-20, 200) if mz > 0 else (200, -20)      # anticlockwise positive
+                fig.arc_arrow(nx, ny, NODE_R + 16, a0, a1, c="load", sw=1.8, head=9)
+                fig.text(nx + NODE_R + 22, ny - NODE_R - 14, f"{abs(mz):g} kNm{_case(ld)}", c="load", size=TEXT, a="s")
+
+
+def _id_box(fig, x, y, text, accent=False):
+    w = len(text) * 11 + 16
+    c = "accent" if accent else "muted"
+    fig.poly([(x - w / 2, y - 14), (x + w / 2, y - 14), (x + w / 2, y + 14), (x - w / 2, y + 14)],
+             c=c, f="paper", closed=True, sw=1.6 if accent else 1.1)
+    fig.text(x, y + 7, text, c="accent" if accent else "ink", size=TEXT, b=accent)
+
+
+def _nodes(fig, result, X, Y):
+    for n in result.get("nodes", []):
+        nx, ny = X(n["x"]), Y(n["y"])
+        fig.circle(nx, ny, NODE_R, c="ink", f="paper", sw=1.4)
+        fig.text(nx, ny + 6, str(n["id"]), c="ink", size=SMALL - 2, b=True)
 
 
 def model_figure(result, member=None):
-    """Draws analytical model: nodes, members, supports, loads."""
-    nodes = result.get("nodes", [])
-    if not nodes:
-        fig = Fig(300)
-        fig.text(500, 150, "No frame model", c="muted", size=16)
+    """The frame: members (the column being designed in colour), node and member ids, supports, the loads as
+    entered with their cases, and the bay and storey dimensions."""
+    if not result.get("nodes"):
+        fig = Fig(200)
+        fig.text(W / 2, 100, "No frame to draw", c="muted", size=TEXT)
         return fig
-
-    X, Y, H, scale = _transformers(nodes)
+    X, Y, H, extent = _layout(result["nodes"])
     fig = Fig(H)
-    node_map = {str(n["id"]): n for n in nodes}
-
-    # 1. Members
-    elements = result.get("elements") or result.get("members", [])
-    for el_def in elements:
-        mid = str(el_def["id"])
-        n1 = node_map.get(str(el_def["node1"]))
-        n2 = node_map.get(str(el_def["node2"]))
-        if not n1 or not n2:
-            continue
-        x1, y1 = X(n1["x"]), Y(n1["y"])
-        x2, y2 = X(n2["x"]), Y(n2["y"])
-
-        is_target = (member is not None and str(mid) == str(member))
-        c_line = "accent" if is_target else "ink"
-        sw_line = 3.2 if is_target else 2.0
-        fig.line(x1, y1, x2, y2, c=c_line, sw=sw_line)
-
-        # Member label (boxed)
-        mx = (x1 + x2) / 2.0
-        my = (y1 + y2) / 2.0
-        Lpx = math.hypot(x2 - x1, y2 - y1)
-        if Lpx > 1:
-            # Normal vector in screen space
-            nx = (y2 - y1) / Lpx
-            ny = -(x2 - x1) / Lpx
-            # Offset label
-            lx = mx + nx * 18
-            ly = my + ny * 18
-            lbl = f"{mid}"
-            if el_def.get("b") and el_def.get("h"):
-                lbl_sec = f"{el_def['b']}×{el_def['h']}"
-            else:
-                lbl_sec = ""
-
-            bw = max(24, len(lbl) * 8 + 10)
-            fig.poly(
-                [(lx - bw / 2, ly - 9), (lx + bw / 2, ly - 9), (lx + bw / 2, ly + 9), (lx - bw / 2, ly + 9)],
-                c="accent" if is_target else "muted",
-                f="paper",
-                closed=True,
-                sw=1.2,
-            )
-            fig.text(lx, ly + 4, lbl, c="accent" if is_target else "ink", size=12, a="m", b=is_target)
-
-    # 2. Supports
-    supports = result.get("supports", [])
-    for sup in supports:
-        nid = str(sup["node"])
-        n = node_map.get(nid)
-        if not n:
-            continue
-        sx, sy = X(n["x"]), Y(n["y"])
-        stype = sup.get("type", "pin")
-        rz = sup.get("rz") or stype == "fixed"
-
-        if rz or stype == "fixed":
-            # Fixed support base
-            fig.line(sx - 16, sy + 4, sx + 16, sy + 4, c="ink", sw=2.4)
-            # Hatch lines
-            for hx in range(-14, 15, 6):
-                fig.line(sx + hx, sy + 4, sx + hx - 5, sy + 11, c="muted", sw=1.0)
-        elif stype == "pin":
-            fig.poly([(sx, sy), (sx - 10, sy + 15), (sx + 10, sy + 15)], c="ink", f="paper", closed=True, sw=1.3)
-            fig.line(sx - 14, sy + 15, sx + 14, sy + 15, c="ink", sw=1.5)
-            for hx in range(-12, 13, 6):
-                fig.line(sx + hx, sy + 15, sx + hx - 5, sy + 21, c="muted", sw=1.0)
-        else:  # roller
-            fig.poly([(sx, sy), (sx - 10, sy + 12), (sx + 10, sy + 12)], c="ink", f="paper", closed=True, sw=1.3)
-            fig.circle(sx - 5, sy + 16, 2.5, c="ink", f="paper", sw=1.0)
-            fig.circle(sx + 5, sy + 16, 2.5, c="ink", f="paper", sw=1.0)
-            fig.line(sx - 14, sy + 20, sx + 14, sy + 20, c="ink", sw=1.5)
-            for hx in range(-12, 13, 6):
-                fig.line(sx + hx, sy + 20, sx + hx - 5, sy + 26, c="muted", sw=1.0)
-
-    # 3. Loads
-    loads = result.get("loads", [])
-    for ld in loads:
-        ltype = ld.get("type")
-        case = ld.get("case", "Ed")
-        lbl_case = f" ({case})" if case != "Ed" else ""
-        if ltype == "node":
-            nid = str(ld.get("node"))
-            n = node_map.get(nid)
-            if not n:
-                continue
-            nx, ny = X(n["x"]), Y(n["y"])
-            fx = float(ld.get("fx", 0.0))
-            fy = float(ld.get("fy", 0.0))
-            if abs(fx) > 1e-4:
-                # fx > 0 points right
-                dir_x = 1.0 if fx > 0 else -1.0
-                fig.arrow(nx - 42 * dir_x, ny, nx - 2 * dir_x, ny, c="load", sw=1.8, head=8)
-                fig.text(nx - 46 * dir_x, ny - 6, f"{abs(fx):g} kN{lbl_case}", c="load", size=12, a="e" if dir_x > 0 else "s")
-            if abs(fy) > 1e-4:
-                # In analyse_frame, fy > 0 is downwards -> on screen points downward
-                dir_y = 1.0 if fy > 0 else -1.0
-                fig.arrow(nx, ny - 42 * dir_y, nx, ny - 2 * dir_y, c="load", sw=1.8, head=8)
-                fig.text(nx + 8, ny - 30 * dir_y, f"{abs(fy):g} kN{lbl_case}", c="load", size=12, a="s")
-        elif ltype == "udl":
-            mid = str(ld.get("member") or ld.get("element"))
-            el_def = next((e for e in elements if str(e["id"]) == mid), None)
-            if el_def:
-                n1 = node_map.get(str(el_def["node1"]))
-                n2 = node_map.get(str(el_def["node2"]))
-                if n1 and n2:
-                    x1, y1 = X(n1["x"]), Y(n1["y"])
-                    x2, y2 = X(n2["x"]), Y(n2["y"])
-                    w = float(ld.get("w", 0.0))
-                    # Downward arrow row
-                    arrow_len = 26
-                    num_arrows = 5
-                    for k in range(num_arrows):
-                        t = (k + 0.5) / num_arrows
-                        bx = x1 + t * (x2 - x1)
-                        by = y1 + t * (y2 - y1)
-                        fig.arrow(bx, by - arrow_len, bx, by - 2, c="load", sw=1.2, head=5)
-                    # Connecting line across tops of arrows
-                    fig.line(x1, y1 - arrow_len, x2, y2 - arrow_len, c="load", sw=1.2)
-                    fig.text((x1 + x2) / 2.0, (y1 + y2) / 2.0 - arrow_len - 6, f"{abs(w):g} kN/m{lbl_case}", c="load", size=12, a="m")
-        elif ltype == "point":
-            mid = str(ld.get("member") or ld.get("element"))
-            el_def = next((e for e in elements if str(e["id"]) == mid), None)
-            if el_def:
-                n1 = node_map.get(str(el_def["node1"]))
-                n2 = node_map.get(str(el_def["node2"]))
-                if n1 and n2:
-                    x1, y1 = X(n1["x"]), Y(n1["y"])
-                    x2, y2 = X(n2["x"]), Y(n2["y"])
-                    P = float(ld.get("P", 0.0))
-                    dx = float(n2["x"]) - float(n1["x"])
-                    dy = float(n2["y"]) - float(n1["y"])
-                    L_real = math.hypot(dx, dy)
-                    a = float(ld.get("a", L_real / 2.0))
-                    t = a / L_real if L_real > 0 else 0.5
-                    bx = x1 + t * (x2 - x1)
-                    by = y1 + t * (y2 - y1)
-                    fig.arrow(bx, by - 40, bx, by - 2, c="load", sw=2.0, head=8)
-                    fig.text(bx, by - 46, f"{abs(P):g} kN{lbl_case}", c="load", size=12, a="m")
-
-    # 4. Nodes (drawn on top)
-    for n in nodes:
-        nx, ny = X(n["x"]), Y(n["y"])
-        fig.circle(nx, ny, 12, c="ink", f="paper", sw=1.4)
-        fig.text(nx, ny + 4, str(n["id"]), c="ink", size=12, a="m", b=True)
-
+    for m, _, n1, n2 in _members(result):
+        target = member is not None and str(m["id"]) == str(member)
+        fig.line(X(n1["x"]), Y(n1["y"]), X(n2["x"]), Y(n2["y"]), c="accent" if target else "ink", sw=4.0 if target else 2.2)
+    _supports(fig, result, X, Y)
+    _dimensions(fig, result, X, Y, extent)
+    _loads(fig, result, X, Y)
+    for m, _, n1, n2 in _members(result):
+        p1, p2 = (X(n1["x"]), Y(n1["y"])), (X(n2["x"]), Y(n2["y"]))
+        mx, my = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
+        if _is_vertical(p1, p2):
+            mx -= 34                                  # columns: id to the left
+        else:
+            my += 30                                  # beams: id below, clear of the load arrows
+        _id_box(fig, mx, my, str(m["id"]), accent=member is not None and str(m["id"]) == str(member))
+    _nodes(fig, result, X, Y)
     return fig
 
 
+def _labels(values):
+    """Indices of the values worth a label: both ends, and an interior extreme that is larger than both ends.
+    A member with an (almost) constant value gets one label at mid-length."""
+    v0, v1 = values[0], values[-1]
+    vmax = max(abs(v) for v in values)
+    if vmax < 1e-9:
+        return []
+    if max(values) - min(values) < 0.02 * vmax:
+        return [len(values) // 2]
+    out = [0, len(values) - 1]
+    inner = max(range(1, len(values) - 1), key=lambda i: abs(values[i]), default=None)
+    if inner is not None and abs(values[inner]) > max(abs(v0), abs(v1)) + 0.03 * vmax:
+        out.append(inner)
+    return out
+
+
 def diagram_figure(result, kind):
-    """Draws internal force diagram for 'N', 'V', or 'M'."""
-    nodes = result.get("nodes", [])
-    members = result.get("members", [])
-    if not nodes or not members:
-        fig = Fig(300)
-        fig.text(500, 150, f"No diagram for {kind}", c="muted", size=16)
+    """The N, V or M diagram over the whole frame, with values at the member ends and at the peaks."""
+    title = {"N": "axial force", "V": "shear force", "M": "bending moment"}[kind]
+    if not result.get("nodes") or not result.get("members"):
+        fig = Fig(200)
+        fig.text(W / 2, 100, f"No {title} diagram", c="muted", size=TEXT)
         return fig
-
-    X, Y, H, scale = _transformers(nodes)
+    X, Y, H, _ = _layout(result["nodes"])
     fig = Fig(H)
-    node_map = {str(n["id"]): n for n in nodes}
+    colour = {"N": "react", "V": "sfd", "M": "bmd"}[kind]
+    parts = [(m, r, (X(n1["x"]), Y(n1["y"])), (X(n2["x"]), Y(n2["y"])))
+             for m, r, n1, n2 in _members(result) if r]
+    peak = max((abs(v) for _, r, _, _ in parts for v in r[kind]), default=0.0)
+    shortest = min((math.hypot(p2[0] - p1[0], p2[1] - p1[1]) for _, _, p1, p2 in parts), default=100.0)
+    depth = min(80.0, 0.3 * shortest)
+    k = depth / peak if peak > 1e-9 else 0.0
+    # M on the tension side: sagging (+) is drawn on the right of node 1 → node 2 (below a left-to-right beam)
+    side = -1.0 if kind == "M" else 1.0
 
-    # Find maximum absolute value across all members
-    max_val = 0.0
-    for m in members:
-        diag = m
-        vals = diag.get(kind, [])
-        for v in vals:
-            if abs(v) > max_val:
-                max_val = abs(v)
-    if max_val < 1e-6:
-        max_val = 1.0
-
-    diag_scale = 42.0 / max_val
-    col = "sfd" if kind == "V" else "bmd" if kind == "M" else "react"
-    diag_sign = -1.0 if kind == "M" else 1.0  # M on tension side (sagging + plots below baseline)
-
-    title_map = {"N": "Axial Force Diagram N (kN)", "V": "Shear Force Diagram V (kN)", "M": "Bending Moment Diagram M (kNm)"}
-    fig.text(50, 30, title_map.get(kind, kind), c="ink", size=15, a="s", b=True)
-
-    for m in members:
-        n1 = node_map.get(str(m["node1"]))
-        n2 = node_map.get(str(m["node2"]))
-        if not n1 or not n2:
+    for m, r, p1, p2 in parts:
+        fig.line(*p1, *p2, c="ink", sw=1.6)
+        length = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+        if length < 1 or k == 0:
             continue
-        x1c, y1c = X(n1["x"]), Y(n1["y"])
-        x2c, y2c = X(n2["x"]), Y(n2["y"])
-        Lpx = math.hypot(x2c - x1c, y2c - y1c)
-        if Lpx < 1:
-            continue
+        ux, uy = (p2[0] - p1[0]) / length, (p2[1] - p1[1]) / length
+        nx, ny = uy, -ux                              # left of node 1 → node 2 on the figure (y down)
+        L = r["L"]
+        pts = []
+        for x, v in zip(r["x"], r[kind]):
+            bx, by = p1[0] + ux * length * x / L, p1[1] + uy * length * x / L
+            off = side * v * k
+            pts.append((bx + nx * off, by + ny * off))
+        fig.poly([p1] + pts + [p2], c=colour, f=colour, fo=0.16, sw=1.6, closed=True)
 
-        # Baseline
-        fig.line(x1c, y1c, x2c, y2c, c="muted", sw=1.0, dash=[4, 3])
+        values = r[kind]
+        for i in _labels(values):
+            v = values[i]
+            if abs(v) < 0.04 * peak:
+                continue
+            t = r["x"][i] / L
+            # keep end labels a little inside the member so the labels of members meeting at a joint stay apart
+            t = min(max(t, min(0.12, 40 / length)), 1 - min(0.12, 40 / length))
+            bx, by = p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t
+            off = side * v * k
+            out = 1.0 if off >= 0 else -1.0
+            lx, ly = bx + nx * (off + out * 16), by + ny * (off + out * 16)
+            anchor = "m"
+            if abs(nx) > 0.7:                         # vertical member: text beside the diagram
+                anchor = "s" if nx * out > 0 else "e"
+                ly += 6
+            else:
+                ly += 14 if ny * out > 0 else -4
+            fig.text(lx, ly, _value(v), c=colour, size=SMALL, a=anchor, b=True)
 
-        # Normal vector pointing "above" beam in screen space
-        ldx = (x2c - x1c) / Lpx
-        ldy = (y2c - y1c) / Lpx
-        nx = ldy
-        ny = -ldx
-
-        diag = m
-        x_arr = diag.get("x", [0.0, m.get("L", 1.0)])
-        v_arr = diag.get(kind, [0.0, 0.0])
-        L_real = m.get("L", 1.0)
-        if L_real <= 0:
-            L_real = 1.0
-
-        curve_pts = []
-        for xi, val in zip(x_arr, v_arr):
-            t = xi / L_real
-            bx = x1c + t * (x2c - x1c)
-            by = y1c + t * (y2c - y1c)
-            off = val * diag_scale * diag_sign
-            curve_pts.append((bx + nx * off, by + ny * off))
-
-        # Filled polygon along baseline
-        fill_poly = [(x1c, y1c)] + curve_pts + [(x2c, y2c)]
-        fig.poly(fill_poly, c=col, f=col, fo=0.18, sw=1.5, closed=True)
-
-        # Drop lines at ends
-        fig.line(x1c, y1c, curve_pts[0][0], curve_pts[0][1], c=col, sw=1.0)
-        fig.line(x2c, y2c, curve_pts[-1][0], curve_pts[-1][1], c=col, sw=1.0)
-
-        # Labels: at ends and at peak
-        def place_val_label(val, pt):
-            if abs(val) < max_val * 0.04:
-                return
-            px, py = pt
-            out_dir = 1.0 if (val * diag_sign >= 0) else -1.0
-            lx = px + nx * 14 * out_dir
-            ly = py + ny * 14 * out_dir
-            txt = f"{val:.1f}"
-            fig.text(lx, ly + 3, txt, c=col, size=11, a="m", b=True)
-
-        place_val_label(v_arr[0], curve_pts[0])
-        place_val_label(v_arr[-1], curve_pts[-1])
-
-        # Interior extreme
-        peak_idx = -1
-        peak_abs = 0.0
-        for idx in range(1, len(v_arr) - 1):
-            if abs(v_arr[idx]) > peak_abs:
-                peak_abs = abs(v_arr[idx])
-                peak_idx = idx
-        if peak_idx > 0 and peak_abs > max_val * 0.08:
-            place_val_label(v_arr[peak_idx], curve_pts[peak_idx])
-
-    # Nodes on top
-    for n in nodes:
-        nx, ny = X(n["x"]), Y(n["y"])
-        fig.circle(nx, ny, 4, c="ink", f="paper", sw=1.0)
-
+    for n in result["nodes"]:
+        fig.circle(X(n["x"]), Y(n["y"]), 4.5, c="ink", f="paper", sw=1.2)
     return fig
 
 
 def frame_figures(result, member=None):
-    """Returns {"model", "N", "V", "M"} specs."""
+    """{"model", "N", "V", "M"} figure specs for a frame result from ec2.frame.analyse_frame."""
     return {
         "model": model_figure(result, member=member).spec(),
         "N": diagram_figure(result, "N").spec(),
