@@ -1,8 +1,8 @@
 /* Running-the-checks page */
 
 .run-head { display: grid; gap: 10px; margin-bottom: 22px; }
-.run-progress { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; margin-top: 6px; }
-.run-progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s linear; }
+.run-progress { height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.run-progress span { display: block; height: 100%; width: 0; background: var(--signal); transition: width .2s linear; }
 .run-counters { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; color: var(--muted); }
 .run-counters b { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
 .run-counters .pass b { color: var(--pass); }
@@ -17,7 +17,7 @@
 .run-item.active { opacity: 1; }
 .run-item.done { opacity: 1; }
 .run-item .icon { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line-strong); font-size: 11px; font-weight: 700; color: var(--bg); }
-.run-item.active .icon { border-color: var(--accent); border-right-color: transparent; animation: spin .6s linear infinite; }
+.run-item.active .icon { border-color: var(--text); border-right-color: transparent; animation: spin .6s linear infinite; }
 .run-item.done .icon { border: 0; animation: pop .25s ease-out; }
 .run-item.done.pass .icon { background: var(--pass); }
 .run-item.done.fail .icon { background: var(--fail); }
@@ -33,8 +33,8 @@
 .run-side .panel-body { padding: 8px; }
 .run-side svg { width: 100%; height: auto; display: block; }
 .stamp {
-  justify-self: center; padding: 8px 18px; border: 2px solid currentColor; border-radius: 6px;
-  font-size: 20px; font-weight: 600; letter-spacing: .2px;
+  justify-self: center; padding: 8px 18px; border: 3px solid currentColor; border-radius: 4px;
+  font-family: var(--font-display); font-size: 22px; letter-spacing: .4px;
   transform: rotate(-4deg) scale(.7); opacity: 0; transition: transform .3s cubic-bezier(.2, 1.5, .4, 1), opacity .2s;
 }
 .stamp.show { transform: rotate(-4deg) scale(1); opacity: 1; }
@@ -47,4 +47,8 @@
 @media (max-width: 1000px) {
   .run-layout { grid-template-columns: 1fr; }
   .run-side { position: static; order: -1; }
+}
+@media (max-width: 560px) {
+  .run-item { grid-template-columns: 22px minmax(0, 1fr); gap: 2px 12px; padding: 7px 16px; }
+  .run-item .r { grid-column: 2; text-align: left; }
 }
