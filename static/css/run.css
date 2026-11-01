@@ -29,7 +29,7 @@
 .run-item .r { font-size: 13px; color: var(--muted); font-family: var(--font-mono); text-align: right; }
 .run-item .r sub { font-family: var(--font-ui); }
 
-.run-side { position: sticky; top: 76px; display: grid; gap: 16px; }
+.run-side { position: sticky; top: 24px; display: grid; gap: 16px; }
 .run-side .panel-body { padding: 8px; }
 .run-side svg { width: 100%; height: auto; display: block; }
 .stamp {

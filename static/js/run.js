@@ -89,7 +89,7 @@ async function main() {
   crumb.textContent = ELEMENT_TITLES[element];
   crumb.href = `/${element}`;
   document.getElementById("open").href = `/${element}/report`;
-  document.title = `Running Checks · ${ELEMENT_TITLES[element]} · EC2 Checker`;
+  document.title = `Running Checks · ${ELEMENT_TITLES[element]} · RC Studio`;
   const input = store.get(KEYS.input);
   if (!input) { window.location.replace(`/${element}`); return; }
   let res;

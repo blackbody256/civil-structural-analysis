@@ -3,7 +3,7 @@
 /* embedded mode inside an iframe */
 html.embed .topbar,
 html.embed .report-head .actions a { display: none !important; }
-html.embed body { background: transparent; }
+html.embed body { background: transparent; padding-left: 0; }
 html.embed .page { max-width: 100%; padding: 10px 16px; margin: 0; }
 
 .report-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 26px; }

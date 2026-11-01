@@ -172,7 +172,7 @@ function calcGroups(result) {
 
 function render(state, parts) {
   const { result } = state;
-  document.title = `${TITLE} report · EC2 Checker`;
+  document.title = `${TITLE} report · RC Studio`;
   const crumb = document.getElementById("crumb-element");
   crumb.textContent = TITLE;
   crumb.href = `/${element}`;
