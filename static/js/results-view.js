@@ -1,4 +1,4 @@
-// RC Studio results: the governing utilisation as a ring gauge, the verdict and counts, and the checks by group.
+// Results (Structural Analysis & Design): the governing utilisation as a ring gauge, the verdict and counts, and the checks by group.
 // Used by the Design step of the beam, slab and column pages and by the report summary.
 import { el, fmt, statusDot } from "./common.js";
 
@@ -62,26 +62,29 @@ export function resultsHead(result) {
       countChips(result.summary.counts)));
 }
 
-/** The Design step's results: head, then every check by group, then the button to the report. */
+/** The Design step's results: head, then every check in a numbered grid by group, then the button to the report. */
 export function designResults(result, { onContinue, continueLabel = "Continue to report" } = {}) {
-  let index = 0;
-  const groups = (result.groups || []).map((group) => {
+  let no = 0;
+  const rows = [];
+  for (const group of result.groups || []) {
     const checks = result.checks.filter((c) => c.group === group);
-    if (!checks.length) return null;
-    return el("div", { class: "design-checks-group" },
-      el("div", { class: "design-group-title" }, group),
-      ...checks.map((c) => {
-        const row = el("div", { class: `design-check-row check-row-animated${c.status === "fail" ? " is-fail" : ""}` },
-          statusDot(c.status),
-          el("span", { class: "check-title" }, c.title),
-          el("span", { class: "check-res", html: c.markup?.result ?? c.result ?? "" }));
-        row.style.animationDelay = `${index++ * 22}ms`;
-        return row;
-      }));
-  }).filter(Boolean);
+    if (!checks.length) continue;
+    rows.push(el("tr", { class: "group-row" }, el("td", { colspan: "4" }, group)));
+    for (const c of checks) {
+      rows.push(el("tr", { class: c.status === "fail" ? "is-fail" : "" },
+        el("td", { class: "no" }, String(++no)),
+        el("td", {}, c.title),
+        el("td", { class: "res", html: c.markup?.result ?? c.result ?? "" }),
+        el("td", { class: "st" }, statusDot(c.status))));
+    }
+  }
+  const grid = el("div", { class: "data-wrap" }, el("table", { class: "data results-grid" },
+    el("thead", {}, el("tr", {}, el("th", { class: "no" }, "No."), el("th", {}, "Check"), el("th", {}, "Result"),
+      el("th", { class: "st" }, "Status"))),
+    el("tbody", {}, ...rows)));
   return el("div", { class: "design-results-block" },
     resultsHead(result),
-    ...groups,
+    grid,
     onContinue ? el("div", { class: "tab-continue" },
       el("button", { type: "button", class: "btn primary", onclick: onContinue }, continueLabel)) : null);
 }

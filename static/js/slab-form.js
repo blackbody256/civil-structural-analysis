@@ -951,7 +951,7 @@ function setupReportActions() {
       const res = await postJSON("/api/slab/report.pdf", data, { blob: true });
       if (res.ok) {
         const ref = (data.project?.ref || "slab").replace(/[^A-Za-z0-9_-]+/g, "-");
-        downloadBlob(res.data, `RC-Studio-slab-check-${ref}.pdf`);
+        downloadBlob(res.data, `Structural_Analysis_and_Design-slab-check-${ref}.pdf`);
       } else {
         alert("Failed to generate PDF. Make sure all checks are complete.");
       }

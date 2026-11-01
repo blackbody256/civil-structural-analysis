@@ -2,6 +2,7 @@
 // server errors and the "Examples and files" menu.
 import { el, store } from "./common.js";
 import { anchorPopover } from "./theme.js";
+import { inspectorTabs } from "./inspector.js";
 
 export function setPath(obj, path, value) {
   const keys = path.split(".");
@@ -30,6 +31,7 @@ export function setupSections(form, storageKey) {
   sections().forEach((s) => s.addEventListener("toggle", remember));
   document.getElementById("expand-all").addEventListener("click", () => { sections().forEach((s) => { s.open = true; }); });
   document.getElementById("collapse-all").addEventListener("click", () => { sections().forEach((s) => { s.open = false; }); });
+  inspectorTabs(form);
 }
 
 /** Field errors returned by the server, keyed by input name. */

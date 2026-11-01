@@ -89,7 +89,7 @@ async function main() {
   crumb.textContent = ELEMENT_TITLES[element];
   crumb.href = `/${element}`;
   document.getElementById("open").href = `/${element}/report`;
-  document.title = `Running Checks · ${ELEMENT_TITLES[element]} · RC Studio`;
+  document.title = `Running Checks · ${ELEMENT_TITLES[element]} · Structural Analysis & Design`;
   const input = store.get(KEYS.input);
   if (!input) { window.location.replace(`/${element}`); return; }
   let res;

@@ -1,67 +1,40 @@
-# RC Studio: Elisha's look for the EC2 checker (branch `Elisha`)
+# Structural Analysis & Design: Elisha's look for the EC2 checker (branch `Elisha`)
 
-Same engine, API, inputs, checks, examples and reports as `main`; a different product to look at and move
-around in. This branch is never merged into `main`; `main` is merged into it when it gains features.
+Same engine, API, input paths and checks as `main`, with a completely different interface and its own worked
+examples. Alex (`main`) and Elisha are in the same class, so nothing should look shared. This branch is never merged
+into `main`; `main` is merged into it when it gains features.
 
-## Idea
+## Where the look comes from
 
-A site-office instrument. Reinforced concrete lives among cement grey, graphite steel and the yellow tags on
-every rebar bundle, so the product takes those three: grey working surfaces, a graphite tool frame that stays
-put, and tag yellow as the one signal colour, kept for the thing to press next or the thing that matters most
-(the primary action, the current step, the governing utilisation). Everything else is quiet.
+Elisha's own earlier work: the "2D Structural Analysis Suite" (MATLAB App Designer, `Structural_Analysis_and_Design`).
+It is a desktop app: module tabs across the top (TRUSSES, BEAMS, FRAMES, RESULTS), a grey window (#E6E6E6) with
+white panels, a graph-paper drawing area beside tabbed data tables (Nodes, Members, Supports, Loads), a row of tool
+buttons (Node, Member, Support, Load, Run Analysis, Clear All) and a results tab with diagram switches. This web
+version keeps that vocabulary.
 
-## Colour
+## Structure (how it differs from main)
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| graphite (`--chrome`) | `#1d2125` | `#101316` | sidebar, phone top bar, PDF header band |
-| cement (`--bg`) | `#e7e8e4` | `#16191c` | page |
-| slab (`--surface`) | `#f7f7f4` | `#1f2327` | cards, panels |
-| tag yellow (`--signal`) | `#f2b705` | `#f5c130` | primary buttons (graphite text), current step, gauge, active nav |
-| ochre ink (`--accent`) | `#7d5a00` | `#f5c130` | links and accent text/strokes that must be readable |
-| ink (`--text`) | `#1d2125` | `#eceeeb` | text |
+| | main (Alex) | Elisha |
+|---|---|---|
+| Navigation | slim top bar with breadcrumbs | title bar + uppercase module tabs (HOME, COLUMN, BEAM, SLAB, PAD FOUNDATION) |
+| Actions | sticky bar at the bottom of the form | toolbar at the top of the workspace |
+| Workflow | underlined tabs | boxed MATLAB tab group: ANALYSIS, DESIGN, REPORT joined to their page |
+| Inputs | a long stack of collapsible sections | the sections of a step become a tab strip, one section shown at a time |
+| Drawings | right-hand column | left-hand graph-paper panel |
+| Results | list of rows | gauge plus a numbered results table |
+| Examples | Alex's | Elisha's own, for every element |
 
-Status colours stay green / red / amber-orange / blue / grey, each AA on its own soft background, and the
-amber is pushed towards orange so a warning is never mistaken for the yellow signal. Drawings keep loads red,
-shear blue and moments green; their ink and concrete follow the page.
+## Colour and type
 
-## Type
-
-- Headings, the brand and large numbers: **DejaVu Sans Condensed Bold** (local), a narrow grotesque that reads
-  like stencilled site labels. Only for display sizes.
-- Everything else: **IBM Plex Sans** 400/500/600. Numbers in inputs and results: **IBM Plex Mono**.
-- Scale (major third from 15 px): 13 · 15 · 18.75 · 23.4 · 29.3 · 36.6.
-
-## Layout
-
-```
-┌──────────────┬──────────────────────────────────────────────┐
-│ ▣ RC Studio  │  Column                                       │
-│              │  Rectangular columns to Eurocode 2            │
-│  Overview    │  (1)───────(2)───────(3)  Analysis Design Report│
-│ ▌Column    5 │  ┌ card ───────────────────┐ ┌ preview ─┐     │
-│  Beam      4 │  │ Materials        C32/40 ⌄│ │ section   │     │
-│  Slab      3 │  └─────────────────────────┘ │ elevation │     │
-│  Pad found. 6│  ┌ card ───────────────────┐ └──────────┘     │
-│  Planned     │  ...                                          │
-│   Wall       │  ┌ graphite action strip ──────[Run checks]┐  │
-│ Guide (PDF)  │                                               │
-│ Theme ⌄      │                                               │
-└──────────────┴──────────────────────────────────────────────┘
-```
-
-- Sidebar 248 px, graphite in both themes, element list with the guide chapter, planned elements greyed,
-  guide link and theme switch at the foot. At 720 px and below it becomes a graphite top bar with a Menu button
-  that opens the list as a drawer.
-- Element pages: Analysis → Design → Report as a stepper (done / current / locked), same tab logic underneath.
-- Form sections stay collapsible (their one-line summaries are useful when closed) but read as cards.
-- The action bar is a graphite strip that sticks to the bottom of the form.
-- Results: the governing utilisation as a ring gauge, counts as chips, checks as rows with a status pill.
-- Home: what the product does in one sentence beside the live beam analysis, then one tile per element
-  (its worked-example drawing, chapter, number of checks, Start), then the planned elements.
-- PDF: same content and fonts; graphite header band with a yellow rule, ochre headings, "RC Studio" name.
+- Window `#e6e6e6`, panels `#ffffff`, borders `#c4c4c4`, text `#1f1f1f`; MATLAB blue `#0072bd` for selection and
+  the primary action, MATLAB orange `#d95319` only for the active module tab's marker. Dark mode: window `#1e1e1e`,
+  panels `#2a2a2a`, blue `#4ea1e3`.
+- Status: pass `#2e7d32`, fail `#c62828`, warning `#e65100`, information `#1565c0`, not applicable `#6b6b6b`
+  (lighter tones in dark mode), all AA on their backgrounds. Drawings keep loads red, shear blue, moments green.
+- Text in the system UI sans (Segoe UI, Helvetica, Arial), numbers in DejaVu Sans Mono (local). Square corners
+  (2 px), 1 px borders, no shadows except menus.
 
 ## Rules kept from main
 
-No reference to the guide in reports; positive shear and hogging above the axis; G × 1.35, Q × 1.5; every
-input `name` path, id used by scripts, check and example unchanged; offline (no CDN), local fonts only.
+No reference to the guide in reports; positive shear and hogging above the axis; G × 1.35, Q × 1.5; every input
+`name` path, every id used by scripts and every check unchanged; offline (no CDN), local fonts or system stacks only.

@@ -181,7 +181,7 @@ def api_pdf(element):
         return jsonify({"errors": exc.errors}), 400
     ref = re.sub(r"[^A-Za-z0-9_-]+", "-", report["project"].get("ref") or element).strip("-") or element
     return send_file(io.BytesIO(build(report)), mimetype="application/pdf", as_attachment=True,
-                     download_name=f"RC-Studio-{element}-check-{ref}.pdf")
+                     download_name=f"Structural_Analysis_and_Design-{element}-check-{ref}.pdf")
 
 
 def _num(data, key, default=None):

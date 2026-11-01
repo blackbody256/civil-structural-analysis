@@ -1179,7 +1179,7 @@ function setupReportTab() {
         body: JSON.stringify(serialize()),
       });
       if (!res.ok) throw new Error(String(res.status));
-      const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || "RC-Studio-column-check.pdf";
+      const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || "Structural_Analysis_and_Design-column-check.pdf";
       downloadBlob(await res.blob(), name);
     } catch (e) {
       console.error(e);

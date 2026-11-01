@@ -82,18 +82,20 @@ const ART = {
 
 // ------------------------------------------------------------------ element tiles
 
-// one tile per element: its worked example drawn by the app's own code, then what it checks and a start link
+// one titled panel per element: its worked example drawn by the app's own code, what it checks, and Open
 function tile(item) {
   const first = el("div"), second = el("div");
   const node = el("article", { class: `tile tile-${item.id}` },
+    el("div", { class: "tile-head" },
+      el("h3", { class: "tile-title" }, el("a", { href: item.url }, item.title)),
+      el("span", { class: "tile-ch" }, `Chapter ${item.chapter}`)),
     el("a", { class: "tile-art", href: item.url, tabindex: "-1", "aria-hidden": "true" }, first, second),
     el("div", { class: "tile-body" },
-      el("h3", { class: "tile-title" }, el("a", { href: item.url }, item.title)),
-      el("p", { class: "tile-meta" },
-        el("span", {}, `Guide chapter ${item.chapter}`), el("span", {}, `${item.checks.length} kinds of check`)),
       el("p", { class: "tile-summary" }, item.summary),
       el("p", { class: "tile-checks" }, item.checks.join(", ")),
-      el("a", { class: "btn tile-start", href: item.url }, `Start a ${item.title.toLowerCase()}`)));
+      el("div", { class: "tile-foot" },
+        el("span", { class: "tile-count" }, `${item.checks.length} kinds of check`),
+        el("a", { class: "btn primary tile-start", href: item.url }, `Open ${item.title.toLowerCase()}`))));
   queueMicrotask(() => ART[item.id]?.(first, second));
   return node;
 }

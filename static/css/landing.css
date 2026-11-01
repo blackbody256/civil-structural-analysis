@@ -1,50 +1,52 @@
-/* RC Studio home: one heading, then one tile per element, then the planned ones. */
+/* Structural Analysis & Design home: a start page with one titled panel per element, then the planned ones. */
 
-.home { max-width: 1240px; }
+.home { max-width: 1440px; }
+.home-title { margin: 4px 0 16px; font-size: 22px; line-height: 1.25; font-weight: 600; max-width: none; text-wrap: balance; }
 
-/* ------------------------------------------------------------ heading */
-.home-title { margin: 0 0 30px; font-size: clamp(32px, 3.6vw, 46px); line-height: 1.05; max-width: 24ch; text-wrap: balance; }
-
-/* ------------------------------------------------------------ element tiles */
-.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-.tile {
-  display: grid; grid-template-rows: auto 1fr; background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-1);
-}
-.tile:hover { border-color: var(--line-strong); }
+/* element panels */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.tile { display: grid; grid-template-rows: auto auto 1fr; background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg); }
+.tile-head { display: flex; align-items: baseline; gap: 10px; padding: 7px 12px; background: var(--surface-2);
+  border-bottom: 1px solid var(--line-strong); }
+.tile-title { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+.tile-title a { color: var(--text); text-decoration: none; }
+.tile-title a:hover { color: var(--accent); text-decoration: underline; }
+.tile-ch { margin-left: auto; color: var(--muted); font-size: 12.5px; }
 .tile-art {
-  display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; gap: 6px; padding: 14px 16px; min-height: 210px;
-  background: var(--surface-2); border-bottom: 1px solid var(--line);
+  display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; gap: 6px; padding: 10px 14px; min-height: 200px;
+  border-bottom: 1px solid var(--line);
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(var(--grid-major) 1px, transparent 1px), linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid-minor) 1px, transparent 1px), linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
 }
 .tile-beam .tile-art { grid-template-columns: 1fr 1.4fr; }
-.tile-art svg { width: 100%; height: auto; max-height: 230px; display: block; }
-.tile-body { display: grid; gap: 10px; align-content: start; padding: 18px 20px 20px; }
-.tile-title { margin: 0; font-family: var(--font-display); font-size: 27px; line-height: 1.05; }
-.tile-title a { color: var(--text); text-decoration: none; }
-.tile-title a:hover { text-decoration: underline; text-decoration-color: var(--signal); text-decoration-thickness: 3px; }
-.tile-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; color: var(--muted); font-size: 13.5px; }
-.tile-summary { margin: 0; color: var(--text-2); font-size: 14.5px; max-width: 60ch; }
-.tile-checks { margin: 0; color: var(--muted); font-size: 13.5px; }
-.tile-start { justify-self: start; margin-top: 4px; }
-.tile-start:hover { border-color: var(--text); }
+.tile-art svg { width: 100%; height: auto; max-height: 220px; display: block; }
+.tile-body { display: grid; gap: 8px; align-content: start; padding: 10px 12px 12px; }
+.tile-summary { margin: 0; color: var(--text); font-size: 13.5px; }
+.tile-checks { margin: 0; color: var(--muted); font-size: 12.5px; }
+.tile-foot { display: flex; align-items: center; gap: 12px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.tile-count { color: var(--muted); font-size: 12.5px; }
+.tile-start { margin-left: auto; }
 
-/* ------------------------------------------------------------ planned */
-.planned { margin-top: 30px; }
-.planned h3 { font-size: 15px; color: var(--text-2); margin-bottom: 8px; }
-.planned-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-strong); }
-.planned-list li {
-  display: grid; grid-template-columns: 170px 110px minmax(0, 1fr); gap: 16px; align-items: baseline;
-  padding: 11px 2px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--muted);
-}
-.planned-name { color: var(--text-2); font-weight: 600; }
+/* planned: a data grid */
+.planned { margin-top: 18px; }
+.planned h3 { font-size: 13px; margin-bottom: 6px; }
+.planned-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line-strong); }
+.planned-list li { display: grid; grid-template-columns: 170px 110px minmax(0, 1fr); gap: 12px; align-items: baseline;
+  padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.planned-list li:nth-child(even) { background: var(--surface-2); }
+.planned-list li:last-child { border-bottom: 0; }
+.planned-name { color: var(--text); font-weight: 600; }
 
-/* ------------------------------------------------------------ smaller screens */
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .tiles { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .home-title { font-size: 30px; margin-bottom: 22px; }
-  .tile-art { grid-template-columns: 1fr 1fr; min-height: 0; padding: 10px; }
+  .home-title { font-size: 19px; }
+  .tile-art { grid-template-columns: 1fr 1fr; min-height: 0; padding: 8px; }
   .tile-beam .tile-art { grid-template-columns: 1fr; }
   .planned-list li { grid-template-columns: 1fr auto; gap: 2px 12px; }
   .planned-checks { grid-column: 1 / -1; }

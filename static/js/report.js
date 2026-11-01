@@ -65,7 +65,7 @@ function setupExport(state) {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state.input),
       });
       if (!res.ok) throw new Error(String(res.status));
-      const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || `RC-Studio-${element}-check.pdf`;
+      const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || `Structural_Analysis_and_Design-${element}-check.pdf`;
       downloadBlob(await res.blob(), name);
       menu.hidePopover();
     } catch {
@@ -82,7 +82,7 @@ function setupExport(state) {
     closed.forEach((d) => { d.open = false; });
   });
   document.getElementById("export-json").addEventListener("click", () => {
-    downloadBlob(new Blob([JSON.stringify(state.input, null, 2)], { type: "application/json" }), `RC-Studio-${element}-${ref}.json`);
+    downloadBlob(new Blob([JSON.stringify(state.input, null, 2)], { type: "application/json" }), `Structural_Analysis_and_Design-${element}-${ref}.json`);
     menu.hidePopover();
   });
 }
@@ -171,7 +171,7 @@ function calcGroups(result) {
 
 function render(state, parts) {
   const { result } = state;
-  document.title = `${TITLE} report · RC Studio`;
+  document.title = `${TITLE} report · Structural Analysis & Design`;
   const crumb = document.getElementById("crumb-element");
   crumb.textContent = TITLE;
   crumb.href = `/${element}`;
