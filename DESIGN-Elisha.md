@@ -1,4 +1,4 @@
-# RC Studio: Edwin's look for the EC2 checker (branch `Edwin`)
+# RC Studio: Elisha's look for the EC2 checker (branch `Elisha`)
 
 Same engine, API, inputs, checks, examples and reports as `main`; a different product to look at and move
 around in. This branch is never merged into `main`; `main` is merged into it when it gains features.

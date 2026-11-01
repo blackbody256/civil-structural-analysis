@@ -9,8 +9,8 @@
 /* DejaVu covers any symbol Plex lacks (glyph-by-glyph fallback) */
 @font-face { font-family: "EC2 Symbols"; src: url("../fonts/DejaVuSans.ttf") format("truetype"); }
 
-/* RC Studio (Edwin): cement surfaces, a graphite tool frame and tag yellow as the one signal colour.
-   DejaVu Sans Condensed Bold for display type. See DESIGN-Edwin.md. */
+/* RC Studio (branch Elisha): cement surfaces, a graphite tool frame and tag yellow as the one signal colour.
+   DejaVu Sans Condensed Bold for display type. See DESIGN-Elisha.md. */
 @font-face { font-family: "RC Display"; src: url("../fonts/DejaVuSansCondensed-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
 
 :root {
