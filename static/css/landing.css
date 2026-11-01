@@ -1,42 +1,11 @@
-/* RC Studio home: the purpose beside the live beam analysis, then one tile per element, then the planned ones. */
+/* RC Studio home: one heading, then one tile per element, then the planned ones. */
 
 .home { max-width: 1240px; }
 
-/* ------------------------------------------------------------ hero */
-.home-hero {
-  display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 40px; align-items: center;
-  padding: 8px 0 44px; border-bottom: 1px solid var(--line-strong);
-}
-.home-copy { display: grid; gap: 18px; align-content: start; }
-.home-title { margin: 0; font-size: clamp(36px, 4.2vw, 52px); line-height: 1.02; max-width: 17ch; }
-.home-copy .lede { font-size: 17px; max-width: 46ch; }
-.home-copy .actions { margin-top: 4px; }
-.home-copy .btn { height: 44px; padding: 0 20px; font-size: 15px; }
-
-/* the three steps are a real sequence, so they are numbered */
-.home-steps { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 0; counter-reset: step; max-width: 46ch; }
-.home-steps li {
-  counter-increment: step; position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px;
-  align-items: center; padding: 9px 0; color: var(--text-2); font-size: 14.5px;
-}
-.home-steps li::before {
-  content: counter(step); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
-  border: 2px solid var(--text); color: var(--text); font-family: var(--font-display); font-size: 14px;
-}
-.home-steps li:first-child::before { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
-.home-steps li + li { border-top: 1px dashed var(--line-strong); }
-.home-steps strong { color: var(--text); }
-
-.home-art { margin: 0; }
-.hero-art {
-  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
-  padding: 14px; box-shadow: var(--shadow-2); overflow: hidden; position: relative; cursor: pointer;
-}
-.hero-art svg { width: 100%; height: auto; display: block; }
-.home-art figcaption { margin-top: 10px; color: var(--muted); font-size: 13.5px; }
+/* ------------------------------------------------------------ heading */
+.home-title { margin: 0 0 30px; font-size: clamp(32px, 3.6vw, 46px); line-height: 1.05; max-width: 24ch; text-wrap: balance; }
 
 /* ------------------------------------------------------------ element tiles */
-.home-elements h2 { margin-top: 36px; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .tile {
   display: grid; grid-template-rows: auto 1fr; background: var(--surface); border: 1px solid var(--line);
@@ -70,26 +39,13 @@
 .planned-name { color: var(--text-2); font-weight: 600; }
 
 /* ------------------------------------------------------------ smaller screens */
-@media (max-width: 1100px) {
-  .home-hero { grid-template-columns: 1fr; gap: 28px; }
-  .home-title { max-width: 18ch; }
-}
 @media (max-width: 860px) {
   .tiles { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .home-title { font-size: 34px; }
-  .home-copy .actions { display: grid; grid-template-columns: 1fr; }
+  .home-title { font-size: 30px; margin-bottom: 22px; }
   .tile-art { grid-template-columns: 1fr 1fr; min-height: 0; padding: 10px; }
   .tile-beam .tile-art { grid-template-columns: 1fr; }
   .planned-list li { grid-template-columns: 1fr auto; gap: 2px 12px; }
   .planned-checks { grid-column: 1 / -1; }
-}
-
-/* hero diagrams: fills fade in after the outlines are drawn */
-.hero-fill { transition: fill-opacity 0.6s ease-out; }
-.hero-num { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) {
-  .hero-fill { transition: none; }
-  .hero-art * { animation: none !important; transition: none !important; }
 }
