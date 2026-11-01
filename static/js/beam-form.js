@@ -1,8 +1,9 @@
-import { downloadBlob, el, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
+import { downloadBlob, el, getJSON, keysFor, postJSON, store } from "./common.js";
 import { BeamCanvas, DEFAULT_LOAD, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { beamSectionFromInputs, drawBeamSection } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
+import { designResults } from "./results-view.js";
 import { fitFrame, formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { buildAnalysisView, designValues } from "./beam-analysis-view.js";
 
@@ -639,50 +640,7 @@ async function performDesignChecks() {
 }
 
 function renderDesignResults(result) {
-  const c = result.summary.counts;
-  const verdict = result.summary.verdict;
-  // same wording as the report header: only passed checks are counted, not information or n/a rows
-  const titleText = c.fail ? `Not adequate: ${c.fail} check${c.fail > 1 ? "s" : ""} fail`
-    : c.warn ? `Adequate, with ${c.warn} warning${c.warn > 1 ? "s" : ""}`
-      : `Adequate: all ${c.pass} checks pass`;
-
-  const counts = el("div", { class: "design-counts" },
-    `${result.summary.counts.pass} passed · ${result.summary.counts.fail} failed`
-    + (result.summary.counts.warn ? ` · ${result.summary.counts.warn} warning${result.summary.counts.warn > 1 ? "s" : ""}` : "")
-  );
-
-  let rowIndex = 0;
-  const groupNodes = [];
-  (result.groups || []).forEach((grp) => {
-    const checks = result.checks.filter((c) => c.group === grp);
-    if (!checks.length) return;
-    const rows = checks.map((c) => {
-      const idx = rowIndex++;
-      const row = el("div", { class: `design-check-row check-row-animated ${c.status === "fail" ? "is-fail" : ""}` },
-        statusDot(c.status),
-        el("span", { class: "check-title" }, c.title),
-        el("span", { class: "check-res" }, c.result || "")
-      );
-      row.style.animationDelay = `${idx * 25}ms`;
-      return row;
-    });
-    groupNodes.push(el("div", { class: "design-checks-group" },
-      el("div", { class: "design-group-title" }, grp),
-      ...rows
-    ));
-  });
-
-  const continueBtn = el("div", { class: "tab-continue" },
-    el("button", { type: "button", class: "btn primary", onclick: () => switchTab("report") }, "Continue to report →")
-  );
-
-  const block = el("div", { class: "design-results-block" },
-    el("div", { class: `design-verdict-head ${verdict}` }, titleText),
-    counts,
-    ...groupNodes,
-    continueBtn
-  );
-  $("design-results-area").replaceChildren(block);
+  $("design-results-area").replaceChildren(designResults(result, { onContinue: () => switchTab("report") }));
 }
 
 function setupReportTab() {

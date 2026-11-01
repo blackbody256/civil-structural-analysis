@@ -1,6 +1,7 @@
 // Slab form: Analysis, Design and Report tabs for solid one-way and two-way slabs and ribbed slabs.
-import { downloadBlob, el, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
+import { downloadBlob, el, getJSON, keysFor, postJSON, store } from "./common.js";
 import { BeamCanvas, resizeModel } from "./beam-canvas.js";
+import { designResults } from "./results-view.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { drawSlabSection, s } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
@@ -906,32 +907,8 @@ async function performDesignChecks(e) {
     store.setSession(KEYS.result, { input: data, result: res.data });
     store.set(KEYS.input, data);
 
-    const c = res.data.summary.counts;
-    const verdict = res.data.summary.verdict;
-    const isPass = verdict === "pass";
-
-    const badge = el("div", { class: `verdict-badge ${verdict}` },
-      statusDot(verdict),
-      el("strong", {}, isPass ? "Adequate" : "Not adequate"),
-      el("span", {}, `: ${isPass ? `all ${c.pass} checks pass` : `${c.fail} check${c.fail > 1 ? "s" : ""} fail`}`)
-    );
-
-    const checksList = el("ul", { class: "checks-summary-list", style: "margin: 12px 0; list-style: none; padding: 0;" },
-      ...res.data.checks.map((chk) =>
-        el("li", { style: "display: flex; gap: 8px; align-items: baseline; margin: 4px 0; font-size: 13.5px;" },
-          statusDot(chk.status),
-          el("span", { style: "font-weight: 500;" }, chk.title),
-          el("span", { class: "muted", style: "margin-left: auto;" }, chk.result || "")
-        )
-      )
-    );
-
-    const continueBtn = el("div", { class: "tab-continue" },
-      el("button", { type: "button", class: "btn primary", onclick: () => switchTab("report") }, "View full calculation report →")
-    );
-
     const area = $("design-results-area");
-    area.replaceChildren(badge, checksList, continueBtn);
+    area.replaceChildren(designResults(res.data, { onContinue: () => switchTab("report") }));
     area.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     // Update report frame

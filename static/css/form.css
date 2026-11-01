@@ -8,7 +8,7 @@
 .form-tools .spacer { flex: 1; }
 
 /* collapsible sections */
-.section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
 .section[open] { border-color: var(--line-strong); }
 .section > summary {
   display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 16px; align-items: center;
@@ -17,10 +17,10 @@
 .section > summary::-webkit-details-marker { display: none; }
 .section > summary:hover { background: var(--surface-2); }
 .section[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
-.s-title { font-weight: 600; }
+.s-title { font-weight: 600; font-size: 15.5px; }
 .s-sum { color: var(--muted); font-size: 14px; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .section[open] .s-sum { visibility: hidden; }
-.chev { width: 9px; height: 9px; border-right: 1.6px solid var(--muted); border-bottom: 1.6px solid var(--muted); transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
+.chev { width: 9px; height: 9px; margin-right: 4px; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2); transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
 .section[open] .chev { transform: rotate(-135deg) translateY(-2px); }
 .section .bad { color: var(--fail); font-family: var(--font-ui); }
 .s-body { padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
@@ -66,13 +66,16 @@ details.more > .fields { margin-top: 14px; }
 .moments td:first-child { font-family: var(--font-mono); font-size: 14px; white-space: nowrap; width: 48px; }
 
 .form-bar {
-  position: sticky; bottom: 0; z-index: 5; margin-top: 6px;
-  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px);
-  border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
+  position: sticky; bottom: 12px; z-index: 5; margin-top: 10px;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px 10px 14px;
+  background: var(--chrome); color: var(--chrome-text); border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
 }
 .form-bar .spacer { flex: 1; }
+.form-bar .btn:not(.primary) { background: transparent; border-color: var(--chrome-line); color: var(--chrome-text); }
+.form-bar .btn:not(.primary):hover { background: var(--chrome-2); border-color: var(--chrome-muted); }
+.form-bar :focus-visible { box-shadow: 0 0 0 2px var(--chrome), 0 0 0 4px var(--signal); }
 .form-message { font-size: 13.5px; color: var(--fail); font-weight: 500; }
+.form-bar .form-message { color: #ff9d8f; }
 
 /* preview */
 .preview { position: sticky; top: 24px; display: grid; gap: 14px; }
@@ -253,16 +256,39 @@ details.more > .fields + .check { margin-top: 14px; }
   margin-top: 12px;
 }
 
-/* workflow tabs */
-/* the bar line is an inset shadow so the active underline stays inside the bar: nothing overflows,
-   so no stray scrollbar; on narrow screens the tabs still scroll sideways */
-.tabs { display: flex; gap: 8px; box-shadow: inset 0 -2px 0 var(--line); margin-bottom: 20px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
-.tabs button[role="tab"] { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted); font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s; }
-.tabs button[role="tab"]:hover:not([aria-disabled="true"]) { color: var(--text); }
-.tabs button[role="tab"][aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-.tabs button[role="tab"][aria-selected="true"] .step-num { background: var(--accent); color: var(--on-accent, #fff); }
-.tabs button[role="tab"][aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
-.step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-3); color: var(--muted); font-size: 12px; font-weight: 600; }
+/* workflow steps: Analysis → Design → Report as a stepper (the tab logic and roles are unchanged).
+   A step before the current one is done (graphite, joined by a solid line), the current one is tag yellow,
+   a locked one is dashed. */
+.tabs { display: flex; margin: 4px 0 28px; padding: 0; }
+.tabs button[role="tab"] {
+  position: relative; flex: 1 1 0; display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 0 14px 0 0; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 15px; font-weight: 500;
+  text-align: left; cursor: pointer; white-space: nowrap;
+}
+.tabs button[role="tab"]:last-child { flex: 0 0 auto; padding-right: 0; }
+/* the line to the next step */
+.tabs button[role="tab"]:not(:last-child)::after {
+  content: ""; flex: 1; min-width: 16px; height: 2px; margin-left: 2px; background: var(--line-strong); border-radius: 1px;
+}
+.tabs button[role="tab"]:has(~ [aria-selected="true"])::after { background: var(--text); }
+.step-num {
+  display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid var(--line-strong); background: var(--surface); color: var(--text-2);
+  font-family: var(--font-display); font-size: 16px;
+}
+.tabs button[role="tab"]:hover:not([aria-disabled="true"]) .step-num { border-color: var(--text); }
+.tabs button[role="tab"][aria-selected="true"] { color: var(--text); font-weight: 600; }
+.tabs button[role="tab"][aria-selected="true"] .step-num { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
+.tabs button[role="tab"]:has(~ [aria-selected="true"]) .step-num { background: var(--text); border-color: var(--text); color: var(--bg); }
+.tabs button[role="tab"][aria-disabled="true"] { color: var(--muted); cursor: not-allowed; }
+.tabs button[role="tab"][aria-disabled="true"] .step-num { border-style: dashed; background: transparent; color: var(--muted); }
+.tabs button[role="tab"]:focus-visible { box-shadow: none; }
+.tabs button[role="tab"]:focus-visible .step-num { box-shadow: var(--ring); }
+@media (max-width: 560px) {
+  .tabs button[role="tab"] { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13.5px; padding-right: 6px; }
+  .tabs button[role="tab"]:not(:last-child)::after { position: absolute; left: 40px; right: 6px; top: 17px; margin: 0; }
+  .tabs button[role="tab"]:last-child { flex: 1 1 0; }
+}
 
 .tab-panel { display: none; }
 .tab-panel.is-active { display: block; }
@@ -284,20 +310,22 @@ details.more > .fields + .check { margin-top: 14px; }
 .form-layout.report-active { grid-template-columns: minmax(0, 1fr); }
 .report-active .preview, .report-active .form-tools, .report-active .form-bar { display: none; }
 .design-values-box .panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-.design-results-block { margin-top: 20px; padding: 18px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); }
+.design-results-block { margin-top: 20px; padding: 22px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); }
+.design-results-block .results-head { padding-bottom: 18px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.design-results-block .check-res sub, .design-results-block .check-res sup { font-family: var(--font-ui); }
 .design-verdict-head { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
 .design-verdict-head.pass { color: var(--pass); }
 .design-verdict-head.fail { color: var(--fail); }
 .design-counts { font-size: 13.5px; color: var(--muted); margin-bottom: 14px; }
 .design-checks-group { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
-.design-group-title { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.design-group-title { font-size: 14px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
 /* the first column fits the longest status label, "Not applicable" */
-.design-check-row { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 7px 10px; border-radius: 6px; font-size: 13.5px; }
+.design-check-row { display: grid; grid-template-columns: 8rem minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 6px 10px; border-radius: var(--radius); font-size: 14px; }
 .design-check-row.is-fail { background: var(--fail-soft); }
 .design-check-row .check-title { font-weight: 500; }
 .design-check-row .check-res { font-family: var(--font-mono); font-size: 13px; color: var(--text-2); text-align: right; }
 @media (max-width: 560px) {
-  .design-check-row { grid-template-columns: 5.5rem minmax(0, 1fr); gap: 2px 10px; }
+  .design-check-row { grid-template-columns: 6.5rem minmax(0, 1fr); gap: 4px 10px; align-items: start; }
   .design-check-row .status { white-space: normal; }
   .design-check-row .check-res { grid-column: 2; text-align: left; }
 }

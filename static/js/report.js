@@ -4,6 +4,7 @@ import {
 } from "./common.js";
 import { block, plural } from "./report-parts.js";
 import { anchorPopover } from "./theme.js";
+import { countChips, gauge } from "./results-view.js";
 
 const element = currentElement();
 const TITLE = ELEMENT_TITLES[element];
@@ -95,14 +96,12 @@ function governing(result) {
   const attention = result.checks.filter((x) => x.status === "fail" || x.status === "warn");
   const status = gov ? (gov.utilisation > 1 ? "fail" : gov.status) : "pass";
   return el("section", { class: "panel governing" },
-    el("span", { class: "label" }, "Governing check"),
-    gov ? el("div", { class: "big" },
-      el("span", { class: `u ${status}` }, fmt(gov.utilisation, 2)),
-      el("span", { class: "what" }, gov.title)) : el("div", {}, "No rated checks"),
-    gov ? meter(gov.utilisation) : null,
-    el("div", { class: "counts" },
-      statusDot("pass", `${c.pass} pass`), statusDot("fail", `${c.fail} fail`),
-      statusDot("warn", plural(c.warn, "warning")), statusDot("info", `${c.info} for information`)),
+    el("div", { class: "governing-head" },
+      gov ? gauge(gov.utilisation, status) : null,
+      el("div", {},
+        el("span", { class: "label" }, "Governing check"),
+        el("p", { class: "what" }, gov ? gov.title : "No rated checks"),
+        countChips(c))),
     el("div", { class: "attention" },
       el("h3", {}, "Needs attention"),
       attention.length
