@@ -24,6 +24,20 @@ version keeps that vocabulary.
 | Results | list of rows | gauge plus a numbered results table |
 | Examples | Alex's | Elisha's own, for every element |
 
+## Elisha's worked examples
+
+| Element | Correct example | Example with mistakes |
+|---|---|---|
+| Column, frame | two-bay workshop frame, interior column C2 400 × 400, C35/45, 8H20: 14 pass | pinned-base portal, C1 230 × 230, 4H10, cover 15: 5 fail |
+| Column, direct | 450 × 300, C40/50, 6H25, NEd 2600 kN: 17 pass | 300 × 300, C28/35, 4H16, NEd 2400 kN: 5 fail |
+| Beam | two 7.5 m spans, 350 × 650, C32/40, G + Q and a point load: 17 pass | 300 × 500, C25/30, 3H20: 6 fail |
+| One-way slab | two 5.2 m spans, h 200, C32/40: 16 pass | h 140, C25/30, no top bars: 7 fail |
+| Two-way slab | 4.8 × 6.0 m corner panel, h 190: 16 pass | h 130, H8 @ 300, no top bars: 7 fail |
+| Ribbed slab | 7" Maxpans, 125 mm ribs, two 5.0 m spans: 14 pass | 5" Maxpans, 100 mm ribs, C20/25, cover 15: 5 fail |
+| Pad foundation | 450 × 450 column, 3.4 × 3.4 × 0.7 m on compact sand: 17 pass | 3.0 × 3.0 × 0.65 m, H16 @ 200, cast on soil: 7 fail |
+
+The home page drawings show these examples too.
+
 ## Colour and type
 
 - Window `#e6e6e6`, panels `#ffffff`, borders `#c4c4c4`, text `#1f1f1f`; MATLAB blue `#0072bd` for selection and

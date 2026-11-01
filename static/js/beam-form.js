@@ -8,56 +8,113 @@ import { fitFrame, formErrors, getPath, option, setPath, setupFilesMenu, setupSe
 import { buildAnalysisView, designValues } from "./beam-analysis-view.js";
 
 const KEYS = keysFor("beam");
-const PROJECT = { engineer: "", date: "" };
-const MATERIALS = { fyk: 500, ductility: "B", dg: 20, gamma_c: 1.5, gamma_s: 1.15, alpha_cc: 0.85 };
-const SLAB = { on: false, type: "one_way", gk: 5, qk: 2.5, trib: 3, lx: 4, ly: 6, sides: 1 };
-const DIRECT = { M_sag: 150, M_hog: 0, VEd: 100 };
-const OPTIONS = { partitions: false, kprime_limit: true };
-const STIFF = { E_method: "concrete", E: 30, I_method: "section", segments: [] };
 
 export const EXAMPLES = {
-  // the client's example (the textbook beam his BeamViz Pro reproduces)
+  // Elisha's example: two 7.5 m spans under G and Q with a point load on the second span
   analysis: {
-    project: { name: "", ref: "", ...PROJECT },
-    section: { shape: "rectangular", flange: "T", b: 400, h: 750, hf: 150, beff_method: "calculate", beff: 1500, b1: 1350, b2: 1350 },
-    materials: { concrete: "C30/37", ...MATERIALS },
-    span: { l: 20, preset: "custom", supports: [{ x: 0, type: "fixed" }, { x: 10, type: "roller" }, { x: 20, type: "roller" }] },
-    reinforcement: { bottom_n: 4, bottom_dia: 20, bottom_layers: 1, top_n: 4, top_dia: 25, top_layers: 1, link_dia: 10, legs: 2,
-      cover: 35, delta_c_dev: 10 },
-    actions: {
-      mode: "analysis", gk: 0, qk: 0, self_weight: false, category: "B", slab: { ...SLAB },
-      loads: [
-        { type: "linear", case: "Ed", w1: 30, w2: 0, x1: 0, x2: 6 },
-        { type: "point", case: "Ed", W: 200, x: 6 },
-        { type: "moment", case: "Ed", M: 90, x: 10 },
-        { type: "point", case: "Ed", W: 150, x: 15 },
-      ],
-      ...DIRECT, ...OPTIONS,
+    project: { name: "", ref: "", engineer: "", date: "" },
+    section: {
+      shape: "rectangular",
+      flange: "T",
+      b: 350,
+      h: 650,
+      hf: 150,
+      beff_method: "calculate",
+      beff: 1500,
+      b1: 1350,
+      b2: 1350,
     },
-    stiffness: { E_method: "enter", E: 28, I_method: "enter",
-      segments: [{ x1: 0, x2: 6, I: 8700 }, { x1: 6, x2: 20, I: 5800 }] },
-    durability: { exposure: "XC1", cement_group: "All", fire_period: "R60" },
+    materials: { concrete: "C32/40", fyk: 500, ductility: "B", dg: 20, gamma_c: 1.5, gamma_s: 1.15, alpha_cc: 0.85 },
+    span: {
+      l: 15,
+      preset: "custom",
+      supports: [{ x: 0, type: "pin" }, { x: 7.5, type: "roller" }, { x: 15, type: "roller" }],
+    },
+    reinforcement: {
+      bottom_n: 3,
+      bottom_dia: 25,
+      bottom_layers: 1,
+      top_n: 4,
+      top_dia: 25,
+      top_layers: 1,
+      link_dia: 10,
+      legs: 2,
+      cover: 30,
+      delta_c_dev: 10,
+    },
+    actions: {
+      mode: "analysis",
+      gk: 0,
+      qk: 0,
+      self_weight: true,
+      category: "B",
+      slab: { on: false, type: "one_way", gk: 5, qk: 2.5, trib: 3, lx: 4, ly: 6, sides: 1 },
+      loads: [
+        { type: "udl", case: "G", w: 22, x1: 0, x2: 15 },
+        { type: "udl", case: "Q", w: 12, x1: 0, x2: 15 },
+        { type: "point", case: "G", W: 60, x: 11.25 },
+      ],
+      M_sag: 150,
+      M_hog: 0,
+      VEd: 100,
+      partitions: false,
+      kprime_limit: true,
+    },
+    stiffness: { E_method: "concrete", E: 33, I_method: "section", segments: [] },
+    durability: { exposure: "XC1", cement_group: "All", fire_period: "R90" },
   },
+  // the same beam undersized: 300 x 500, 3H20 top and bottom
   wrong: {
-    project: { name: "", ref: "", ...PROJECT },
-    section: { shape: "rectangular", flange: "T", b: 300, h: 500, hf: 150, beff_method: "calculate", beff: 1500, b1: 1350, b2: 1350 },
-    materials: { concrete: "C25/30", ...MATERIALS },
-    span: { l: 20, preset: "custom", supports: [{ x: 0, type: "fixed" }, { x: 10, type: "roller" }, { x: 20, type: "roller" }] },
-    reinforcement: { bottom_n: 2, bottom_dia: 16, bottom_layers: 1, top_n: 2, top_dia: 16, top_layers: 1, link_dia: 6, legs: 2,
-      cover: 25, delta_c_dev: 10 },
-    actions: {
-      mode: "analysis", gk: 0, qk: 0, self_weight: false, category: "B", slab: { ...SLAB },
-      loads: [
-        { type: "linear", case: "Ed", w1: 30, w2: 0, x1: 0, x2: 6 },
-        { type: "point", case: "Ed", W: 200, x: 6 },
-        { type: "moment", case: "Ed", M: 90, x: 10 },
-        { type: "point", case: "Ed", W: 150, x: 15 },
-      ],
-      ...DIRECT, ...OPTIONS,
+    project: { name: "", ref: "", engineer: "", date: "" },
+    section: {
+      shape: "rectangular",
+      flange: "T",
+      b: 300,
+      h: 500,
+      hf: 150,
+      beff_method: "calculate",
+      beff: 1500,
+      b1: 1350,
+      b2: 1350,
     },
-    stiffness: { E_method: "enter", E: 28, I_method: "enter",
-      segments: [{ x1: 0, x2: 6, I: 8700 }, { x1: 6, x2: 20, I: 5800 }] },
-    durability: { exposure: "XC3/4-XF1", cement_group: "All except IVB", fire_period: "R90" },
+    materials: { concrete: "C25/30", fyk: 500, ductility: "B", dg: 20, gamma_c: 1.5, gamma_s: 1.15, alpha_cc: 0.85 },
+    span: {
+      l: 15,
+      preset: "custom",
+      supports: [{ x: 0, type: "pin" }, { x: 7.5, type: "roller" }, { x: 15, type: "roller" }],
+    },
+    reinforcement: {
+      bottom_n: 3,
+      bottom_dia: 20,
+      bottom_layers: 1,
+      top_n: 3,
+      top_dia: 20,
+      top_layers: 1,
+      link_dia: 8,
+      legs: 2,
+      cover: 25,
+      delta_c_dev: 10,
+    },
+    actions: {
+      mode: "analysis",
+      gk: 0,
+      qk: 0,
+      self_weight: true,
+      category: "B",
+      slab: { on: false, type: "one_way", gk: 5, qk: 2.5, trib: 3, lx: 4, ly: 6, sides: 1 },
+      loads: [
+        { type: "udl", case: "G", w: 22, x1: 0, x2: 15 },
+        { type: "udl", case: "Q", w: 12, x1: 0, x2: 15 },
+        { type: "point", case: "G", W: 60, x: 11.25 },
+      ],
+      M_sag: 150,
+      M_hog: 0,
+      VEd: 100,
+      partitions: false,
+      kprime_limit: true,
+    },
+    stiffness: { E_method: "concrete", E: 33, I_method: "section", segments: [] },
+    durability: { exposure: "XC3/4", cement_group: "All except IVB", fire_period: "R90" },
   },
 };
 
