@@ -17,52 +17,30 @@
     <span id="theme-slot"></span>
   </header>
 
-  <section class="hero-band">
-    <div class="hero-container">
-      <div class="hero-copy">
-        <span class="hero-badge">Reinforced Concrete · Eurocode 2</span>
-        <h1 class="hero-title">Draw a beam. Watch it think. Design it to Eurocode 2.</h1>
-        <p class="hero-sub">Interactive matrix stiffness analysis and reinforced-concrete design to Eurocode 2 with UK National Annex — live in your browser.</p>
-        <div class="hero-actions">
-          <a class="btn primary btn-hero" href="/beam">Analyse a beam</a>
-          <a class="btn btn-hero btn-secondary" href="/column">Check a column</a>
+  <main class="page home">
+    <section class="home-hero">
+      <div class="home-copy">
+        <h1 class="home-title">Check reinforced concrete to Eurocode 2</h1>
+        <p class="lede">Draw the element and its loads, let the analysis find the design actions, then see every
+          check pass or fail with its working, ready to print as a PDF.</p>
+        <div class="actions">
+          <a class="btn primary" href="/column">Start with a column</a>
+          <a class="btn" href="/beam">Analyse a beam</a>
         </div>
+        <ol class="home-steps">
+          <li><span><strong>Analyse</strong> the frame, beam or slab under its loads.</span></li>
+          <li><span><strong>Design</strong> the section: every check of the guide, in order.</span></li>
+          <li><span><strong>Report</strong> the working on screen or as a PDF.</span></li>
+        </ol>
       </div>
-      <div class="hero-art" id="hero-animation" aria-label="Interactive beam analysis animation" role="region"></div>
-    </div>
-  </section>
-
-  <main class="page landing-page">
-    <section class="how-it-works" aria-label="How it works">
-      <div class="how-step step-analyse">
-        <div class="how-num">1</div>
-        <div class="how-body">
-          <h3>Analyse</h3>
-          <p>Draw supports and loads. Instant stiffness solver, reactions, and colourful diagrams.</p>
-        </div>
-      </div>
-      <div class="how-step step-design">
-        <div class="how-num">2</div>
-        <div class="how-body">
-          <h3>Design</h3>
-          <p>Reinforcement, concrete, and durability checks evaluated to EC2 procedures.</p>
-        </div>
-      </div>
-      <div class="how-step step-report">
-        <div class="how-num">3</div>
-        <div class="how-body">
-          <h3>Report</h3>
-          <p>Interactive verification with full substituted workings and printable PDF.</p>
-        </div>
-      </div>
+      <figure class="home-art">
+        <div class="hero-art" id="hero-animation" aria-label="Beam analysis animation" role="region"></div>
+        <figcaption>A 20 m beam analysed live: loads, reactions, shear and bending moments.</figcaption>
+      </figure>
     </section>
 
-    <section class="elements-section">
-      <div class="section-head">
-        <h2>Structural elements</h2>
-        <p class="lede">Choose an element to check against <em>How to Design Concrete Structures using Eurocode 2</em>.</p>
-      </div>
-
+    <section class="home-elements" aria-labelledby="elements-title">
+      <h2 id="elements-title">Elements</h2>
       <div id="elements" aria-live="polite">
         <p class="empty">Loading…</p>
       </div>

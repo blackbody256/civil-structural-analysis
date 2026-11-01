@@ -4,22 +4,6 @@ import { beamSectionFromInputs, drawBeamSection, drawElevation, drawSection, dra
 import { renderFigure } from "./figure-spec.js";
 import { EXAMPLES as PAD_EXAMPLES } from "./foundation-examples.js";
 
-// Card accents from Beam Pro palette
-const CARD_ACCENTS = {
-  beam: { light: "#6366F1", dark: "#818CF8" },
-  column: { light: "#8B5CF6", dark: "#A78BFA" },
-  slab: { light: "#10B981", dark: "#34D399" },
-  foundation: { light: "#EC4899", dark: "#F472B6" },
-};
-
-const PLANNED_ACCENTS = {
-  wall: "#06B6D4",
-  slab: "#10B981",
-  "flat-slab": "#F59E0B",
-  foundation: "#EC4899",
-  "retaining-wall": "#8B5CF6",
-};
-
 // Each element's worked example, drawn with the app's own drawing code.
 const ART = {
   async foundation(section, elevation) {
@@ -305,43 +289,31 @@ function buildHeroAnimation(container) {
   });
 }
 
-// ------------------------------------------------------------------ Elements List
+// ------------------------------------------------------------------ element tiles
 
-function feature(item) {
-  const accent = CARD_ACCENTS[item.id] || { light: "#6366F1", dark: "#818CF8" };
-  const sectionBox = el("div");
-  const elevationBox = el("div");
-
-  const card = el("section", { class: "card-element", style: `--card-accent: ${accent.light};` },
-    el("div", { class: "card-copy" },
-      el("div", { class: "card-header-line" },
-        el("span", { class: "card-kicker" }, `Chapter ${item.chapter} · Available Now`)),
-      el("h2", { class: "card-title" }, item.title),
-      el("p", { class: "card-summary" },
-        `${item.summary} The checks run in the exact order of the Eurocode 2 guide's design procedure, with full working and a printable PDF.`),
-      el("div", { class: "chips-list" }, item.checks.map((c) => el("span", { class: "chip" }, c))),
-      el("div", { class: "card-action" },
-        el("a", { class: "btn primary", href: item.url }, `Check a ${item.title.toLowerCase()}`),
-        el("span", { class: "note" }, "Worked example included"))),
-    el("div", { class: `card-art art-${item.id}`, "aria-hidden": "true" }, sectionBox, elevationBox));
-
-  queueMicrotask(() => ART[item.id]?.(sectionBox, elevationBox));
-  return card;
+// one tile per element: its worked example drawn by the app's own code, then what it checks and a start link
+function tile(item) {
+  const first = el("div"), second = el("div");
+  const node = el("article", { class: `tile tile-${item.id}` },
+    el("a", { class: "tile-art", href: item.url, tabindex: "-1", "aria-hidden": "true" }, first, second),
+    el("div", { class: "tile-body" },
+      el("h3", { class: "tile-title" }, el("a", { href: item.url }, item.title)),
+      el("p", { class: "tile-meta" },
+        el("span", {}, `Guide chapter ${item.chapter}`), el("span", {}, `${item.checks.length} kinds of check`)),
+      el("p", { class: "tile-summary" }, item.summary),
+      el("p", { class: "tile-checks" }, item.checks.join(", ")),
+      el("a", { class: "btn tile-start", href: item.url }, `Start a ${item.title.toLowerCase()}`)));
+  queueMicrotask(() => ART[item.id]?.(first, second));
+  return node;
 }
 
-function planned(allPlanned) {
-  return el("section", { class: "planned-section" },
-    el("h3", {}, "Coming next"),
-    el("p", { class: "lede" }, "The other elements in the guide, planned in this order."),
-    el("div", { class: "planned-grid" }, allPlanned.map((item) => {
-      const tileColor = PLANNED_ACCENTS[item.id] || "#10B981";
-      return el("div", { class: "tile-planned", style: `--tile-color: ${tileColor};` },
-        el("div", { class: "tile-top" },
-          el("span", { class: "tile-name" }, item.title),
-          el("span", { class: "tile-badge" }, "Planned")),
-        el("span", { class: "tile-chapter" }, `Chapter ${item.chapter}`),
-        el("p", { class: "tile-desc" }, item.checks.join(", ")));
-    })));
+function planned(items) {
+  return el("section", { class: "planned" },
+    el("h3", {}, "Planned"),
+    el("ul", { class: "planned-list" }, items.map((item) => el("li", {},
+      el("span", { class: "planned-name" }, item.title),
+      el("span", { class: "planned-ch" }, `Chapter ${item.chapter}`),
+      el("span", { class: "planned-checks" }, item.checks.join(", "))))));
 }
 
 async function main() {
@@ -351,14 +323,11 @@ async function main() {
   const box = document.getElementById("elements");
   try {
     const items = await getJSON("/api/elements");
-    const active = items.filter((i) => i.status === "active");
-    const next = items.filter((i) => i.status !== "active");
     box.replaceChildren(
-      el("div", { class: "element-cards-grid" }, ...active.map(feature)),
-      planned(next)
-    );
+      el("div", { class: "tiles" }, ...items.filter((i) => i.status === "active").map(tile)),
+      planned(items.filter((i) => i.status !== "active")));
   } catch {
-    box.replaceChildren(el("p", { class: "empty" }, "Could not load the elements. Is the server running?"));
+    box.replaceChildren(el("p", { class: "empty" }, "Could not load the elements. Start the server and reload."));
   }
 }
 
