@@ -44,7 +44,9 @@ MUTED = colors.HexColor("#5A656B")
 RULE = colors.HexColor("#DCD9D2")
 PAPER = colors.HexColor("#F3EFE9")
 CONCRETE = colors.HexColor("#ECE6DB")
-ACCENT = colors.HexColor("#1E6479")
+ACCENT = colors.HexColor("#7D5A00")      # RC Studio ochre
+CHROME = colors.HexColor("#1D2125")      # graphite header band
+SIGNAL = colors.HexColor("#F2B705")      # tag yellow rule under it
 STATUS_HEX = {"pass": "#2B7440", "fail": "#B33830", "warn": "#8F5D0A", "info": "#48658B", "na": "#767D82"}
 STATUS = {k: colors.HexColor(v) for k, v in STATUS_HEX.items()}
 STATUS_TINT = {k: colors.HexColor(v) for k, v in
@@ -250,11 +252,13 @@ def build_report(report, element_title, drawings, caption, extra=None):
     def decorate(canv, total):
         w, h = A4
         canv.saveState()
-        canv.setFillColor(INK)
+        canv.setFillColor(CHROME)
         canv.rect(0, h - 9 * mm, w, 9 * mm, stroke=0, fill=1)
+        canv.setFillColor(SIGNAL)
+        canv.rect(0, h - 9.9 * mm, w, 0.9 * mm, stroke=0, fill=1)
         canv.setFillColor(colors.white)
         canv.setFont(f["bold"], 10)
-        canv.drawString(15 * mm, h - 6.2 * mm, f"EC2 Checker · {element_title}")
+        canv.drawString(15 * mm, h - 6.2 * mm, f"RC Studio · {element_title}")
         canv.setFont(f["regular"], 10)
         canv.drawRightString(w - 15 * mm, h - 6.2 * mm, header_right[:80])
         canv.setStrokeColor(RULE)
@@ -269,7 +273,7 @@ def build_report(report, element_title, drawings, caption, extra=None):
     doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm, topMargin=15 * mm,
                           bottomMargin=17 * mm,
                           title=f"{element_title} check {project.get('ref', '')}".strip(),
-                          author=project.get("engineer") or "EC2 Checker",
+                          author=project.get("engineer") or "RC Studio",
                           subject=f"{element_title} check to Eurocode 2")
     doc.addPageTemplates([PageTemplate(id="page", frames=[
         Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="body")])])
