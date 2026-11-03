@@ -197,7 +197,8 @@ export function wizard(form) {
     if (!panelActive(phase)) {
       const t = tabOf(phase);
       if (!t || t.getAttribute("aria-disabled") === "true") {
-        note.textContent = s.dataset.locked || "Finish the step before this one first.";
+        note.textContent = s.dataset.locked || (phase === "report" ? "The report opens once the design checks have run."
+          : "These steps open once the analysis has run: press Analyse on the last analysis step.");
         return false;
       }
       t.click();

@@ -52,3 +52,6 @@
   .run-item { grid-template-columns: 22px minmax(0, 1fr); gap: 2px 12px; padding: 7px 16px; }
   .run-item .r { grid-column: 2; text-align: left; }
 }
+
+/* the element in 3D while the tests run */
+.run-model { height: 380px; border-radius: 0; }

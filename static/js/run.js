@@ -1,13 +1,17 @@
-import { currentElement, el, ELEMENT_TITLES, keysFor, postJSON, SEVERITY, STATUS_SVG, store, verdictText } from "./common.js";
-import { drawBeamSection, drawSection, drawSlabSection } from "./drawings.js";
-import { renderFigure } from "./figure-spec.js";
+import { currentElement, el, ELEMENT_TITLES, getJSON, keysFor, postJSON, SEVERITY, STATUS_SVG, store, verdictText } from "./common.js";
+import { createViewer } from "./viewer3d.js";
+import { elementScene } from "./models3d.js";
 
 const element = currentElement();
 const KEYS = keysFor(element);
-// the pad is drawn by the server: plain while the tests run, its failed parts red once they have all run
-const drawPad = (target, _section, { done = false } = {}, result) =>
-  renderFigure(target, result.plots.figures[done ? "plan" : "plan_plain"], "Pad foundation plan");
-const draw = { column: drawSection, beam: drawBeamSection, slab: drawSlabSection, foundation: drawPad }[element];
+// the element in 3D, building up while the tests run; a part turns red as soon as a test on it fails
+let viewer = null, meta = null;
+function draw(target, _section, { status = {} } = {}, result) {
+  viewer ??= createViewer(target, { spin: "sway" });
+  const input = store.get(KEYS.input);
+  viewer.setScene(elementScene(element, input, result, { status, meta }), { replay: !viewer.played, keepTime: true });
+  viewer.played = true;
+}
 
 const list = document.getElementById("run-list");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -69,7 +73,6 @@ async function animate(result) {
     }
     await wait(40);
   }
-  if (element === "foundation") draw(document.getElementById("run-section"), result.plots.section, { done: true }, result);
   const verdict = result.summary.verdict;
   const stamp = document.getElementById("stamp");
   stamp.className = `stamp ${verdict}`;
@@ -109,6 +112,7 @@ async function main() {
     return;
   }
   store.setSession(KEYS.result, { input, result: res.data });
+  meta = await getJSON("/api/meta").catch(() => null);
   await animate(res.data);
 }
 

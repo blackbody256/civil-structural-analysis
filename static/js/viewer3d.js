@@ -407,7 +407,7 @@ export function createViewer(host, opts = {}) {
   }
 
   /** scene = { parts: [{ geo, color, alpha, shine, tag, edge, edgeAlpha, xray, anim, fail }], labels, view } */
-  function setScene(scene, { replay: animate = false } = {}) {
+  function setScene(scene, { replay: animate = false, keepTime = false } = {}) {
     if (state.disposed) return;
     free(state.parts);
     state.parts = (scene?.parts || []).filter((p) => p.geo && (p.geo.v.length || p.geo.l.length));
@@ -441,7 +441,7 @@ export function createViewer(host, opts = {}) {
       }
     }
     if (animate || !state.played) { state.played = true; state.start = performance.now(); state.intro = REDUCED ? 0 : 1; }
-    else state.start = -1e9;     // a live update: show the parts as they are
+    else if (!keepTime) state.start = -1e9;     // a live update: show the parts as they are
     kick();
   }
 

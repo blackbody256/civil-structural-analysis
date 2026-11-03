@@ -80,7 +80,11 @@ export function drawingTabs(aside) {
     });
   }
   function sync() {
-    panels.forEach((p, k) => { buttons[k].hidden = p.hidden; const t = title(p); if (buttons[k].textContent !== t) buttons[k].textContent = t; });
+    panels.forEach((p, k) => {
+      if (buttons[k].hidden !== p.hidden) buttons[k].hidden = p.hidden;
+      const t = title(p);
+      if (buttons[k].textContent !== t) buttons[k].textContent = t;
+    });
     if (panels[at].hidden) {
       const i = panels.findIndex((p) => !p.hidden);
       if (i >= 0) select(i);
@@ -92,7 +96,9 @@ export function drawingTabs(aside) {
     const to = { ArrowRight: shown[(j + 1) % shown.length], ArrowLeft: shown[(j - 1 + shown.length) % shown.length] }[e.key];
     if (to !== undefined) { e.preventDefault(); select(to); buttons[to].focus(); }
   });
-  new MutationObserver(sync).observe(aside, { attributes: true, attributeFilter: ["hidden"], subtree: true });
+  // the tabs' own changes are ignored, or hiding a tab would set the observer off again without end
+  new MutationObserver((records) => { if (records.some((r) => !bar.contains(r.target))) sync(); })
+    .observe(aside, { attributes: true, attributeFilter: ["hidden"], subtree: true });
   select(panels.findIndex((p) => !p.hidden) >= 0 ? panels.findIndex((p) => !p.hidden) : 0);
   sync();
 }

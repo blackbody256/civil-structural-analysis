@@ -1,4 +1,5 @@
-/* Structural Analysis & Design home: a start page with one titled panel per element, then the planned ones. */
+/* Structural Analysis & Design home: a start page with one titled panel per element (its example turning in 3D),
+   then the planned ones. */
 
 .home { max-width: 1440px; }
 .home-title { margin: 4px 0 16px; font-size: 22px; line-height: 1.25; font-weight: 600; max-width: none; text-wrap: balance; }
@@ -13,17 +14,8 @@
 .tile-title a { color: var(--text); text-decoration: none; }
 .tile-title a:hover { color: var(--accent); text-decoration: underline; }
 .tile-ch { margin-left: auto; color: var(--muted); font-size: 12.5px; }
-.tile-art {
-  display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; gap: 6px; padding: 10px 14px; min-height: 200px;
-  border-bottom: 1px solid var(--line);
-  background-color: var(--surface);
-  background-image:
-    linear-gradient(var(--grid-major) 1px, transparent 1px), linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
-    linear-gradient(var(--grid-minor) 1px, transparent 1px), linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
-  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
-}
-.tile-beam .tile-art { grid-template-columns: 1fr 1.4fr; }
-.tile-art svg { width: 100%; height: auto; max-height: 220px; display: block; }
+.tile-art { display: block; border-bottom: 1px solid var(--line-strong); }
+.tile-model { height: 250px; }
 .tile-body { display: grid; gap: 8px; align-content: start; padding: 10px 12px 12px; }
 .tile-summary { margin: 0; color: var(--text); font-size: 13.5px; }
 .tile-checks { margin: 0; color: var(--muted); font-size: 12.5px; }
@@ -46,8 +38,7 @@
 }
 @media (max-width: 560px) {
   .home-title { font-size: 19px; }
-  .tile-art { grid-template-columns: 1fr 1fr; min-height: 0; padding: 8px; }
-  .tile-beam .tile-art { grid-template-columns: 1fr; }
+  .tile-model { height: 210px; }
   .planned-list li { grid-template-columns: 1fr auto; gap: 2px 12px; }
   .planned-checks { grid-column: 1 / -1; }
 }

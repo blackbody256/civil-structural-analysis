@@ -9,7 +9,7 @@ import { plural, targetStatus } from "./report-parts.js";
 import { anchorPopover } from "./theme.js";
 import { gauge, governingCheck } from "./results-view.js";
 import { createViewer } from "./viewer3d.js";
-import { beamScene, columnScene, foundationScene, slabScene } from "./models3d.js";
+import { elementScene } from "./models3d.js";
 
 const element = currentElement();
 const TITLE = ELEMENT_TITLES[element];
@@ -100,22 +100,13 @@ function designData(state, meta) {
     if (!entries.some((e) => e.isIntersecting)) return;
     io.disconnect();
     const viewer = createViewer(model, { spin: "sway" });
-    viewer.setScene(scene(state, meta, status), { replay: true });
+    viewer.setScene(elementScene(element, state.input, state.result, { status, meta }), { replay: true });
   }, { threshold: 0.25 });
   queueMicrotask(() => io.observe(model));
   return el("div", { class: "data-grid" },
     el("div", { class: "schedule" }, el("h3", {}, "Input schedule"),
       el("table", { class: "schedule-table" }, el("tbody", {}, rows))),
     el("figure", { class: "model-fig" }, model, el("figcaption", {}, legend)));
-}
-
-function scene(state, meta, status) {
-  const { input, result } = state;
-  const d = result.derived || {};
-  if (element === "column") return columnScene({ ...input, actions: { ...input.actions, NEd: d.NEd ?? input.actions?.NEd } }, { status });
-  if (element === "beam") return beamScene(input, { status, beff: result.plots.section?.beff, links: d.links });
-  if (element === "slab") return slabScene(input, { status, pan: meta?.maxpans?.find((p) => p.id === input.slab?.maxpan) });
-  return foundationScene(input, { status, pressure: d.uls_p1 ? { pmax: Math.max(d.uls_p1, d.uls_p2 ?? 0), pmin: Math.min(d.uls_p1, d.uls_p2 ?? d.uls_p1) } : null });
 }
 
 /** C: every check as a row of the pad, grouped and numbered C1.1, C1.2 … */

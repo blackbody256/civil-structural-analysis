@@ -1,101 +1,63 @@
-import { el, getJSON, postJSON } from "./common.js";
-import { drawBeamModel } from "./beam-canvas.js";
-import { beamSectionFromInputs, drawBeamSection, drawElevation, drawSection, drawSlabSection, s, sectionFromInputs } from "./drawings.js";
-import { renderFigure } from "./figure-spec.js";
+import { el, getJSON } from "./common.js";
+import { createViewer } from "./viewer3d.js";
+import { beamScene, columnScene, foundationScene, slabScene } from "./models3d.js";
 import { EXAMPLES as PAD_EXAMPLES } from "./foundation-examples.js";
 
-// Each element's worked example, drawn with the app's own drawing code.
-const ART = {
-  async foundation(section, elevation) {
-    // the pad's drawings come from the server, for its worked example
-    const res = await postJSON("/api/foundation/check", PAD_EXAMPLES.pass);
-    if (!res.ok) return;
-    renderFigure(section, res.data.plots.figures.plan_plain, "Pad foundation plan");
-    renderFigure(elevation, res.data.plots.figures.section, "Pad foundation section and ground pressure");
-  },
-  column(section, elevation) {
-    // Elisha's column entered directly: 450 x 300, 6H25
-    const sample = { b: 450, h: 300, cover: 35, link_dia: 8, bar_dia: 25, n_b: 3, n_h: 2 };
-    drawSection(section, sectionFromInputs(sample), { linkLabel: "H8 @ 180" });
-    drawElevation(elevation, { l: 3800, depth: 300, NEd: 2600, top: "partial", bottom: "partial", kTop: "k = 0.30" });
-  },
-  beam(section, elevation) {
-    // Elisha's two-span beam: 350 x 650, 3H25 bottom, 4H25 top
-    const sample = { shape: "rectangular", b: 350, h: 650, cover: 30, link_dia: 10, legs: 2,
-      bottom_n: 3, bottom_dia: 25, top_n: 4, top_dia: 25 };
-    drawBeamSection(section, beamSectionFromInputs(sample), { linkLabel: "H10 links" });
-    const svg = s("svg", { viewBox: "0 0 1000 250", role: "img", "aria-label": "Beam model" });
-    drawBeamModel(svg, {
-      length: 15,
-      supports: [{ x: 0, type: "pin" }, { x: 7.5, type: "roller" }, { x: 15, type: "roller" }],
-      loads: [
-        { type: "udl", w: 34, x1: 0, x2: 15 },
-        { type: "point", W: 60, x: 11.25 },
-      ],
-    });
-    elevation.replaceChildren(svg);
-  },
-  slab(section, elevation) {
-    const sample = {
-      slab_type: "one_way",
-      b: 1000,
-      h: 200,
-      cover: 30,
-      bottom_x: { dia: 12, s: 175, As: 646 },
-      bottom_y: { dia: 10, s: 250, As: 314 },
-      top_x: { dia: 12, s: 150, As: 754 },
-      top_y: { dia: null, s: 200, As: 0 },
-    };
-    drawSlabSection(section, sample, { width: 380, height: 210 });
-
-    const svg = s("svg", { viewBox: "0 0 280 200", role: "img", "aria-label": "Two-way slab panel plan" });
-    const pw = 150, ph = 120, x0 = 65, y0 = 35, x1 = x0 + pw, y1 = y0 + ph;
-    svg.append(s("polygon", {
-      points: `${x0},${y0} ${x1},${y0} ${x1},${y1} ${x0},${y1}`,
-      fill: "var(--draw-concrete, #ece6db)",
-      stroke: "var(--draw-rule, #e2ddd5)",
-      "stroke-width": 1,
-    }));
-    // Continuous edges with hatching
-    // Top
-    svg.append(s("line", { x1: x0, y1: y0, x2: x1, y2: y0, stroke: "var(--draw-ink, #192329)", "stroke-width": 3 }));
-    for (let x = x0 + 4; x < x1; x += 8) svg.append(s("line", { x1: x, y1: y0, x2: x + 6, y2: y0 - 7, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
-    // Bottom: discontinuous (Elisha's corner panel)
-    svg.append(s("line", { x1: x0, y1: y1, x2: x1, y2: y1, stroke: "var(--draw-ink, #192329)", "stroke-width": 1.4 }));
-    // Left
-    svg.append(s("line", { x1: x0, y1: y0, x2: x0, y2: y1, stroke: "var(--draw-ink, #192329)", "stroke-width": 3 }));
-    for (let y = y0 + 4; y < y1; y += 8) svg.append(s("line", { x1: x0, y1: y, x2: x0 - 7, y2: y + 6, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
-    // Right
-    svg.append(s("line", { x1: x1, y1: y0, x2: x1, y2: y1, stroke: "var(--draw-ink, #192329)", "stroke-width": 1.4 }));
-
-    // Direction arrows & moments
-    svg.append(s("line", { x1: x0 + 15, y1: (y0 + y1) / 2, x2: x1 - 15, y2: (y0 + y1) / 2, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
-    svg.append(s("line", { x1: (x0 + x1) / 2, y1: y0 + 15, x2: (x0 + x1) / 2, y2: y1 - 15, stroke: "var(--draw-muted, #6a747a)", "stroke-width": 1 }));
-    svg.append(s("text", { x: (x0 + x1) / 2, y: (y0 + y1) / 2 - 5, "text-anchor": "middle", "font-size": 11, "font-weight": "700", fill: "var(--draw-bmd, #059669)" }, "msx,mid"));
-    svg.append(s("text", { x: (x0 + x1) / 2, y: (y0 + y1) / 2 + 13, "text-anchor": "middle", "font-size": 11, "font-weight": "700", fill: "var(--draw-bmd, #059669)" }, "msy,mid"));
-    svg.append(s("text", { x: (x0 + x1) / 2, y: y1 + 20, "text-anchor": "middle", "font-size": 11, fill: "var(--draw-ink, #192329)" }, "lx = 4.8 m × ly = 6.0 m"));
-
-    elevation.replaceChildren(svg);
-  },
+// Each element's worked example (Elisha's), built in 3D by the same code as the input pages and turning slowly.
+const MODELS = {
+  column: () => columnScene({
+    geometry: { b: 450, h: 300, l: 3.8 },
+    reinforcement: { bar_dia: 25, n_b: 3, n_h: 2, link_dia: 8, cover: 35, cross_ties: false },
+    actions: { NEd: 2600, My_top: 55, My_bottom: 30, bending: "uniaxial" },
+  }),
+  beam: () => beamScene({
+    section: { shape: "rectangular", b: 350, h: 650 },
+    span: { l: 15, supports: [{ x: 0, type: "pin" }, { x: 7.5, type: "roller" }, { x: 15, type: "roller" }] },
+    reinforcement: { bottom_n: 3, bottom_dia: 25, bottom_layers: 1, top_n: 4, top_dia: 25, top_layers: 1, link_dia: 10, legs: 2, cover: 30 },
+    materials: { dg: 20 },
+    actions: { mode: "analysis", loads: [{ type: "udl", case: "G", w: 22, x1: 0, x2: 15 }, { type: "udl", case: "Q", w: 12, x1: 0, x2: 15 },
+      { type: "point", case: "G", W: 60, x: 11.25 }] },
+  }),
+  slab: () => slabScene({
+    slab: { type: "two_way", h: 190 },
+    panel: { lx: 4.8, ly: 6, edges: { top: "continuous", bottom: "discontinuous", left: "continuous", right: "discontinuous" } },
+    reinforcement: { bottom_x_dia: 10, bottom_x_s: 175, bottom_y_dia: 10, bottom_y_s: 200, top_x_dia: 10, top_x_s: 175, top_y_dia: 10, top_y_s: 200, cover: 25 },
+  }),
+  foundation: () => foundationScene(PAD_EXAMPLES.pass, { pressure: { pmax: 340, pmin: 300 } }),
 };
+
+/** The tile's model is built when the tile first comes into view, so its build-up animation is seen. */
+function model(host, id) {
+  const io = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    io.disconnect();
+    const viewer = createViewer(host, { toolbar: false, labels: false, compact: true, spin: true });
+    if (!viewer.ok) return;
+    const scene = MODELS[id]();
+    if (id !== "beam") scene.view = { ...scene.view, zoom: 0.84 };     // closer: the long beam needs all the room
+    viewer.setScene(scene, { replay: true });
+    host.closest(".tile")?.addEventListener("mouseenter", () => viewer.replay());
+  }, { threshold: 0.3 });
+  io.observe(host);
+}
 
 // ------------------------------------------------------------------ element tiles
 
-// one titled panel per element: its worked example drawn by the app's own code, what it checks, and Open
+// one titled panel per element: its worked example in 3D, what it checks, and Open
 function tile(item) {
-  const first = el("div"), second = el("div");
+  const art = el("div", { class: "vp-host tile-model" });
   const node = el("article", { class: `tile tile-${item.id}` },
     el("div", { class: "tile-head" },
       el("h3", { class: "tile-title" }, el("a", { href: item.url }, item.title)),
       el("span", { class: "tile-ch" }, `Chapter ${item.chapter}`)),
-    el("a", { class: "tile-art", href: item.url, tabindex: "-1", "aria-hidden": "true" }, first, second),
+    el("a", { class: "tile-art", href: item.url, tabindex: "-1", "aria-hidden": "true" }, art),
     el("div", { class: "tile-body" },
       el("p", { class: "tile-summary" }, item.summary),
       el("p", { class: "tile-checks" }, item.checks.join(", ")),
       el("div", { class: "tile-foot" },
         el("span", { class: "tile-count" }, `${item.checks.length} kinds of check`),
         el("a", { class: "btn primary tile-start", href: item.url }, `Open ${item.title.toLowerCase()}`))));
-  queueMicrotask(() => ART[item.id]?.(first, second));
+  if (MODELS[item.id]) queueMicrotask(() => model(art, item.id));
   return node;
 }
 

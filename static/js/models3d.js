@@ -595,3 +595,15 @@ export function foundationScene(d, { status = null, pressure = null } = {}) {
   labels.push({ at: [-L / 2 - 0.5, ds, -B / 2 - 0.5], text: "ground level", tag: "soil", cls: "muted", delay: 2.6 });
   return { parts, labels, view: { yaw: -0.78, pitch: 0.36 } };
 }
+
+// ------------------------------------------------------------------ an element from its saved inputs and results
+
+/** The model of a checked element (report and run pages): its inputs, with the failed parts from `status`. */
+export function elementScene(element, input, result, { status = null, meta = null } = {}) {
+  const d = result?.derived || {};
+  if (element === "column") return columnScene({ ...input, actions: { ...input.actions, NEd: d.NEd ?? input.actions?.NEd } }, { status });
+  if (element === "beam") return beamScene(input, { status, beff: result?.plots?.section?.beff, links: d.links });
+  if (element === "slab") return slabScene(input, { status, pan: meta?.maxpans?.find((p) => p.id === input.slab?.maxpan) || null });
+  const p1 = d.uls_p1, p2 = d.uls_p2 ?? d.uls_p1;
+  return foundationScene(input, { status, pressure: p1 ? { pmax: Math.max(p1, p2), pmin: Math.min(p1, p2) } : null });
+}

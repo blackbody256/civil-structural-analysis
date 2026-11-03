@@ -1,27 +1,28 @@
-# Structural Analysis & Design: Elisha's look for the EC2 checker (branch `Elisha`)
+# Structural Analysis & Design: Elisha's version of the EC2 checker (branch `Elisha`)
 
-Same engine, API, input paths and checks as `main`, with a completely different interface and its own worked
-examples. Alex (`main`) and Elisha are in the same class, so nothing should look shared. This branch is never merged
-into `main`; `main` is merged into it when it gains features.
+Same engine (`ec2/`), API, input paths and checks as `main`, with a different way of entering the inputs, a 3D
+model of every element, a different report and its own worked examples. Alex (`main`) and Elisha are in the same
+class, so nothing should look shared. This branch is never merged into `main`; `main` is merged into it when it
+gains features.
 
 ## Where the look comes from
 
-Elisha's own earlier work: the "2D Structural Analysis Suite" (MATLAB App Designer, `Structural_Analysis_and_Design`).
-It is a desktop app: module tabs across the top (TRUSSES, BEAMS, FRAMES, RESULTS), a grey window (#E6E6E6) with
-white panels, a graph-paper drawing area beside tabbed data tables (Nodes, Members, Supports, Loads), a row of tool
-buttons (Node, Member, Support, Load, Run Analysis, Clear All) and a results tab with diagram switches. This web
-version keeps that vocabulary.
+Elisha's earlier "2D Structural Analysis Suite" (MATLAB App Designer): module tabs across the top, a grey window
+with white panels, MATLAB blue and orange. The CAD viewport and the calculation pad come from engineering practice:
+a dark 3D view as in analysis software, and the ruled Ref | Calculation | Output sheet engineers write calculations on.
 
-## Structure (how it differs from main)
+## How it differs from main
 
 | | main (Alex) | Elisha |
 |---|---|---|
 | Navigation | slim top bar with breadcrumbs | title bar + uppercase module tabs (HOME, COLUMN, BEAM, SLAB, PAD FOUNDATION) |
-| Actions | sticky bar at the bottom of the form | toolbar at the top of the workspace |
-| Workflow | underlined tabs | boxed MATLAB tab group: ANALYSIS, DESIGN, REPORT joined to their page |
-| Inputs | a long stack of collapsible sections | the sections of a step become a tab strip, one section shown at a time |
-| Drawings | right-hand column | left-hand graph-paper panel |
-| Results | list of rows | gauge plus a numbered results table |
+| Entering inputs | one long page of collapsible sections in Analysis / Design / Report tabs | a guided wizard: one step at a time, a rail of numbered steps down the side (with each step's summary), Back / Next, Enter moves on, a review of everything entered before the checks run, then the results and the report as the last steps |
+| Element view | 2D section and elevation beside the form | a live 3D model (WebGL, written for this app, no library) on top, the 2D drawings under it as tabs |
+| 3D model | none | builds itself with an animation, sways, turns and zooms; x-ray shows the cage; each step lights up the parts it is about (bars and links on Reinforcement, loads on Loads); the frame for the column page's analysis steps, then the column |
+| Run page (pad) | the section drawing | the pad in 3D, parts turning red as their checks fail |
+| Web report | summary first, collapsible groups, Times New Roman | a calculation pad in DejaVu Sans: boxed title block, sections A Design data (input schedule beside the 3D model, failed parts red), B Drawings and analysis, C Design checks in Ref / Calculation / Output columns with guide references and PASS / FAIL stamps, D Conclusion (verdict stamp, governing check, every utilisation), E Assumptions; sections slide in, bars fill, the stamp lands |
+| PDF | Times New Roman 12 pt, blue band header, "Page n of N" | DejaVu Sans; a boxed title block on every sheet (project, element, sheet n of N, made by, date); check sheets ruled into Ref / Calculation / Output columns; a 3D view of the element on the first sheet; the conclusion with a verdict stamp and a utilisation chart at the end; the foot carries the element, the result and the print time |
+| Home | element cards with drawings | each element's example turning in 3D |
 | Examples | Alex's | Elisha's own, for every element |
 
 ## Elisha's worked examples
@@ -36,19 +37,27 @@ version keeps that vocabulary.
 | Ribbed slab | 7" Maxpans, 125 mm ribs, two 5.0 m spans: 14 pass | 5" Maxpans, 100 mm ribs, C20/25, cover 15: 5 fail |
 | Pad foundation | 450 × 450 column, 3.4 × 3.4 × 0.7 m on compact sand: 17 pass | 3.0 × 3.0 × 0.65 m, H16 @ 200, cast on soil: 7 fail |
 
-The home page drawings show these examples too.
+## Code
+
+- `static/js/wizard.js`: the steps. A step is a `<section class="wz-step">` in the page (title, prompt, the parts
+  to focus on, and for the Analyse and Review steps the button its Next presses). Moving to a step in another
+  panel presses that panel's tab, so the page's own Analysis / Design / Report logic still decides what is open.
+- `static/js/viewer3d.js`: the WebGL viewport. `static/js/models3d.js`: the column, frame, beam, slab (one-way,
+  two-way, ribbed) and pad models, built from the same inputs the form sends. `static/js/model-view.js` ties
+  them to a page.
+- `static/js/report.js`, `static/css/report.css`: the web report. `reports/pdf_base.py`: the PDF sheets;
+  `reports/iso3d.py`: the PDF's 3D view.
 
 ## Colour and type
 
-- Window `#e6e6e6`, panels `#ffffff`, borders `#c4c4c4`, text `#1f1f1f`; MATLAB blue `#0072bd` for selection and
-  the primary action, MATLAB orange `#d95319` only for the active module tab's marker. Dark mode: window `#1e1e1e`,
-  panels `#2a2a2a`, blue `#4ea1e3`.
-- Status: pass `#2e7d32`, fail `#c62828`, warning `#e65100`, information `#1565c0`, not applicable `#6b6b6b`
-  (lighter tones in dark mode), all AA on their backgrounds. Drawings keep loads red, shear blue, moments green.
-- Text in the system UI sans (Segoe UI, Helvetica, Arial), numbers in DejaVu Sans Mono (local). Square corners
-  (2 px), 1 px borders, no shadows except menus.
+- Window `#e6e6e6`, panels `#ffffff`, MATLAB blue `#0072bd`, orange `#d95319` for the current step and the pad's
+  margin rule. The 3D viewport is dark in both themes: concrete grey, bars orange, links yellow, loads red,
+  supports green, ground pressure light blue, failed parts red.
+- Reports: navy `#0b3a5c` title block and headings, blue pad ruling, stamps in pass green, fail red, warning orange.
+- UI text in the system sans, numbers in DejaVu Sans Mono, reports in DejaVu Sans (all local).
 
 ## Rules kept from main
 
-No reference to the guide in reports; positive shear and hogging above the axis; G × 1.35, Q × 1.5; every input
-`name` path, every id used by scripts and every check unchanged; offline (no CDN), local fonts or system stacks only.
+The engine, every input `name` path, every id used by scripts and every check are unchanged: main's and Elisha's
+examples give byte-identical `/api/<element>/check` responses on both branches. Positive shear and hogging above
+the axis; G × 1.35, Q × 1.5; offline (no CDN), local fonts or system stacks only.

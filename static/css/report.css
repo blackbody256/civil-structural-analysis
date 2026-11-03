@@ -27,7 +27,8 @@
 }
 
 /* embedded in the wizard's Report step */
-html.embed .topbar, html.embed .tb-actions a { display: none !important; }
+html.embed .topbar, html.embed .tb-actions { display: none !important; }
+html.embed .title-block { grid-template-columns: 250px minmax(0, 1fr); }
 html.embed body { background: transparent; }
 html.embed .page { max-width: 100%; padding: 6px 4px; margin: 0; }
 
