@@ -175,10 +175,12 @@ def api_check(element):
 @app.post("/api/<element>/report.pdf")
 def api_pdf(element):
     check, build = _handlers(element)
+    data = _payload()
     try:
-        report = check(_payload())
+        report = check(data)
     except ValidationError as exc:
         return jsonify({"errors": exc.errors}), 400
+    report = {**report, "input": data}      # the PDF's 3D view is built from the inputs, as on the web
     ref = re.sub(r"[^A-Za-z0-9_-]+", "-", report["project"].get("ref") or element).strip("-") or element
     return send_file(io.BytesIO(build(report)), mimetype="application/pdf", as_attachment=True,
                      download_name=f"Structural_Analysis_and_Design-{element}-check-{ref}.pdf")

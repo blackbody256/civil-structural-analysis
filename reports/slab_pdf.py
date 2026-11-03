@@ -8,7 +8,7 @@ from reports.slab_figures import ribbed_figure, slab_figures, strip_figure
 
 
 def one_way_analysis_section(report):
-    """Section 2 of the PDF for a one-way slab: matrix stiffness analysis."""
+    """Part of section B of the PDF for a one-way slab: matrix stiffness analysis."""
     data = report["plots"].get("analysis")
     if not data:
         return None
@@ -27,7 +27,7 @@ def one_way_analysis_section(report):
     what = "one rib of the ribbed slab (T-section)" if ribbed else "the 1 m wide slab strip"
     flow = [
         CondPageBreak(120 * mm),
-        Paragraph("2. Structural analysis", st["h1"]),
+        Paragraph("Structural analysis", st["h1"]),
         Paragraph(f"Matrix stiffness analysis of {what} under the design loads. Positive shear and "
                   "hogging moments are drawn above the x-axis; negative shear and sagging moments below it.", st["body"]),
         block("Rib, loads and stiffness" if ribbed else "Strip, loads and stiffness", figs["loading"],
@@ -71,7 +71,7 @@ def one_way_analysis_section(report):
 
 
 def two_way_analysis_section(report):
-    """Section 2 of the PDF for a two-way slab: panel plan and moment coefficients."""
+    """Part of section B of the PDF for a two-way slab: panel plan and moment coefficients."""
     panel = report["plots"].get("panel")
     if not panel:
         return None
@@ -80,7 +80,7 @@ def two_way_analysis_section(report):
 
     flow = [
         CondPageBreak(120 * mm),
-        Paragraph("2. Panel analysis and moments", st["h1"]),
+        Paragraph("Panel analysis and moments", st["h1"]),
         Paragraph("Two-way spanning rectangular slab supported on four edges with restrained corners. "
                   "Bending moments and shears calculated using tabulated elastic bending coefficients with corner restraint.", st["body"]),
     ]

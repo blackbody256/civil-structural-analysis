@@ -15,7 +15,7 @@ def _boxed(spec, width=170 * mm):
 
 
 def design_values_section(report):
-    """Section 2: the plan with the shear perimeters and the design values at the faces."""
+    """Part of section B: the plan with the shear perimeters and the design values at the faces."""
     st = styles()
     figs = foundation_figures(report)
     d = report["derived"]
@@ -30,7 +30,7 @@ def design_values_section(report):
                  ["Beam shear at d from the face, along L / along B", f"{d['Vx']:.1f} / {d['Vy']:.1f} kN"]]
     return [
         CondPageBreak(120 * mm),
-        Paragraph("2. Plan and design values", st["h1"]),
+        Paragraph("Plan and design values", st["h1"]),
         KeepTogether([_boxed(figs["plan"], width=150 * mm), Spacer(1, 1.5 * mm),
                       Paragraph("Plan to scale: bars both ways, beam-shear lines at d from the column faces, the "
                                 "basic control perimeter at 2d and the critical punching perimeter.", st["muted"])]),

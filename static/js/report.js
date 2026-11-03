@@ -1,56 +1,51 @@
-// Report page for any element: summary first, then the full calculations.
+// Report (Structural Analysis & Design): set out like an engineer's calculation pad. A title block, then
+// A Design data (the inputs beside a 3D model whose failed parts glow red), B Drawings and analysis,
+// C Design checks in Ref | Calculation | Output columns, D Conclusion (the verdict stamp, the governing check
+// and the utilisations) and E Assumptions. Sections slide in as they scroll into view.
 import {
-  currentElement, downloadBlob, el, ELEMENT_TITLES, fmt, keysFor, meter, statusDot, store, worst,
+  currentElement, downloadBlob, el, ELEMENT_TITLES, fmt, getJSON, guideHref, keysFor, store, STATUS_TEXT,
 } from "./common.js";
-import { block, plural } from "./report-parts.js";
+import { plural, targetStatus } from "./report-parts.js";
 import { anchorPopover } from "./theme.js";
-import { countChips, gauge } from "./results-view.js";
+import { gauge, governingCheck } from "./results-view.js";
+import { createViewer } from "./viewer3d.js";
+import { beamScene, columnScene, foundationScene, slabScene } from "./models3d.js";
 
 const element = currentElement();
 const TITLE = ELEMENT_TITLES[element];
 const root = document.getElementById("report");
 const RATED = new Set(["pass", "fail", "warn"]);
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const STAMP = { pass: "PASS", fail: "FAIL", warn: "CHECK", info: "INFO", na: "N/A" };
 
-if (new URLSearchParams(location.search).get("embed") === "1") {
-  document.documentElement.classList.add("embed");
+if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("embed");
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+function verdict(c) {
+  if (c.fail) return { word: "Not adequate", status: "fail", line: `${plural(c.fail, "check")} fail` };
+  if (c.warn) return { word: "Adequate", status: "warn", line: `with ${plural(c.warn, "warning")}` };
+  return { word: "Adequate", status: "pass", line: `all ${c.pass} checks pass` };
 }
 
-/** Open the collapsed group holding a check, scroll to it and mark it briefly. */
-function reveal(id) {
-  const row = document.getElementById(id);
-  if (!row) return;
-  const details = row.closest("details");
-  if (details) details.open = true;
-  row.scrollIntoView({ behavior: "smooth", block: "center" });
-  row.classList.add("target");
-  setTimeout(() => row.classList.remove("target"), 2200);
-}
+// ------------------------------------------------------------------ title block
 
-function checkLink(c, ...children) {
-  return el("a", { href: `#check-${c.id}`, onclick: (e) => { e.preventDefault(); reveal(`check-${c.id}`); } }, ...children);
-}
-
-// ------------------------------------------------------------------ header
-
-function header(state) {
+function titleBlock(state) {
   const { result } = state;
   const p = result.project;
-  const c = result.summary.counts;
-  const title = el("h1");
-  if (c.fail) {
-    title.append(el("span", { class: "verdict-word" }, "Not adequate"), `: ${plural(c.fail, "check")} fail`);
-  } else if (c.warn) {
-    title.append(el("span", { class: "verdict-word warn" }, "Adequate"), `, with ${plural(c.warn, "warning")}`);
-  } else {
-    title.append(el("span", { class: "verdict-word pass" }, "Adequate"), `: all ${c.pass} checks pass`);
-  }
+  const v = verdict(result.summary.counts);
+  const cell = (k, val, cls = "") => el("div", { class: `tb-cell ${cls}` }, el("span", { class: "tb-k" }, k), el("span", { class: "tb-v" }, val || "—"));
   const exportBtn = el("button", { type: "button", class: "btn", popovertarget: "export-menu" }, "Export ", el("span", { class: "caret" }));
-  return el("div", { class: "report-head" },
-    el("p", { class: "context" }, TITLE),
-    el("div", {}, title,
-      el("p", { class: "meta" }, [p.engineer, p.date || new Date().toISOString().slice(0, 10),
-        "BS EN 1992-1-1 with the UK National Annex"].filter(Boolean).join(" · "))),
-    el("div", { class: "actions" }, exportBtn, el("a", { class: "btn", href: `/${element}` }, "Edit inputs")));
+  return el("header", { class: "title-block" },
+    el("div", { class: "tb-brand" },
+      el("span", { class: "tb-mark", "aria-hidden": "true" }),
+      el("div", {}, el("strong", {}, "Structural Analysis & Design"), el("span", {}, "Calculation sheet · Eurocode 2"))),
+    el("div", { class: "tb-grid" },
+      cell("Project", p.name), cell("Element", `${TITLE}${p.ref ? ` · ${p.ref}` : ""}`),
+      cell("Made by", p.engineer), cell("Date", p.date || today()),
+      cell("Code", "BS EN 1992-1-1 + UK NA"), cell("Checks", `${result.checks.length} run, ${result.summary.counts.pass + result.summary.counts.fail + result.summary.counts.warn} with a limit`),
+      cell("Result", `${v.word}: ${v.line}`, `tb-result ${v.status}`)),
+    el("div", { class: "tb-actions" }, exportBtn, el("a", { class: "btn", href: `/${element}` }, "Edit inputs")));
 }
 
 function setupExport(state) {
@@ -74,129 +69,185 @@ function setupExport(state) {
       pdfItem.disabled = false;
     }
   });
-  document.getElementById("export-print").addEventListener("click", () => {
-    menu.hidePopover();
-    const closed = [...document.querySelectorAll("details:not([open])")];
-    closed.forEach((d) => { d.open = true; });
-    window.print();
-    closed.forEach((d) => { d.open = false; });
-  });
+  document.getElementById("export-print").addEventListener("click", () => { menu.hidePopover(); window.print(); });
   document.getElementById("export-json").addEventListener("click", () => {
     downloadBlob(new Blob([JSON.stringify(state.input, null, 2)], { type: "application/json" }), `Structural_Analysis_and_Design-${element}-${ref}.json`);
     menu.hidePopover();
   });
 }
 
-// ------------------------------------------------------------------ summary
+// ------------------------------------------------------------------ sections
 
-function governing(result) {
-  const rated = result.checks.filter((c) => RATED.has(c.status) && c.utilisation !== null && Number.isFinite(c.utilisation));
-  const gov = rated.reduce((a, b) => (b.utilisation > (a?.utilisation ?? -1) ? b : a), null);
-  const c = result.summary.counts;
-  const attention = result.checks.filter((x) => x.status === "fail" || x.status === "warn");
-  const status = gov ? (gov.utilisation > 1 ? "fail" : gov.status) : "pass";
-  return el("section", { class: "panel governing" },
-    el("div", { class: "governing-head" },
-      gov ? gauge(gov.utilisation, status) : null,
-      el("div", {},
-        el("span", { class: "label" }, "Governing check"),
-        el("p", { class: "what" }, gov ? gov.title : "No rated checks"),
-        countChips(c))),
-    el("div", { class: "attention" },
-      el("h3", {}, "Needs attention"),
-      attention.length
-        ? el("ul", {}, attention.map((x) => el("li", {}, checkLink(x,
-          el("span", {}, x.title), el("span", { class: `res ${x.status}`, html: x.markup.result })))))
-        : el("p", { class: "none" }, "Nothing to fix: every check passes.")));
+function sheet(letter, title, lede, ...body) {
+  return el("section", { class: "sheet-sec", id: `sec-${letter}` },
+    el("div", { class: "sec-head" }, el("span", { class: "sec-letter" }, letter), el("h2", {}, title),
+      lede ? el("p", { class: "sec-lede" }, lede) : null),
+    ...body);
 }
 
-function utilisation(result) {
-  const rows = result.checks
-    .filter((c) => RATED.has(c.status) && c.utilisation !== null && Number.isFinite(c.utilisation))
-    .sort((a, b) => b.utilisation - a.utilisation);
-  return el("section", { class: "panel utilisation" },
-    el("h3", {}, "Utilisation, highest first"),
-    rows.map((c) => el("div", { class: "util-row" }, checkLink(c, c.title), meter(c.utilisation))));
+/** A: the inputs as a schedule beside the 3D model. */
+function designData(state, meta) {
+  const { result } = state;
+  const rows = result.inputs.map((i) => el("tr", {}, el("th", { scope: "row" }, i.label), el("td", {}, i.value)));
+  const model = el("div", { class: "vp-host report-model" });
+  const status = targetStatus(result.checks);
+  const failed = Object.values(status).includes("fail");
+  const legend = el("p", { class: "model-note" }, failed
+    ? "Parts drawn red failed a check: turn the model to find them. X-ray shows the bars inside."
+    : "Every part of the element passes its checks. X-ray shows the bars inside.");
+  // the model is built when it first scrolls into view, so its build-up animation is seen
+  const io = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    io.disconnect();
+    const viewer = createViewer(model, { spin: "sway" });
+    viewer.setScene(scene(state, meta, status), { replay: true });
+  }, { threshold: 0.25 });
+  queueMicrotask(() => io.observe(model));
+  return el("div", { class: "data-grid" },
+    el("div", { class: "schedule" }, el("h3", {}, "Input schedule"),
+      el("table", { class: "schedule-table" }, el("tbody", {}, rows))),
+    el("figure", { class: "model-fig" }, model, el("figcaption", {}, legend)));
 }
 
-function strip(result) {
-  return el("nav", { class: "strip", "aria-label": "Check groups" }, result.groups.map((g, i) => {
-    const items = result.checks.filter((c) => c.group === g);
-    return el("a", {
-      href: `#group-${i}`,
-      onclick: (e) => {
-        e.preventDefault();
-        const details = document.getElementById(`group-${i}`);
-        details.open = true;
-        details.scrollIntoView({ behavior: "smooth", block: "start" });
-      },
-    }, g, el("span", { class: "dots" }, items.map((c) => el("i", { class: c.status, title: `${c.title}` }))));
-  }));
+function scene(state, meta, status) {
+  const { input, result } = state;
+  const d = result.derived || {};
+  if (element === "column") return columnScene({ ...input, actions: { ...input.actions, NEd: d.NEd ?? input.actions?.NEd } }, { status });
+  if (element === "beam") return beamScene(input, { status, beff: result.plots.section?.beff, links: d.links });
+  if (element === "slab") return slabScene(input, { status, pan: meta?.maxpans?.find((p) => p.id === input.slab?.maxpan) });
+  return foundationScene(input, { status, pressure: d.uls_p1 ? { pmax: Math.max(d.uls_p1, d.uls_p2 ?? 0), pmin: Math.min(d.uls_p1, d.uls_p2 ?? d.uls_p1) } : null });
 }
 
-// ------------------------------------------------------------------ full calculations
-
-function highlight(target, on) {
-  if (!target) return;
-  document.querySelectorAll(`#fig-section [data-part="${target}"]`).forEach((n) => n.classList.toggle("is-hl", on));
-}
-
-function calcGroups(result) {
-  return result.groups.map((group, gi) => {
+/** C: every check as a row of the pad, grouped and numbered C1.1, C1.2 … */
+function checks(result) {
+  let g = 0;
+  const out = [];
+  const index = [];
+  for (const group of result.groups) {
     const items = result.checks.filter((c) => c.group === group);
-    if (!items.length) return null;
-    const status = worst(items.map((c) => c.status));
-    const n = (s) => items.filter((c) => c.status === s).length;
-    const count = [n("pass") && `${n("pass")} pass`, n("fail") && `${n("fail")} fail`,
-      n("warn") && plural(n("warn"), "warning"), n("info") && `${n("info")} for information`,
-      n("na") && `${n("na")} not applicable`].filter(Boolean).join(" · ");
-    const rows = items.map((c) => {
-      const row = el("tr", { id: `check-${c.id}` },
-        el("td", {}, el("div", { class: "ct" }, c.title),
-          ...c.markup.working.map((w) => el("div", { class: "wl", html: w })),
-          c.note ? el("div", { class: "note", html: c.markup.note }) : null),
-        el("td", { class: "out" }, el("div", { class: "res", html: c.markup.result }), statusDot(c.status),
-          c.utilisation !== null ? meter(c.utilisation) : null));
-      row.addEventListener("mouseenter", () => highlight(c.target, true));
-      row.addEventListener("mouseleave", () => highlight(c.target, false));
-      return row;
-    });
-    return block(group, { open: status === "fail" || status === "warn", id: `group-${gi}`, count, right: statusDot(status) },
-      el("div", { class: "calc-wrap", style: "margin:-16px -18px" },
-        el("table", { class: "calc" },
-          el("thead", {}, el("tr", {}, el("th", {}, "Calculation"), el("th", {}, "Result"))),
-          el("tbody", {}, rows))));
-  }).filter(Boolean);
+    if (!items.length) continue;
+    g += 1;
+    const fails = items.filter((c) => c.status === "fail").length;
+    index.push(el("a", { href: `#grp-${g}`, class: fails ? "has-fail" : "" }, el("b", {}, `C${g}`), group,
+      el("span", { class: "dots" }, items.map((c) => el("i", { class: c.status, title: `${c.title}: ${STATUS_TEXT[c.status]}` })))));
+    const rows = items.map((c, i) => el("tr", { id: `check-${c.id}`, class: `row-${c.status}` },
+      el("td", { class: "ref" }, el("span", { class: "no" }, `C${g}.${i + 1}`),
+        ...(c.refs || []).map((r) => (r.page ? el("a", { href: guideHref(r.page), target: "_blank", rel: "noopener" }, r.label) : el("span", {}, r.label)))),
+      el("td", { class: "calc" }, el("div", { class: "ct" }, c.title),
+        ...c.markup.working.map((w) => el("div", { class: "wl", html: w })),
+        c.note ? el("div", { class: "note", html: c.markup.note }) : null),
+      el("td", { class: "out" }, el("div", { class: "res", html: c.markup.result }),
+        el("span", { class: `stamp ${c.status}` }, STAMP[c.status]),
+        c.utilisation !== null && Number.isFinite(c.utilisation) ? utilBar(c.utilisation, c.status) : null)));
+    out.push(el("div", { class: "grp", id: `grp-${g}` },
+      el("h3", {}, el("span", {}, `C${g}`), group, el("small", {}, [
+        items.filter((c) => c.status === "pass").length && `${items.filter((c) => c.status === "pass").length} pass`,
+        fails && `${fails} fail`, items.filter((c) => c.status === "warn").length && plural(items.filter((c) => c.status === "warn").length, "warning"),
+      ].filter(Boolean).join(" · "))),
+      el("table", { class: "pad" },
+        el("thead", {}, el("tr", {}, el("th", { class: "ref" }, "Ref"), el("th", {}, "Calculation"), el("th", { class: "out" }, "Output"))),
+        el("tbody", {}, rows))));
+  }
+  return [el("nav", { class: "grp-index", "aria-label": "Check groups" }, index), ...out];
 }
 
-function render(state, parts) {
+function utilBar(u, status) {
+  const fill = el("i", { class: u > 1 ? "fail" : status === "warn" ? "warn" : "" });
+  fill.style.setProperty("--u", String(Math.min(u, 1)));
+  return el("div", { class: "util" }, el("span", { class: "util-track" }, fill), el("span", { class: "util-val" }, `u = ${fmt(u, 2)}`));
+}
+
+/** D: the verdict stamp, the governing check, every utilisation and what needs attention. */
+function conclusion(result) {
+  const c = result.summary.counts;
+  const v = verdict(c);
+  const gov = governingCheck(result);
+  const rated = result.checks.filter((x) => RATED.has(x.status) && x.utilisation !== null && Number.isFinite(x.utilisation))
+    .sort((a, b) => b.utilisation - a.utilisation);
+  const attention = result.checks.filter((x) => x.status === "fail" || x.status === "warn");
+  const count = (n, label, cls) => el("div", { class: `tally ${cls}` }, el("b", { "data-count": String(n) }, String(n)), el("span", {}, label));
+  return el("div", { class: "concl" },
+    el("div", { class: "concl-top" },
+      el("div", { class: `verdict-stamp ${v.status}`, role: "img", "aria-label": `${v.word}: ${v.line}` },
+        el("span", { class: "vs-word" }, v.word), el("span", { class: "vs-line" }, v.line)),
+      gov ? el("div", { class: "gov" }, gauge(gov.utilisation, gov.utilisation > 1 ? "fail" : gov.status, 120),
+        el("div", {}, el("span", { class: "k" }, "Governing check"), el("a", { href: `#check-${gov.id}` }, gov.title),
+          el("span", { class: "gov-res", html: gov.markup.result }))) : null,
+      el("div", { class: "tallies" }, count(c.pass, "pass", "pass"), count(c.fail, "fail", "fail"), count(c.warn, c.warn === 1 ? "warning" : "warnings", "warn"),
+        count(c.info, "for information", "info"))),
+    el("div", { class: "concl-cols" },
+      el("div", { class: "bars" }, el("h3", {}, "Utilisation of every rated check"),
+        rated.map((x) => el("a", { class: "bar-row", href: `#check-${x.id}` }, el("span", { class: "bt" }, x.title), utilBar(x.utilisation, x.status)))),
+      el("div", { class: "attention" }, el("h3", {}, "Needs attention"),
+        attention.length ? el("ul", {}, attention.map((x) => el("li", { class: x.status },
+          el("a", { href: `#check-${x.id}` }, x.title), el("span", { html: x.markup.result }))))
+          : el("p", { class: "none" }, "Nothing: every check passes."))));
+}
+
+// ------------------------------------------------------------------ motion
+
+function animateIn() {
+  const secs = [...root.querySelectorAll(".sheet-sec")];
+  if (REDUCED || !("IntersectionObserver" in window)) { secs.forEach((s) => s.classList.add("is-in")); return; }
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      e.target.classList.add("is-in");
+      io.unobserve(e.target);
+      for (const b of e.target.querySelectorAll("[data-count]")) countUp(b);
+    }
+  }, { threshold: 0.08 });
+  secs.forEach((s) => io.observe(s));
+}
+
+function countUp(node) {
+  const to = Number(node.dataset.count);
+  const t0 = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - t0) / 900);
+    node.textContent = String(Math.round(to * (1 - (1 - t) ** 3)));
+    if (t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+// ------------------------------------------------------------------ page
+
+function render(state, parts, meta) {
   const { result } = state;
   document.title = `${TITLE} report · Structural Analysis & Design`;
   const crumb = document.getElementById("crumb-element");
   crumb.textContent = TITLE;
   crumb.href = `/${element}`;
-  const expand = el("button", { type: "button", class: "btn quiet small" }, "Expand all");
-  const collapse = el("button", { type: "button", class: "btn quiet small" }, "Collapse all");
-  const groups = calcGroups(result);
-  expand.addEventListener("click", () => groups.forEach((g) => { g.open = true; }));
-  collapse.addEventListener("click", () => groups.forEach((g) => { g.open = false; }));
+  const drawings = parts.figures(state);
   root.replaceChildren(
-    header(state),
-    el("div", { class: "summary" }, governing(result), utilisation(result)),
-    strip(result),
-    el("h2", {}, "Drawings"),
-    parts.figures(state),
-    parts.designPath ? parts.designPath(result) : null,
-    el("div", { class: "section-tools" }, el("h2", {}, "Full calculations"), expand, collapse),
-    el("p", { class: "lede", style: "font-size:14px;margin:6px 0 4px" },
-      "Every test with its working and result. Groups that need attention are open."),
-    ...groups,
-    el("h2", {}, "Inputs and assumptions"),
-    block("Inputs", {}, el("table", { class: "kv doc" }, el("tbody", {},
-      result.inputs.map((i) => el("tr", {}, el("td", {}, i.label), el("td", { class: "num" }, i.value)))))),
-    block("Assumptions", {}, el("ul", { class: "assumptions doc" }, result.assumptions.map((a) => el("li", {}, a)))),
-    el("p", { class: "notice" }, "For learning and preliminary checking. A qualified structural engineer must verify the inputs and results."));
+    titleBlock(state),
+    sheet("A", "Design data", "What was checked: the inputs as entered, and the element built from them.", designData(state, meta)),
+    sheet("B", "Drawings and analysis", "The section and elevation to scale, and the structural analysis the design actions come from.",
+      drawings, parts.designPath ? parts.designPath(result) : null),
+    sheet("C", "Design checks", "Each check in the order of the design procedure: the guide reference, the working, and the output.",
+      ...checks(result)),
+    sheet("D", "Conclusion", null, conclusion(result)),
+    sheet("E", "Assumptions", null,
+      el("ol", { class: "assume" }, result.assumptions.map((a) => el("li", {}, a))),
+      el("p", { class: "notice" }, "For learning and preliminary checking. A qualified structural engineer must verify the inputs and results.")),
+    el("footer", { class: "sheet-foot" },
+      el("span", {}, "Structural Analysis & Design"),
+      el("span", {}, `${TITLE}${result.project.ref ? ` ${result.project.ref}` : ""} · ${result.project.date || today()}`),
+      el("span", {}, "End of calculations")));
   setupExport(state);
+  animateIn();
+  for (const a of root.querySelectorAll('a[href^="#check-"], .grp-index a')) {
+    a.addEventListener("click", (e) => {
+      const target = document.querySelector(a.getAttribute("href"));
+      if (!target) return;
+      e.preventDefault();
+      target.closest(".sheet-sec")?.classList.add("is-in");
+      target.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+      target.classList.add("target");
+      setTimeout(() => target.classList.remove("target"), 2200);
+    });
+  }
 }
 
 async function main() {
@@ -206,9 +257,9 @@ async function main() {
       el("a", { href: `/${element}` }, `Enter a ${TITLE.toLowerCase()} to check`)));
     return;
   }
-  const parts = await import(`./report-${element}.js`);
-  render(state, parts);
-  if (location.hash.startsWith("#check-")) reveal(location.hash.slice(1));
+  const [parts, meta] = await Promise.all([import(`./report-${element}.js`), getJSON("/api/meta").catch(() => null)]);
+  render(state, parts, meta);
+  if (location.hash.startsWith("#check-")) document.querySelector(location.hash)?.scrollIntoView({ block: "center" });
 }
 
 main();

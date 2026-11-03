@@ -116,7 +116,7 @@ def _table(rows, widths, st, head_rows=1):
 
 
 def analysis_section(report):
-    """Section 2 of the PDF: the structural analysis behind the design actions."""
+    """Part of section B of the PDF: the structural analysis behind the design actions."""
     data = report["plots"].get("analysis")
     if not data:
         return None
@@ -127,7 +127,7 @@ def analysis_section(report):
         return KeepTogether([Paragraph(title, st["h2"]), render_figure(spec), Spacer(1, 1.5 * mm),
                              Paragraph(caption, st["muted"])])
 
-    flow = [CondPageBreak(120 * mm), Paragraph("2. Structural analysis", st["h1"]),
+    flow = [CondPageBreak(120 * mm), Paragraph("Structural analysis", st["h1"]),
             Paragraph("Matrix stiffness analysis of the beam under the design loads. Positive shear and "
                       "hogging moments are drawn above the x-axis; negative shear and sagging moments below it.", st["body"]),
             block("Beam, loads and stiffness", figs["loading"], "Design loads on the beam, with the dimensions "

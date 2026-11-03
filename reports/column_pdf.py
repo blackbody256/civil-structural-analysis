@@ -191,7 +191,7 @@ def frame_actions_rows(act):
 
 
 def frame_analysis_section(report):
-    """Section 2 of the PDF when the column's actions come from a 2D frame analysis."""
+    """Part of section B of the PDF when the column's actions come from a 2D frame analysis."""
     frame = report["plots"].get("frame")
     if not frame:
         return None
@@ -210,7 +210,7 @@ def frame_analysis_section(report):
     table = _table(rows, [70 * mm, 104 * mm], st)
     table.setStyle(TableStyle([("ALIGN", (1, 0), (1, -1), "LEFT")]))
     return [
-        CondPageBreak(120 * mm), Paragraph("2. Frame analysis", st["h1"]),
+        CondPageBreak(120 * mm), Paragraph("Frame analysis", st["h1"]),
         Paragraph("Linear elastic matrix stiffness analysis of the plane frame under the design loads "
                   "(G × 1.35, Q × 1.5, self-weight as G). Bending moments are drawn on the tension side of each "
                   "member: sagging below a beam, hogging above it.", st["body"]),
