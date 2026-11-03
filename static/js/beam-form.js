@@ -1,4 +1,4 @@
-import { downloadBlob, el, getJSON, keysFor, postJSON, store } from "./common.js";
+import { downloadBlob, el, failureText, getJSON, keysFor, postJSON, store } from "./common.js";
 import { BeamCanvas, DEFAULT_LOAD, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { beamSectionFromInputs, drawBeamSection } from "./drawings.js";
@@ -642,7 +642,8 @@ async function performAnalysis() {
     });
     $("analysis-results-area").replaceChildren(view);
   } catch (e) {
-    $("form-message").textContent = "Could not reach the analysis server.";
+    $("form-message").textContent = failureText(e, "the analysis");
+    console.error(e);
   } finally {
     btn.disabled = false;
   }
@@ -701,8 +702,9 @@ async function performDesignChecks() {
     updateTabStates();
     renderDesignResults(res.data);
     $("report-frame").src = "/beam/report?embed=1";
-  } catch {
-    $("form-message").textContent = "Could not reach the server.";
+  } catch (e) {
+    $("form-message").textContent = failureText(e, "the design checks");
+    console.error(e);
   } finally {
     btn.disabled = false;
   }
@@ -903,6 +905,6 @@ async function init() {
 }
 
 init().catch((err) => {
-  $("form-message").textContent = "Could not reach the server. Start it with: .venv/bin/python app.py";
+  $("form-message").textContent = failureText(err, "the page");
   console.error(err);
 });

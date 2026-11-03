@@ -71,6 +71,16 @@ export const store = {
   setSession: (key, value) => write(session, key, value),
 };
 
+/**
+ * Why a request failed, in words: the server is not running (the browser could not connect at all), or the
+ * server answered and the page then failed to use the answer, which is a fault in the page, not the server.
+ */
+export function failureText(err, what = "the result") {
+  const offline = err instanceof TypeError && /fetch|network|load failed/i.test(err.message || "");
+  return offline ? "Could not reach the server: start it with .venv/bin/python app.py, then try again."
+    : `The server answered, but the page could not show ${what} (${err?.message || err}). Reload the page and try again.`;
+}
+
 export async function getJSON(url) {
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`${url}: ${res.status}`);

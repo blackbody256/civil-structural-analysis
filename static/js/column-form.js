@@ -1,4 +1,4 @@
-import { downloadBlob, el, getJSON, keysFor, postJSON, store } from "./common.js";
+import { downloadBlob, el, failureText, getJSON, keysFor, postJSON, store } from "./common.js";
 import { drawElevation, drawSection, endKinds, sectionFromInputs } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
 import { designResults } from "./results-view.js";
@@ -1089,7 +1089,7 @@ async function performAnalysis() {
     applyColumnActionsToDesign(colAct);
     renderAnalysisView(lastAnalysis);
   } catch (err) {
-    $("form-message").textContent = "Could not reach the analysis server.";
+    $("form-message").textContent = failureText(err, "the frame analysis");
     console.error(err);
   } finally {
     btn.disabled = false;
@@ -1207,7 +1207,7 @@ async function performDesignChecks() {
     renderDesignResults(res.data);
     $("report-frame").src = "/column/report?embed=1";
   } catch (err) {
-    $("form-message").textContent = "Could not reach the server.";
+    $("form-message").textContent = failureText(err, "the design checks");
     console.error(err);
   } finally {
     btn.disabled = false;
@@ -1430,6 +1430,6 @@ async function init() {
 }
 
 init().catch((err) => {
-  $("form-message").textContent = "Could not reach the server. Start it with: .venv/bin/python app.py";
+  $("form-message").textContent = failureText(err, "the page");
   console.error(err);
 });

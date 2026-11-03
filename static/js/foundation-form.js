@@ -1,5 +1,5 @@
 // Pad foundation form: inputs, live plan and section from the server, then the run and report pages.
-import { getJSON, keysFor, postJSON, store } from "./common.js";
+import { failureText, getJSON, keysFor, postJSON, store } from "./common.js";
 import { renderFigure } from "./figure-spec.js";
 import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { EXAMPLES } from "./foundation-examples.js";
@@ -184,6 +184,6 @@ async function init() {
 }
 
 init().catch((err) => {
-  $("form-message").textContent = "Could not reach the server. Start it with: .venv/bin/python app.py";
+  $("form-message").textContent = failureText(err, "the page");
   console.error(err);
 });
