@@ -4,8 +4,10 @@
 // errors and the page's own Analysis / Design / Report logic all work as before: a step is a
 // <section class="wz-step"> inside a tab panel, and moving to a step in another panel presses that panel's tab.
 
+// hidden by a mode (frame or direct, one-way or two-way); a tab panel the page hid because another one is showing
+// does not count, its steps are still steps
 const hiddenWithin = (node, root) => {
-  for (let n = node; n && n !== root; n = n.parentElement) if (n.hidden) return true;
+  for (let n = node; n && n !== root; n = n.parentElement) if (n.hidden && n.getAttribute("role") !== "tabpanel") return true;
   return false;
 };
 const waitFor = (test, ms = 20000) => new Promise((resolve) => {
@@ -19,6 +21,22 @@ const waitFor = (test, ms = 20000) => new Promise((resolve) => {
 });
 
 function text(node) { return (node?.textContent || "").replace(/\s+/g, " ").trim(); }
+
+/**
+ * What is wrong with a value, or "" when it can be sent. The step attribute only sets how far the arrows move:
+ * any value between min and max is accepted (NEd 693 kN with step 10 is fine), so a step mismatch is ignored.
+ * The server checks every value again and its messages show on the field.
+ */
+function problem(c) {
+  const v = c.validity;
+  if (!v || v.valid || (v.stepMismatch && !v.valueMissing && !v.rangeUnderflow && !v.rangeOverflow && !v.badInput)) return "";
+  if (v.badInput) return "Enter a number";
+  if (v.valueMissing) return "Enter a value";
+  if (v.rangeUnderflow) return `Enter at least ${c.min}`;
+  if (v.rangeOverflow) return `Enter at most ${c.max}`;
+  if (v.stepMismatch) return "";
+  return c.validationMessage || "Check this value";
+}
 
 /** The value of a control as shown to the user: the option text, the number with its unit, or a tick. */
 function shown(ctl) {
@@ -233,7 +251,7 @@ export function wizard(form) {
     const bad = [];
     for (const c of s.querySelectorAll("input, select")) {
       if (c.disabled || c.type === "hidden" || hiddenWithin(c, s) || c.closest(".wz-review")) continue;
-      if (!c.checkValidity()) bad.push(c);
+      if (problem(c)) bad.push(c);
     }
     return bad;
   }
@@ -246,7 +264,7 @@ export function wizard(form) {
       if (host && !host.querySelector(".error")) {
         const e = document.createElement("span");
         e.className = "error";
-        e.textContent = c.validationMessage || "Check this value";
+        e.textContent = problem(c);
         host.append(e);
       }
     }
@@ -379,7 +397,7 @@ export function wizard(form) {
   });
   form.addEventListener("input", (e) => {
     const f = e.target.closest(".field, td");
-    if (f?.querySelector(".error") && e.target.checkValidity?.()) {
+    if (f?.querySelector(".error") && e.target.validity && !problem(e.target)) {
       f.querySelectorAll(".error").forEach((x) => x.remove());
       e.target.closest(".control")?.classList.remove("invalid");
     }
