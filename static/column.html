@@ -8,6 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23ffffff'/%3E%3Cpath d='M7 27V8h18v19' fill='none' stroke='%230072bd' stroke-width='4'/%3E%3Cpath d='M3 28h26' stroke='%231f1f1f' stroke-width='2.5'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/base.css">
   <link rel="stylesheet" href="/static/css/form.css">
+  <link rel="stylesheet" href="/static/css/viewer.css">
 </head>
 <body>
   <header class="topbar">
@@ -38,16 +39,10 @@
 
     <form id="column-form" class="form-layout" novalidate autocomplete="off">
       <div class="form-main">
-        <div class="form-tools">
-          <span>Click a section to edit it.</span>
-          <span class="spacer"></span>
-          <button type="button" class="btn quiet small" id="expand-all">Expand all</button>
-          <button type="button" class="btn quiet small" id="collapse-all">Collapse all</button>
-        </div>
-
         <!-- TAB 1: ANALYSIS -->
         <div role="tabpanel" id="panel-analysis" class="tab-panel is-active" aria-labelledby="tab-analysis">
-          <div class="fields" style="margin-bottom: 14px;">
+          <section class="wz-step" data-step="method" data-title="Method" data-prompt="How are the column&#39;s design actions found? Analyse a plane frame, or enter the axial load and end moments yourself.">
+          <div class="fields" data-mode-fields>
             <div class="field" style="grid-column: 1 / -1"><label for="a-mode">Loading</label>
               <div class="control"><select id="a-mode" name="actions.mode">
                 <option value="frame">2D frame analysis (matrix stiffness method)</option>
@@ -55,16 +50,11 @@
               </select></div>
             </div>
           </div>
+          </section>
 
           <div class="frame-only">
-            <section class="panel model-panel" aria-label="Frame model">
-              <div class="panel-head">
-                <h3>Frame model</h3>
-                <span class="hint" id="frame-hint">live</span>
-              </div>
-              <div class="live-diagrams" id="preview-frame"></div>
-            </section>
 
+            <section class="wz-step" data-step="nodes" data-title="Nodes" data-prompt="Where the members meet: coordinates in metres, x to the right and y upwards.">
             <details class="section" data-section="frame-nodes" open>
               <summary><span class="s-title">Nodes</span><span class="s-sum" data-sum="frame-nodes"></span><span class="chev" aria-hidden="true"></span></summary>
               <div class="s-body">
@@ -78,7 +68,9 @@
                 <button type="button" class="inline-link" id="add-node">+ Add node</button>
               </div>
             </details>
+            </section>
 
+            <section class="wz-step" data-step="members" data-title="Members" data-prompt="The columns and beams between the nodes, with their breadth b and depth h. A vertical member is designed as the column." data-focus="members chosen">
             <details class="section" data-section="frame-members" open>
               <summary><span class="s-title">Members</span><span class="s-sum" data-sum="frame-members"></span><span class="chev" aria-hidden="true"></span></summary>
               <div class="s-body">
@@ -93,7 +85,9 @@
                 <p class="help-line">Any vertical member can be designed as the column. h is the depth in the plane of the frame (bending about y–y).</p>
               </div>
             </details>
+            </section>
 
+            <section class="wz-step" data-step="supports" data-title="Supports" data-prompt="How the frame is held at the ground: fixed, pinned or on a roller." data-focus="supports">
             <details class="section" data-section="frame-supports" open>
               <summary><span class="s-title">Supports</span><span class="s-sum" data-sum="frame-supports"></span><span class="chev" aria-hidden="true"></span></summary>
               <div class="s-body">
@@ -107,7 +101,9 @@
                 <button type="button" class="inline-link" id="add-support">+ Add support</button>
               </div>
             </details>
+            </section>
 
+            <section class="wz-step" data-step="loads" data-title="Loads" data-prompt="Uniform, point and node loads, each permanent (G), variable (Q) or a design value (Ed)." data-focus="loads">
             <details class="section" data-section="frame-loads" open>
               <summary><span class="s-title">Loads</span><span class="s-sum" data-sum="frame-loads"></span><span class="chev" aria-hidden="true"></span></summary>
               <div class="s-body">
@@ -149,7 +145,9 @@
                 </div>
               </div>
             </details>
+            </section>
 
+            <section class="wz-step" data-step="analyse" data-title="Analyse the frame" data-prompt="Run the matrix stiffness analysis, then read the actions it gives the column." data-next="#btn-analyse-frame" data-next-label="Analyse frame" data-no-review>
             <div class="field frame-errors">
               <input type="hidden" name="actions.member" id="a-member" value="C1">
               <span data-path="frame" hidden></span>
@@ -161,9 +159,11 @@
             </div>
 
             <div id="analysis-results-area"></div>
+            </section>
           </div>
 
           <div class="direct-only">
+            <section class="wz-step" data-step="direct" data-title="Design actions" data-prompt="The axial load and the end moments about y–y at the ultimate limit state." data-focus="loads">
             <details class="section" data-section="direct-actions" open>
               <summary><span class="s-title">Direct design actions</span><span class="chev" aria-hidden="true"></span></summary>
               <div class="s-body">
@@ -186,14 +186,16 @@
               </div>
             </details>
 
-            <div class="analysis-action-bar">
+            <div class="analysis-action-bar wz-hide" data-direct-bar>
               <button type="button" class="btn primary" id="btn-continue-direct">Continue to design →</button>
             </div>
+            </section>
           </div>
         </div>
 
         <!-- TAB 2: DESIGN -->
         <div role="tabpanel" id="panel-design" class="tab-panel" aria-labelledby="tab-design">
+          <section class="wz-step" data-step="values" data-title="Design values" data-prompt="The axial load and moments the column is designed for. Tick Adjust to change them by hand." data-focus="loads" data-no-review>
           <section class="panel design-values-box">
             <div class="panel-head">
               <h3>Design values from the analysis</h3>
@@ -238,7 +240,9 @@
               Design values adjusted manually. Uncheck "Adjust these design values" to restore values from the frame analysis.
             </div>
           </section>
+          </section>
 
+          <section class="wz-step" data-step="materials" data-title="Materials" data-prompt="The concrete class, the reinforcement and the largest aggregate." data-focus="concrete bars">
           <details class="section" data-section="materials" open>
             <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -269,7 +273,9 @@
               </details>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="geometry" data-title="Geometry" data-prompt="The section b × h and the clear height between the restraints." data-focus="concrete">
           <details class="section" data-section="geometry" open>
             <summary><span class="s-title">Geometry</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -287,7 +293,9 @@
               </div>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="reinforcement" data-title="Reinforcement" data-prompt="The main bars, how many sit on each face, the links and the cover to them." data-focus="bars links">
           <details class="section" data-section="reinforcement" open>
             <summary><span class="s-title">Reinforcement</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -320,7 +328,9 @@
               </details>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="restraint" data-title="Restraint" data-prompt="Braced or unbraced, and how stiffly each end is held: this sets the effective length." data-focus="context">
           <details class="section" data-section="restraint" open>
             <summary><span class="s-title">Restraint</span><span class="s-sum" data-sum="restraint"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -338,7 +348,9 @@
               </div>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="bending" data-title="Bending and creep" data-prompt="Moments about z–z for biaxial bending, and the effective creep ratio." data-focus="loads">
           <details class="section" data-section="actions-bending" open>
             <summary><span class="s-title">z–z moments, creep</span><span class="s-sum" data-sum="bending"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -371,7 +383,9 @@
               </details>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="durability" data-title="Durability and fire" data-prompt="The exposure class for the cover and the fire resistance period." data-focus="concrete links">
           <details class="section" data-section="durability" open>
             <summary><span class="s-title">Durability and fire</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -397,7 +411,9 @@
               </details>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="project" data-title="Project" data-prompt="Names for the report title block. All optional.">
           <details class="section" data-section="project">
             <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -413,22 +429,27 @@
               </div>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="run" data-title="Review and run" data-prompt="Check what you entered, then run every check. The results appear here." data-review data-run data-next="#btn-run-design" data-next-label="Run design checks">
           <div class="design-action-bar">
             <button type="button" class="btn primary" id="btn-run-design">Run design checks</button>
           </div>
 
           <div id="design-results-area"></div>
+          </section>
         </div>
 
         <!-- TAB 3: REPORT -->
         <div role="tabpanel" id="panel-report" class="tab-panel" aria-labelledby="tab-report">
+          <section class="wz-step" data-step="report" data-title="Report" data-prompt="The calculation report: download it as a PDF or print it." data-no-review>
           <div class="report-actions-bar">
             <button type="button" class="btn primary" id="btn-pdf">Download PDF report</button>
             <button type="button" class="btn" id="btn-print">Print</button>
             <a class="btn" href="/column/report" target="_blank" rel="noopener">Open in a new tab</a>
           </div>
           <iframe class="report-frame" id="report-frame" title="Embedded column report"></iframe>
+          </section>
         </div>
 
         <div class="form-bar">
@@ -439,7 +460,15 @@
         </div>
       </div>
 
-      <aside class="preview" aria-label="Live drawings">
+      <aside class="preview" aria-label="Model and drawings">
+        <section class="panel vp-panel"><div class="vp-host" id="model-3d"></div></section>
+            <section class="panel model-panel frame-only" aria-label="Frame model">
+              <div class="panel-head">
+                <h3>Frame model</h3>
+                <span class="hint" id="frame-hint">live</span>
+              </div>
+              <div class="live-diagrams" id="preview-frame"></div>
+            </section>
         <section class="panel">
           <div class="panel-head"><h3>Cross-section</h3><span class="hint">to scale</span></div>
           <div class="panel-body" id="preview-section"></div>

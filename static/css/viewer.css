@@ -1,0 +1,71 @@
+/* Structural Analysis & Design: the 3D viewport. A dark CAD-style viewport in both themes, so the model,
+   the reinforcement colours and the labels read the same everywhere. */
+
+.vp {
+  --vp-text: #e9eef3;
+  --vp-muted: #9fb0bf;
+  --vp-line: rgba(255, 255, 255, .14);
+  position: relative; overflow: hidden; isolation: isolate;
+  min-height: 260px; border-radius: 4px;
+  background:
+    radial-gradient(120% 85% at 50% 28%, #2b3e52 0%, #18232f 55%, #0d141b 100%);
+  color: var(--vp-text);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), inset 0 -60px 80px -60px rgba(0, 0, 0, .5);
+}
+.vp::after {   /* faint scan lines, a CAD screen feel */
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .018) 0 1px, transparent 1px 3px);
+}
+.vp-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: pan-y; }
+.vp-dragging .vp-canvas { cursor: grabbing; }
+
+.vp-labels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.vp-label {
+  position: absolute; left: 0; top: 0; white-space: nowrap; opacity: 0; transition: opacity .35s ease;
+  padding: 2px 7px; border-radius: 3px;
+  font: 600 11.5px/1.4 var(--font-mono, ui-monospace, monospace); letter-spacing: .1px;
+  color: var(--vp-text); background: rgba(10, 18, 26, .72); border: 1px solid var(--vp-line);
+  backdrop-filter: blur(2px);
+}
+.vp-label.bars { color: #ffb18a; border-color: rgba(232, 100, 44, .55); }
+.vp-label.links { color: #ffe08a; border-color: rgba(242, 193, 46, .5); }
+.vp-label.load { color: #ff9db1; border-color: rgba(239, 71, 111, .55); }
+.vp-label.case-G { color: #d3b0ec; border-color: rgba(155, 95, 192, .6); }
+.vp-label.pressure { color: #a9e6fb; border-color: rgba(77, 190, 238, .55); }
+.vp-label.chosen { color: #9fd3ff; border-color: rgba(58, 160, 236, .7); }
+.vp-label.muted { color: var(--vp-muted); }
+
+.vp-tools { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.vp-btn {
+  font: 600 11.5px/1 var(--font-ui, system-ui, sans-serif); letter-spacing: .3px; text-transform: uppercase;
+  color: var(--vp-text); background: rgba(10, 18, 26, .62); border: 1px solid var(--vp-line); border-radius: 3px;
+  padding: 6px 9px; cursor: pointer; min-height: 28px;
+}
+.vp-btn:hover { background: rgba(58, 160, 236, .25); border-color: rgba(58, 160, 236, .6); }
+.vp-btn[aria-pressed="true"] { background: #0072bd; border-color: #3aa0ec; color: #fff; }
+.vp-btn:focus-visible { outline: 2px solid #ffd24d; outline-offset: 1px; }
+
+.vp-hint {
+  position: absolute; left: 10px; bottom: 8px; z-index: 3; margin: 0; pointer-events: none;
+  font: 500 11px/1.3 var(--font-ui, system-ui, sans-serif); color: var(--vp-muted);
+}
+.vp .vp-triad { position: absolute; right: 8px; bottom: 6px; z-index: 3; width: 58px; height: 58px; pointer-events: none;
+  font: 700 9px var(--font-mono, monospace); }
+.vp-fallback { margin: 0; padding: 24px; color: var(--vp-muted); font-size: 13px; position: relative; z-index: 3; }
+.vp-compact { min-height: 0; border-radius: 0; }
+.vp-compact::after { display: none; }
+
+/* a caption bar some viewports carry (the title of the model and what it shows) */
+.vp-caption {
+  position: absolute; left: 10px; top: 9px; z-index: 3; margin: 0; pointer-events: none;
+  display: grid; gap: 1px; max-width: calc(100% - 250px);
+}
+.vp-caption b { font: 700 12px/1.25 var(--font-ui, system-ui, sans-serif); letter-spacing: .6px; text-transform: uppercase; color: #fff; }
+.vp-caption span { font: 500 11.5px/1.3 var(--font-ui, system-ui, sans-serif); color: var(--vp-muted); }
+
+@media (max-width: 560px) {
+  .vp-btn { padding: 6px 7px; font-size: 10.5px; }
+  .vp-hint { display: none; }
+  .vp-caption { max-width: calc(100% - 20px); top: auto; bottom: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .vp-label { transition: none; } }

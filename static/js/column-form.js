@@ -4,6 +4,8 @@ import { renderFigure } from "./figure-spec.js";
 import { designResults } from "./results-view.js";
 import { fitFrame, formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { anchorPopover } from "./theme.js";
+import { columnScene, frameScene } from "./models3d.js";
+import { drawingTabs, modelView } from "./model-view.js";
 
 const KEYS = keysFor("column");
 
@@ -157,13 +159,13 @@ const END_CHOICES = [
   ["e", "Fixed base, top free to sway, F = 1.0"],
   ["custom", "Enter F = l₀/l directly"],
 ];
-const OPEN_KEY = "ec2.column.form.open.v2";
 
 const form = document.getElementById("column-form");
 const $ = (id) => document.getElementById(id);
 const errors = formErrors(form, $("form-message"));
 let meta = null;
 let previewAxis = "y";
+let model3d = null;
 
 let frameModel = {
   nodes: [],
@@ -844,6 +846,22 @@ function refresh() {
   });
 
   scheduleLiveFrame();
+  model3d?.update();
+}
+
+// the 3D model: the frame while its inputs are entered, then the column being designed
+function buildModel(step) {
+  const d = serialize();
+  const frameMode = d.actions.mode === "frame";
+  if (frameMode && (!step || step.phase === "analysis")) {
+    const m = (d.frame.members || []).find((x) => x.id === d.actions.member);
+    return { kind: "frame", scene: frameScene(d.frame, d.actions.member),
+      caption: ["Plane frame", `${d.frame.members.length} members · column ${d.actions.member}${m ? `, ${m.b} × ${m.h}` : ""} designed`] };
+  }
+  const re = d.reinforcement;
+  const nBars = 2 * re.n_b + 2 * (re.n_h - 2);
+  return { kind: "column", scene: columnScene(d),
+    caption: [`Column${d.project.ref ? ` ${d.project.ref}` : ""}`, `${d.geometry.b} × ${d.geometry.h} · ${nBars}H${re.bar_dia} · ${d.materials.concrete}`] };
 }
 
 // ------------------------------------------------------------------ Analysis & Design Actions
@@ -1312,7 +1330,9 @@ async function init() {
   setupAdjustDesignValues();
   setupUseFrameK();
   setupReportTab();
-  setupSections(form, OPEN_KEY);
+  model3d = modelView($("model-3d"), form, buildModel);
+  drawingTabs(form.querySelector(".preview"));
+  setupSections(form);
 
   fill(store.get(KEYS.input) || structuredClone(EXAMPLES.frame_pass));
   const serverErrors = store.getSession(KEYS.errors);

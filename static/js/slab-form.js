@@ -7,6 +7,8 @@ import { drawSlabSection, s } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
 import { fitFrame, formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { buildAnalysisView, designValues, num, spec, table } from "./beam-analysis-view.js";
+import { slabScene } from "./models3d.js";
+import { drawingTabs, modelView } from "./model-view.js";
 
 const KEYS = keysFor("slab");
 
@@ -270,6 +272,7 @@ const form = document.getElementById("slab-form");
 const $ = (id) => document.getElementById(id);
 const errors = formErrors(form, $("form-message"));
 let meta = null;
+let model3d = null;
 let canvas = null;
 let editor = null;
 let model = { supports: [], loads: [] };
@@ -711,6 +714,19 @@ function refresh() {
   if (canvas && isStrip()) {
     canvas.setModel({ length: length(), supports: model.supports, loads: model.loads, w: lastAnalysis?.analysis?.w || 0 });
   }
+  model3d?.update();
+}
+
+const SLAB_NAMES = { one_way: "One-way slab", two_way: "Two-way slab", ribbed: "Ribbed slab" };
+function buildModel() {
+  const d = serialize();
+  const pan = meta?.maxpans.find((p) => p.id === d.slab.maxpan) || null;
+  const r = d.reinforcement;
+  const sub = d.slab.type === "ribbed"
+    ? `${d.slab.maxpan} Maxpans · ribs ${d.slab.bw} · topping ${d.slab.hf}`
+    : d.slab.type === "two_way" ? `${d.panel.lx} × ${d.panel.ly} m panel · h ${d.slab.h} · H${r.bottom_x_dia} @ ${r.bottom_x_s}`
+      : `${d.span.l} m · h ${d.slab.h} · H${r.bottom_x_dia} @ ${r.bottom_x_s} bottom`;
+  return { kind: `slab-${d.slab.type}`, scene: slabScene(d, { pan }), caption: [SLAB_NAMES[d.slab.type] || "Slab", sub] };
 }
 
 // ------------------------------------------------------------------ Serialization
@@ -1116,7 +1132,9 @@ function populateSelects() {
 async function init() {
   meta = await getJSON("/api/meta");
   populateSelects();
-  setupSections(form, "ec2.slab.sections");
+  model3d = modelView($("model-3d"), form, buildModel);
+  drawingTabs(form.querySelector(".preview"));
+  setupSections(form);
   setupTabs();
   initCanvas();
   setupAdjustDesignValues();

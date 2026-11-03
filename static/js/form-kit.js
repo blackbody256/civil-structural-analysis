@@ -1,8 +1,8 @@
-// Pieces shared by the element input pages: nested values, collapsible sections,
+// Pieces shared by the element input pages: nested values, the guided steps,
 // server errors and the "Examples and files" menu.
 import { el, store } from "./common.js";
 import { anchorPopover } from "./theme.js";
-import { inspectorTabs } from "./inspector.js";
+import { wizard } from "./wizard.js";
 
 export function setPath(obj, path, value) {
   const keys = path.split(".");
@@ -17,21 +17,17 @@ export function getPath(obj, path) {
 
 export const option = (value, label) => el("option", { value }, label);
 
-/** Collapsible sections: remember which are open and wire the expand / collapse buttons. */
-export function setupSections(form, storageKey) {
-  const sections = () => [...form.querySelectorAll("details.section")];
-  let open = null;
-  try { open = JSON.parse(localStorage.getItem(storageKey)); } catch { /* keep the page default */ }
-  if (Array.isArray(open)) sections().forEach((s) => { s.open = open.includes(s.dataset.section); });
-  const remember = () => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(sections().filter((s) => s.open).map((s) => s.dataset.section)));
-    } catch { /* not essential */ }
-  };
-  sections().forEach((s) => s.addEventListener("toggle", remember));
-  document.getElementById("expand-all").addEventListener("click", () => { sections().forEach((s) => { s.open = true; }); });
-  document.getElementById("collapse-all").addEventListener("click", () => { sections().forEach((s) => { s.open = false; }); });
-  inspectorTabs(form);
+/**
+ * The input sections become the steps of the guided wizard (wizard.js). Each section is a step's body and
+ * stays open; its summary line feeds the rail of steps. Returns the wizard.
+ */
+export function setupSections(form) {
+  for (const s of form.querySelectorAll("details.section")) {
+    s.open = true;
+    s.querySelector(":scope > summary")?.addEventListener("click", (e) => e.preventDefault());
+    s.addEventListener("toggle", () => { if (!s.open) s.open = true; });
+  }
+  return wizard(form);
 }
 
 /** Field errors returned by the server, keyed by input name. */
@@ -57,6 +53,7 @@ export function formErrors(form, message) {
     }
     const n = Object.keys(errors || {}).length;
     message.textContent = n ? `${n} input${n > 1 ? "s" : ""} to fix` : "";
+    if (first) form.dispatchEvent(new CustomEvent("reveal", { detail: first }));
     first?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
   return { clear, show };

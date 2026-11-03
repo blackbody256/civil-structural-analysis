@@ -3,15 +3,18 @@ import { getJSON, keysFor, postJSON, store } from "./common.js";
 import { renderFigure } from "./figure-spec.js";
 import { formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { EXAMPLES } from "./foundation-examples.js";
+import { foundationScene } from "./models3d.js";
+import { drawingTabs, modelView } from "./model-view.js";
 
 const KEYS = keysFor("foundation");
-const OPEN_KEY = "ec2.foundation.sections";
 const NUMERIC = /^(reinforcement\.(x_dia|y_dia|delta_c_dev))$/;
 
 const form = document.getElementById("foundation-form");
 const $ = (id) => document.getElementById(id);
 const errors = formErrors(form, $("form-message"));
 let meta = null;
+let model3d = null;
+let pressure = null;
 let liveRequest = 0;
 let liveTimer = null;
 
@@ -106,6 +109,13 @@ function refresh() {
   }
   clearTimeout(liveTimer);
   liveTimer = setTimeout(live, 150);
+  model3d?.update();
+}
+
+function buildModel() {
+  const d = serialize();
+  return { kind: "foundation", scene: foundationScene(d, { pressure }),
+    caption: ["Pad foundation", `${d.base.L} × ${d.base.B} × ${d.base.h / 1000} m · column ${d.column.cx} × ${d.column.cy}`] };
 }
 
 async function live() {
@@ -128,6 +138,8 @@ async function live() {
   renderFigure($("preview-plan"), fig.plan, "Pad foundation plan");
   renderFigure($("preview-section"), fig.section, "Pad foundation section and ground pressure");
   const dv = r.derived;
+  pressure = dv.uls_p1 ? { pmax: Math.max(dv.uls_p1, dv.uls_p2 ?? dv.uls_p1), pmin: Math.min(dv.uls_p1, dv.uls_p2 ?? dv.uls_p1) } : null;
+  model3d?.update();
   $("st-p").textContent = dv.sls_p1 === null ? "overturns" : `${dv.sls_p1.toFixed(1)} kPa`;
   $("st-q").textContent = dv.q_allow ? `${dv.q_allow} kPa` : "—";
   $("st-n").textContent = `${dv.NEd.toFixed(0)} kN / ${dv.MEd.toFixed(1)} kNm`;
@@ -142,7 +154,9 @@ async function live() {
 async function init() {
   meta = await getJSON("/api/meta");
   populate();
-  setupSections(form, OPEN_KEY);
+  model3d = modelView($("model-3d"), form, buildModel);
+  drawingTabs(form.querySelector(".preview"));
+  setupSections(form);
   fill(store.get(KEYS.input) || structuredClone(EXAMPLES.pass));
   const serverErrors = store.getSession(KEYS.errors);
   if (serverErrors) { errors.show(serverErrors); store.setSession(KEYS.errors, null); }

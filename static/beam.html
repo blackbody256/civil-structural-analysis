@@ -8,6 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23ffffff'/%3E%3Cpath d='M7 27V8h18v19' fill='none' stroke='%230072bd' stroke-width='4'/%3E%3Cpath d='M3 28h26' stroke='%231f1f1f' stroke-width='2.5'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/base.css">
   <link rel="stylesheet" href="/static/css/form.css">
+  <link rel="stylesheet" href="/static/css/viewer.css">
 </head>
 <body>
   <header class="topbar">
@@ -39,15 +40,9 @@
 
     <form id="beam-form" class="form-layout" novalidate autocomplete="off">
       <div class="form-main">
-        <div class="form-tools">
-          <span>Click a section to edit it.</span>
-          <span class="spacer"></span>
-          <button type="button" class="btn quiet small" id="expand-all">Expand all</button>
-          <button type="button" class="btn quiet small" id="collapse-all">Collapse all</button>
-        </div>
-
         <!-- TAB 1: ANALYSIS -->
         <div role="tabpanel" id="panel-analysis" class="tab-panel is-active" aria-labelledby="tab-analysis">
+          <section class="wz-step" data-step="shape" data-title="Section type" data-prompt="A rectangular beam on its own, or a T or L beam cast with the slab." data-focus="concrete flange">
           <fieldset class="type-choice" aria-label="Section type">
             <label class="type-card">
               <input type="radio" name="section.shape" value="rectangular">
@@ -60,7 +55,9 @@
               <span><span class="tt">Flanged</span><br><span class="td">T or L beam cast with the slab, which acts as the flange</span></span>
             </label>
           </fieldset>
+          </section>
 
+          <section class="wz-step" data-step="geometry" data-title="Section size" data-prompt="The width and overall depth, and the flange when the slab acts with the beam." data-focus="concrete flange">
           <details class="section" data-section="geometry" open>
             <summary><span class="s-title">Section size</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -77,28 +74,10 @@
               </div>
             </div>
           </details>
-
-          <section class="panel model-panel" aria-label="Beam model">
-            <div class="panel-head"><h3>Beam model</h3><span class="hint" id="canvas-hint">Click the beam to place; type the value in the box; drag to move; double-click to edit</span></div>
-            <div class="canvas-tools" role="toolbar" aria-label="Drawing tools">
-              <button type="button" data-tool="select" aria-pressed="true" title="Select and drag">Select</button>
-              <span class="sep" aria-hidden="true"></span>
-              <button type="button" data-tool="pin" title="Pinned support">Pin</button>
-              <button type="button" data-tool="roller" title="Roller support">Roller</button>
-              <button type="button" data-tool="fixed" title="Fixed support">Fixed</button>
-              <span class="sep" aria-hidden="true"></span>
-              <button type="button" data-tool="point" title="Point load">Point load</button>
-              <button type="button" data-tool="udl" title="Uniform load over part of the beam">Uniform load</button>
-              <button type="button" data-tool="linear" title="Linearly varying load">Varying load</button>
-              <button type="button" data-tool="moment" title="Applied moment">Moment</button>
-              <span class="spacer"></span>
-              <button type="button" id="canvas-delete" disabled title="Delete the selected item (Delete key)">Delete</button>
-            </div>
-            <div class="canvas-host" id="beam-canvas" tabindex="0" aria-label="Beam drawing: supports and loads"></div>
-            <div class="live-head"><span>Shear force and bending moment, from the analysis</span><span class="hint" id="analysis-hint">live</span></div>
-            <div class="live-diagrams" id="preview-analysis"></div>
           </section>
 
+
+          <section class="wz-step" data-step="span" data-title="Span and supports" data-prompt="The beam length and where it is held. Drag supports on the beam model, or pick a layout." data-focus="supports">
           <details class="section" data-section="span" open>
             <summary><span class="s-title">Span and supports</span><span class="s-sum" data-sum="span"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -147,7 +126,9 @@
               </details>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="loads" data-title="Loads" data-prompt="Permanent and variable loads, from the slab or placed on the beam model, or MEd and VEd from your own analysis." data-focus="loads">
           <details class="section" data-section="actions" open>
             <summary><span class="s-title">Loads</span><span class="s-sum" data-sum="actions"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -223,17 +204,21 @@
               </div>
             </div>
           </details>
+          </section>
 
-          <div class="analysis-action-bar">
+          <section class="wz-step" data-step="analyse" data-title="Analyse" data-prompt="The matrix stiffness analysis of the beam: shear force, bending moment and deflection along it." data-next="#btn-analyse" data-next-label="Analyse" data-no-review>
+          <div class="analysis-action-bar" data-analyse-bar>
             <button type="button" class="btn primary" id="btn-analyse">Analyse</button>
             <span class="hint" id="analysis-note"></span>
           </div>
 
           <div id="analysis-results-area"></div>
+          </section>
         </div>
 
         <!-- TAB 2: DESIGN -->
         <div role="tabpanel" id="panel-design" class="tab-panel" aria-labelledby="tab-design">
+          <section class="wz-step" data-step="values" data-title="Design values" data-prompt="The moments and shear the section is designed for. Tick Adjust to change them by hand." data-focus="loads" data-no-review>
           <section class="panel design-values-box">
             <div class="panel-head">
               <h3>Design values from the analysis</h3>
@@ -269,7 +254,9 @@
                 <span class="help">ψ<sub>2</sub> for the quasi-permanent load, used for deflection and crack control</span></div>
             </div>
           </section>
+          </section>
 
+          <section class="wz-step" data-step="flange" data-title="Flange" data-prompt="The effective flange width, calculated from the spans or entered." data-focus="flange">
           <details class="section flanged-only" data-section="section-details" open>
             <summary><span class="s-title">Section details</span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -286,7 +273,9 @@
               </div>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="materials" data-title="Materials" data-prompt="The concrete class, the reinforcement and the largest aggregate." data-focus="concrete bars">
           <details class="section" data-section="materials" open>
             <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -317,7 +306,9 @@
               </details>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="reinforcement" data-title="Reinforcement" data-prompt="The bottom and top bars, the links and the cover to them." data-focus="bars links">
           <details class="section" data-section="reinforcement" open>
             <summary><span class="s-title">Reinforcement</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -356,7 +347,9 @@
               </details>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="durability" data-title="Durability and fire" data-prompt="The exposure class for the cover and the fire resistance period." data-focus="concrete links">
           <details class="section" data-section="durability" open>
             <summary><span class="s-title">Durability and fire</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -372,7 +365,9 @@
               </div>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="options" data-title="Options" data-prompt="Partitions that limit the deflection, and the K′ limit for redistribution.">
           <details class="section" data-section="options">
             <summary><span class="s-title">More options: partitions, K′</span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -380,7 +375,9 @@
               <label class="check"><input type="checkbox" name="actions.kprime_limit"> <span>Limit K′ to 0.168 to keep the section ductile (UK practice)</span></label>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="project" data-title="Project" data-prompt="Names for the report title block. All optional.">
           <details class="section" data-section="project">
             <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
             <div class="s-body">
@@ -396,22 +393,27 @@
               </div>
             </div>
           </details>
+          </section>
 
+          <section class="wz-step" data-step="run" data-title="Review and run" data-prompt="Check what you entered, then run every check. The results appear here." data-review data-run data-next="#btn-run-design" data-next-label="Run design checks">
           <div class="design-action-bar">
             <button type="button" class="btn primary" id="btn-run-design">Run design checks</button>
           </div>
 
           <div id="design-results-area"></div>
+          </section>
         </div>
 
         <!-- TAB 3: REPORT -->
         <div role="tabpanel" id="panel-report" class="tab-panel" aria-labelledby="tab-report">
+          <section class="wz-step" data-step="report" data-title="Report" data-prompt="The calculation report: download it as a PDF or print it." data-no-review>
           <div class="report-actions-bar">
             <button type="button" class="btn primary" id="btn-pdf">Download PDF report</button>
             <button type="button" class="btn" id="btn-print">Print</button>
             <a class="btn" href="/beam/report" target="_blank" rel="noopener">Open in a new tab</a>
           </div>
           <iframe class="report-frame" id="report-frame" title="Embedded beam report"></iframe>
+          </section>
         </div>
 
         <div class="form-bar">
@@ -422,7 +424,28 @@
         </div>
       </div>
 
-      <aside class="preview" aria-label="Live drawings">
+      <aside class="preview" aria-label="Model and drawings">
+        <section class="panel vp-panel"><div class="vp-host" id="model-3d"></div></section>
+          <section class="panel model-panel" aria-label="Beam model">
+            <div class="panel-head"><h3>Beam model</h3><span class="hint" id="canvas-hint">Click the beam to place; type the value in the box; drag to move; double-click to edit</span></div>
+            <div class="canvas-tools" role="toolbar" aria-label="Drawing tools">
+              <button type="button" data-tool="select" aria-pressed="true" title="Select and drag">Select</button>
+              <span class="sep" aria-hidden="true"></span>
+              <button type="button" data-tool="pin" title="Pinned support">Pin</button>
+              <button type="button" data-tool="roller" title="Roller support">Roller</button>
+              <button type="button" data-tool="fixed" title="Fixed support">Fixed</button>
+              <span class="sep" aria-hidden="true"></span>
+              <button type="button" data-tool="point" title="Point load">Point load</button>
+              <button type="button" data-tool="udl" title="Uniform load over part of the beam">Uniform load</button>
+              <button type="button" data-tool="linear" title="Linearly varying load">Varying load</button>
+              <button type="button" data-tool="moment" title="Applied moment">Moment</button>
+              <span class="spacer"></span>
+              <button type="button" id="canvas-delete" disabled title="Delete the selected item (Delete key)">Delete</button>
+            </div>
+            <div class="canvas-host" id="beam-canvas" tabindex="0" aria-label="Beam drawing: supports and loads"></div>
+            <div class="live-head"><span>Shear force and bending moment, from the analysis</span><span class="hint" id="analysis-hint">live</span></div>
+            <div class="live-diagrams" id="preview-analysis"></div>
+          </section>
         <section class="panel">
           <div class="panel-head"><h3>Cross-section</h3><span class="hint">to scale</span></div>
           <div class="panel-body" id="preview-section"></div>

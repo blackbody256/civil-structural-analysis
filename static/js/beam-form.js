@@ -6,6 +6,8 @@ import { renderFigure } from "./figure-spec.js";
 import { designResults } from "./results-view.js";
 import { fitFrame, formErrors, getPath, option, setPath, setupFilesMenu, setupSections } from "./form-kit.js";
 import { buildAnalysisView, designValues } from "./beam-analysis-view.js";
+import { beamScene } from "./models3d.js";
+import { drawingTabs, modelView } from "./model-view.js";
 
 const KEYS = keysFor("beam");
 
@@ -138,6 +140,7 @@ const form = document.getElementById("beam-form");
 const $ = (id) => document.getElementById(id);
 const errors = formErrors(form, $("form-message"));
 let meta = null;
+let model3d = null;
 let canvas = null;
 let model = { supports: [], loads: [], segments: [] };
 let selected = null;
@@ -537,6 +540,15 @@ function refresh() {
   canvas.setModel({ length: Number(d.span.l) || 0, supports: model.supports, loads: d.actions.mode === "direct" ? [] : model.loads,
     w: d.actions.mode === "direct" ? 0 : lastAnalysis?.loads?.w || 0, slab: d.actions.slab?.on });
   scheduleAnalysis();
+  model3d?.update();
+}
+
+function buildModel() {
+  const d = serialize();
+  const r = d.reinforcement;
+  return { kind: "beam", scene: beamScene(d, { beff: estimatedBeff(d) }),
+    caption: [`Beam${d.project.ref ? ` ${d.project.ref}` : ""}`,
+      `${d.section.shape === "flanged" ? `${d.section.flange} beam` : "Rectangular"} ${d.section.b} × ${d.section.h} · ${d.span.l} m · ${r.bottom_n}H${r.bottom_dia} bottom`] };
 }
 
 let analysisTimer = null;
@@ -806,7 +818,9 @@ async function init() {
   setupTabs();
   setupAdjustDesignValues();
   setupReportTab();
-  setupSections(form, "ec2.beam.form.open.v2");
+  model3d = modelView($("model-3d"), form, buildModel);
+  drawingTabs(form.querySelector(".preview"));
+  setupSections(form);
   fill(store.get(KEYS.input) || structuredClone(EXAMPLES.analysis));
   const serverErrors = store.getSession(KEYS.errors);
   if (serverErrors) { handleErrors(serverErrors); store.setSession(KEYS.errors, null); }

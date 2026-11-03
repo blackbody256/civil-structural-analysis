@@ -8,6 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23ffffff'/%3E%3Cpath d='M7 27V8h18v19' fill='none' stroke='%230072bd' stroke-width='4'/%3E%3Cpath d='M3 28h26' stroke='%231f1f1f' stroke-width='2.5'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/base.css">
   <link rel="stylesheet" href="/static/css/form.css">
+  <link rel="stylesheet" href="/static/css/viewer.css">
 </head>
 <body>
   <header class="topbar">
@@ -27,29 +28,8 @@
 
     <form id="foundation-form" class="form-layout" novalidate autocomplete="off">
       <div class="form-main">
-        <div class="form-tools">
-          <span>Click a section to edit it.</span>
-          <span class="spacer"></span>
-          <button type="button" class="btn quiet small" id="expand-all">Expand all</button>
-          <button type="button" class="btn quiet small" id="collapse-all">Collapse all</button>
-        </div>
 
-        <details class="section" data-section="project">
-          <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
-          <div class="s-body">
-            <div class="fields">
-              <div class="field"><label for="p-name">Project</label>
-                <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="Campus block A"></div></div>
-              <div class="field"><label for="p-ref">Element reference</label>
-                <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="F1 under C2"></div></div>
-              <div class="field"><label for="p-eng">Engineer</label>
-                <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
-              <div class="field"><label for="p-date">Date</label>
-                <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
-            </div>
-          </div>
-        </details>
-
+        <section class="wz-step" data-step="geometry" data-title="Column and base" data-prompt="The column on the pad, and the pad’s plan size and depth." data-focus="concrete column">
         <details class="section" data-section="geometry" open>
           <summary><span class="s-title">Column and base</span><span class="s-sum" data-sum="geometry"></span><span class="chev" aria-hidden="true"></span></summary>
           <div class="s-body">
@@ -78,7 +58,9 @@
             </details>
           </div>
         </details>
+        </section>
 
+        <section class="wz-step" data-step="ground" data-title="Ground" data-prompt="The soil under the pad and its allowable bearing pressure." data-focus="soil pressure">
         <details class="section" data-section="ground" open>
           <summary><span class="s-title">Ground</span><span class="s-sum" data-sum="ground"></span><span class="chev" aria-hidden="true"></span></summary>
           <div class="s-body">
@@ -92,7 +74,9 @@
             </div>
           </div>
         </details>
+        </section>
 
+        <section class="wz-step" data-step="actions" data-title="Loads" data-prompt="The characteristic loads from the column: permanent and variable, axial load and moment." data-focus="loads pressure">
         <details class="section" data-section="actions" open>
           <summary><span class="s-title">Column loads (characteristic)</span><span class="s-sum" data-sum="actions"></span><span class="chev" aria-hidden="true"></span></summary>
           <div class="s-body">
@@ -114,7 +98,9 @@
             </div>
           </div>
         </details>
+        </section>
 
+        <section class="wz-step" data-step="materials" data-title="Materials" data-prompt="The concrete class, the reinforcement and the largest aggregate." data-focus="concrete bars">
         <details class="section" data-section="materials">
           <summary><span class="s-title">Materials</span><span class="s-sum" data-sum="materials"></span><span class="chev" aria-hidden="true"></span></summary>
           <div class="s-body">
@@ -144,7 +130,9 @@
             </details>
           </div>
         </details>
+        </section>
 
+        <section class="wz-step" data-step="reinforcement" data-title="Reinforcement" data-prompt="The bottom mat each way, the cover, and whether the pad is cast on blinding." data-focus="bars">
         <details class="section" data-section="reinforcement" open>
           <summary><span class="s-title">Bottom reinforcement</span><span class="s-sum" data-sum="reinforcement"></span><span class="chev" aria-hidden="true"></span></summary>
           <div class="s-body">
@@ -174,7 +162,9 @@
             </details>
           </div>
         </details>
+        </section>
 
+        <section class="wz-step" data-step="durability" data-title="Durability" data-prompt="The exposure class and cement type for the cover." data-focus="concrete bars">
         <details class="section" data-section="durability">
           <summary><span class="s-title">Durability</span><span class="s-sum" data-sum="durability"></span><span class="chev" aria-hidden="true"></span></summary>
           <div class="s-body">
@@ -187,6 +177,29 @@
             </div>
           </div>
         </details>
+        </section>
+
+        <section class="wz-step" data-step="project" data-title="Project" data-prompt="Names for the report title block. All optional.">
+        <details class="section" data-section="project">
+          <summary><span class="s-title">Project</span><span class="s-sum" data-sum="project"></span><span class="chev" aria-hidden="true"></span></summary>
+          <div class="s-body">
+            <div class="fields">
+              <div class="field"><label for="p-name">Project</label>
+                <div class="control"><input id="p-name" name="project.name" type="text" maxlength="120" placeholder="Campus block A"></div></div>
+              <div class="field"><label for="p-ref">Element reference</label>
+                <div class="control"><input id="p-ref" name="project.ref" type="text" maxlength="40" placeholder="F1 under C2"></div></div>
+              <div class="field"><label for="p-eng">Engineer</label>
+                <div class="control"><input id="p-eng" name="project.engineer" type="text" maxlength="80"></div></div>
+              <div class="field"><label for="p-date">Date</label>
+                <div class="control"><input id="p-date" name="project.date" type="date"></div></div>
+            </div>
+          </div>
+        </details>
+        </section>
+
+        <section class="wz-step" data-step="run" data-title="Review and run" data-prompt="Check what you entered, then run every check." data-review data-run data-next="submit" data-next-label="Run the checks">
+        <div class="run-note" data-run-note><p class="help-line">The checks run on the next page, one after another, and then the report opens.</p></div>
+        </section>
 
         <div class="form-bar">
           <button type="button" class="btn small" id="files-button" popovertarget="files-menu">Examples and files <span class="caret"></span></button>
@@ -196,7 +209,8 @@
         </div>
       </div>
 
-      <aside class="preview" aria-label="Live drawings">
+      <aside class="preview" aria-label="Model and drawings">
+        <section class="panel vp-panel"><div class="vp-host" id="model-3d"></div></section>
         <section class="panel">
           <div class="panel-head"><h3>Plan</h3><span class="hint" id="live-hint">to scale</span></div>
           <div class="panel-body" id="preview-plan"></div>
