@@ -30,12 +30,16 @@ function text(node) { return (node?.textContent || "").replace(/\s+/g, " ").trim
 function problem(c) {
   const v = c.validity;
   if (!v || v.valid || (v.stepMismatch && !v.valueMissing && !v.rangeUnderflow && !v.rangeOverflow && !v.badInput)) return "";
-  if (v.badInput) return "Enter a number";
-  if (v.valueMissing) return "Enter a value";
-  if (v.rangeUnderflow) return `Enter at least ${c.min}`;
-  if (v.rangeOverflow) return `Enter at most ${c.max}`;
+  const unit = text(c.closest(".control")?.querySelector(".unit"));
+  const u = unit ? ` ${unit}` : "";
+  const range = c.min !== "" && c.max !== "" ? `between ${c.min} and ${c.max}${u}`
+    : c.min !== "" ? `${c.min}${u} or more` : `${c.max}${u} or less`;
+  if (v.badInput) return "Enter a number, using digits and a decimal point (for example 4.5).";
+  if (v.valueMissing) return "This value is needed: enter a number here.";
+  if (v.rangeUnderflow) return `${c.value}${u} is too small: enter a value ${range}.`;
+  if (v.rangeOverflow) return `${c.value}${u} is too large: enter a value ${range}.`;
   if (v.stepMismatch) return "";
-  return c.validationMessage || "Check this value";
+  return c.validationMessage || "Check this value.";
 }
 
 /** The value of a control as shown to the user: the option text, the number with its unit, or a tick. */
@@ -276,7 +280,8 @@ export function wizard(form) {
     const bad = invalidIn(current);
     if (bad.length) {
       markInvalid(bad);
-      note.textContent = `${bad.length} input${bad.length > 1 ? "s" : ""} to fix on this step`;
+      note.textContent = bad.length === 1 ? "1 input on this step needs changing: it is marked in red, with what to do."
+        : `${bad.length} inputs on this step need changing: each is marked in red, with what to do.`;
       refreshRail();
       return;
     }
