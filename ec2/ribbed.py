@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from . import durability, fire, flexure, tables
 from .analysis import SUPPORT_TYPES
-from .beam import DEFLECTION_K, L0_FACTOR, SPAN_KINDS, SUPPORT_NAMES, spans_of
+from .beam import L0_FACTOR, SPAN_KINDS, SUPPORT_NAMES, spans_of
 from .inputs import Reader, ValidationError
 from .materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, LINK_SIZES, Concrete, Reinforcement, bar_area
 from .results import FAIL, INFO, NA, PASS, CheckResult, summarise
@@ -35,7 +35,9 @@ ASSUMPTIONS = [
     "ribs use pattern loading (all spans loaded, then alternate spans) for the envelope.",
     "Sagging: T-section with the effective flange width; hogging: rectangle of the rib width (flange in tension).",
     "Shear resisted by the concrete of the rib (vRd,c); links are designed only where the concrete is not enough.",
-    "Deflection by span to effective depth ratios with the flanged-section factor F1.",
+    "Deflection by span to effective depth ratio: L/d ≤ K1·K2·K3·[...] with K1 for the structural system, K2 for "
+    "beff/bw of the rib and K3 = As,prov/As,req ≤ 1.5; total deflection limited to L/250. Rib links from the table of "
+    "Asw/s for two-leg links.",
     "Light fabric in the topping of at least 0.13 % of the topping section for crack control.",
     "Durability covers follow BS 8500 for a 50-year working life and 20 mm maximum aggregate.",
 ]
@@ -108,7 +110,8 @@ def parse_ribbed(data):
     supports = []
     raw = r.raw("span.supports")
     if not isinstance(raw, list) or not raw:
-        r.errors["span.supports"] = "Add at least one support."
+        r.errors["span.supports"] = ("The ribbed slab has no supports: add at least one on the rib model, or pick "
+                                     "a support layout.")
     else:
         for i, _ in enumerate(raw):
             x = r.number(f"span.supports.{i}.x", lo=0, hi=length if length else None)
@@ -149,7 +152,7 @@ def parse_ribbed(data):
         m_hog = r.number("actions.M_hog", lo=0, hi=1e5, default=0.0)
         v_ed = r.number("actions.VEd", lo=0, hi=1e5, default=0.0)
         if not (m_sag or m_hog) and not r.errors:
-            r.errors["actions.M_sag"] = "Enter a sagging or a hogging moment per rib."
+            r.errors["actions.M_sag"] = "There is nothing to design for: enter a sagging or a hogging moment per rib, or both."
 
     E_gpa = None
     if r.choice("stiffness.E_method", ("concrete", "enter"), default="concrete") == "enter":
@@ -165,9 +168,10 @@ def parse_ribbed(data):
         room = bw - 2 * (cover + (link_dia or 0))
         if bottom_n * bottom_dia > room:
             r.errors["reinforcement.bottom_n"] = (f"{bottom_n} bars of {bottom_dia} mm do not fit in the rib "
-                                                  f"({room:.0f} mm between the {'links' if link_dia else 'sides'}).")
+                                                  f"({room:.0f} mm between the {'links' if link_dia else 'sides'}): use fewer "
+                                                  "or smaller bars, or wider ribs.")
         if top_dia and top_n * top_dia > room:
-            r.errors["reinforcement.top_n"] = "These top bars do not fit in the rib."
+            r.errors["reinforcement.top_n"] = "These top bars do not fit in the rib: use fewer or smaller bars, or wider ribs."
     if r.errors:
         raise ValidationError(r.errors)
 
@@ -441,15 +445,26 @@ def _shear_checks(inp, geo, act, res_sag, res_hog):
     if cot is None:
         return [CheckResult("shear", GROUPS[5], "Shear in the rib", FAIL, result=f"vEd {v_ed:.2f} > vRd,max {v10:.2f} MPa",
                             utilisation=v_ed / v10, working=lines, target="section", note="Widen the ribs.")]
-    asw = inp.legs * bar_area(inp.link_dia)
-    need = max(v_ed * inp.bw / (steel.fyd * cot), flexure.rho_w_min(conc.fck, steel.fyk) * inp.bw)
-    s = int(min(asw / need, 0.75 * d) // 25 * 25)
-    ok = s >= 50
-    lines.append(f"Asw/s ≥ {need:.3f} mm²/mm; H{inp.link_dia} ({inp.legs} legs) Asw = {asw:.0f} mm² → s = {s} mm "
-                 f"(≤ 0.75d = {0.75 * d:.0f} mm)")
-    return [CheckResult("shear", GROUPS[5], "Shear in the rib", PASS if ok else FAIL,
-                        result=f"H{inp.link_dia} links @ {s} mm", utilisation=v_ed / v10, working=lines, target="links",
-                        note="" if ok else "Links too close: use larger links.")]
+    calc = v_ed * inp.bw / (steel.fyd * cot)
+    least = flexure.rho_w_min(conc.fck, steel.fyk) * inp.bw
+    need = max(calc, least)
+    pick = tables.link_from_table(inp.link_dia, inp.legs, need, 0.75 * d)
+    row = tables.asw_s_row(inp.link_dia, inp.legs)
+    lines += [f"Asw/s ≥ max(vEd·bw/(fywd·cot θ), ρw,min·bw) = max({calc:.3f}, {least:.3f}) = {need:.3f} mm²/mm; "
+              f"s ≤ 0.75·d = {0.75 * d:.0f} mm",
+              f"Table of Asw/s for H{inp.link_dia} links, {inp.legs} legs (mm²/mm @ mm): "
+              + ", ".join(f"{v:.3f} @ {sp}" for sp, v in zip(tables.ASW_S_SPACINGS, row))]
+    if pick is None:
+        lines.append(f"Even the closest tabulated spacing, 85 mm, gives only {max(row):.3f} mm²/mm")
+        return [CheckResult("shear", GROUPS[5], "Shear in the rib", FAIL,
+                            result=f"Asw/s {need:.3f} > {max(row):.3f} mm²/mm", utilisation=v_ed / v10, working=lines,
+                            target="links", note=f"H{inp.link_dia} links cannot carry this shear: choose larger links "
+                            "(H10 or H12) or widen the ribs.")]
+    s, v = pick
+    lines.append(f"Widest tabulated spacing with Asw/s ≥ {need:.3f}: {s} mm (Asw/s = {v:.3f}), so provide "
+                 f"H{inp.link_dia} links ({inp.legs} legs) at {s} mm")
+    return [CheckResult("shear", GROUPS[5], "Shear in the rib", PASS,
+                        result=f"H{inp.link_dia} links @ {s} mm", utilisation=v_ed / v10, working=lines, target="links")]
 
 
 def _steel_stress(inp, res, qp):
@@ -474,23 +489,24 @@ def _deflection_checks(inp, geo, act):
             lines.append(f"{name[0].upper()}{name[1:]}: not assessed, the rib is too small")
             continue
         d = res["d"]
-        area = geo.beff * inp.hf + inp.bw * (d - inp.hf)
-        rho = res["As"] / area
-        K = DEFLECTION_K[span.kind]
-        basic = flexure.basic_span_depth(K, conc.fck, rho, 0.0)
-        f1 = max(0.8, 1 - 0.1 * (geo.beff / inp.bw - 1))
+        # the rib as a T-beam: ρ = As,req/(beff·d), K2 from beff/bw, K3 = As,prov/As,req
+        rho = res["As"] / (geo.beff * d)
+        k1 = tables.K1_FACTORS[span.kind]
+        ratio = geo.beff / inp.bw
+        k2 = tables.k2_flange(ratio)
+        k3, k3_line = flexure.k3_factor(res["As_prov"], res["As"])
+        limit, _, sd_lines = flexure.span_depth(conc.fck, rho, 0.0, k1, k2, k3, tables.K1_NAMES[span.kind], ratio)
         f2 = 7 / span.l if inp.partitions and span.l > 7 else 1.0
-        sigma, sigma_line = _steel_stress(inp, res, item["qp_ratio"])
-        f3 = min(310 / sigma, 1.5)
-        allowed = basic * f1 * f2 * f3
+        allowed = limit * f2
         actual = span.l * 1000 / d
         ok = actual <= allowed
-        lines += [f"{name[0].upper()}{name[1:]}: M = {kNm(M)} kNm, d = {d:.0f} mm, K = {K:g}",
-                  f"  ρ = As,req/(beff·hf + bw·(d − hf)) = {100 * rho:.3f} %; basic l/d = {basic:.1f}",
-                  f"  F1 = 1 − 0.1·(beff/bw − 1) ≥ 0.8 = {f1:.2f}" + (f"; F2 = 7/l = {f2:.2f}" if f2 < 1 else ""),
-                  f"  {sigma_line}; F3 = 310/σs ≤ 1.5 = {f3:.2f}",
-                  f"  Allowable l/d = {allowed:.1f}; actual l/d = {span.l * 1000:.0f}/{d:.0f} = {actual:.1f} "
-                  f"{'≤' if ok else '>'} {allowed:.1f}"]
+        lines += [f"{name[0].upper()}{name[1:]}: M = {kNm(M)} kNm per rib, d = {d:.0f} mm",
+                  f"  ρ = As,req/(beff·d) = {res['As']:.0f}/({geo.beff:.0f} × {d:.0f}); ρ′ = 0", f"  {k3_line}"]
+        lines += ["  " + x for x in sd_lines]
+        if f2 < 1:
+            lines.append(f"  × 7/leff = 7/{span.l:.2f} = {f2:.2f} (span over 7 m with brittle partitions): {allowed:.1f}")
+        lines.append(f"  Actual L/d = {span.l * 1000:.0f}/{d:.0f} = {actual:.1f} {'≤' if ok else '>'} {allowed:.1f}; "
+                     "total deflection limited to L/250")
         utils.append(actual / allowed)
         statuses.append(ok)
     if not utils:

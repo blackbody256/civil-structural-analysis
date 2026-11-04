@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from . import durability, fire, flexure, tables
 from .actions import psi_factors
 from .analysis import SUPPORT_TYPES, AnalysisError, analyse
-from .beam import DEFLECTION_K, SPAN_KINDS, SUPPORT_NAMES, Span, spans_of
+from .beam import SPAN_KINDS, SUPPORT_NAMES, Span, spans_of
 from .inputs import Reader, ValidationError
 from .materials import BAR_SIZES, CONCRETE_TABLE, DUCTILITY_CLASSES, Concrete, Reinforcement, bar_area
 from .results import FAIL, INFO, NA, PASS, WARN, CheckResult, summarise
@@ -42,7 +42,8 @@ ASSUMPTIONS = [
     "Continuous one-way slabs use pattern loading (Case A: all spans loaded; Case B/C: alternate spans loaded) to obtain the envelope.",
     "Two-way slabs supported on four edges use tabulated bending moment coefficients for restrained panels.",
     "Shear resistance of slabs without shear reinforcement (vRd,c); slabs have no shear links.",
-    "No compression reinforcement in slabs (K ≤ K'). Deflection by span-to-effective-depth ratio.",
+    "No compression reinforcement in slabs (K ≤ K'). Deflection by span to effective depth ratio: L/d ≤ K1·K2·K3·[...] "
+    "with K1 for the structural system, K2 = 1 for a solid slab and K3 = As,prov/As,req ≤ 1.5; total deflection limited to L/250.",
     "Durability covers follow BS 8500 for a 50-year working life and 20 mm maximum aggregate.",
     "Fire resistance by the tabulated method of BS EN 1992-1-2 for solid slabs.",
 ]
@@ -192,7 +193,8 @@ def parse_input(data):
                           default="simply_supported")
         raw_supp = r.raw("span.supports")
         if not isinstance(raw_supp, list) or not raw_supp:
-            r.errors["span.supports"] = "Add at least one support."
+            r.errors["span.supports"] = ("The slab has no supports: add at least one on the strip model, or pick a "
+                                     "support layout.")
         else:
             for i, _ in enumerate(raw_supp):
                 x = r.number(f"span.supports.{i}.x", lo=0, hi=length if length else None)
@@ -205,9 +207,9 @@ def parse_input(data):
         ly = r.number("panel.ly", lo=0.5, hi=60)
         if lx is not None and ly is not None:
             if lx > ly:
-                r.errors["panel.lx"] = "lx must be the shorter span (lx ≤ ly)."
+                r.errors["panel.lx"] = "lx must be the shorter span: swap lx and ly so that lx ≤ ly."
             elif ly / lx > 2.0 + 1e-6:
-                r.errors["panel.ly"] = "ly/lx is more than 2: design it as a one-way slab."
+                r.errors["panel.ly"] = "ly/lx is more than 2, so the panel spans mainly one way: choose One-way solid slab, or reduce ly to 2·lx or less."
         edges = {}
         for edge in ("top", "bottom", "left", "right"):
             edges[edge] = r.choice(f"panel.edges.{edge}", ("continuous", "discontinuous"), default="continuous")
@@ -242,13 +244,13 @@ def parse_input(data):
             loads = _read_loads(r, length)
         sw_val = (CONCRETE_DENSITY * h / 1000.0) if self_weight and h else 0.0
         if not (gk or qk or sw_val or loads) and not r.errors:
-            r.errors["actions.gk"] = "The slab carries no load: enter gk, qk or another load."
+            r.errors["actions.gk"] = "The slab carries no load: enter gk or qk, tick the self-weight, or place a load on the strip model."
     else:
         m_sag = r.number("actions.M_sag", lo=0, hi=1e6, default=0.0)
         m_hog = r.number("actions.M_hog", lo=0, hi=1e6, default=0.0)
         v_ed = r.number("actions.VEd", lo=0, hi=1e6, default=0.0)
         if not (m_sag or m_hog) and not r.errors:
-            r.errors["actions.M_sag"] = "Enter a sagging or a hogging moment."
+            r.errors["actions.M_sag"] = "There is nothing to design for: enter a sagging moment M+Ed, a hogging moment M−Ed, or both."
 
     E_gpa = None
     if r.choice("stiffness.E_method", ("concrete", "enter"), default="concrete") == "enter":
@@ -639,35 +641,33 @@ def _deflection_checks_one_way(inp, act):
             layer = inp.bottom_x
 
         As_prov = layer.As
-        K_sys = DEFLECTION_K[span.kind]
+        k1 = tables.K1_FACTORS[span.kind]
+        F2 = (7.0 / span.l) if (span.l > 7.0 and inp.partitions) else 1.0
 
         if MEd > 0 and As_prov > 0:
             K_bend = min(MEd / (b * d**2 * fck), 0.168)
             z = flexure.lever_arm(K_bend, d)
             As_req = MEd / (fyd * z)
             rho = As_req / (b * d)
-            basic = flexure.basic_span_depth(K_sys, fck, rho, rho_c=0.0)
-            F1 = 1.0
-            F2 = (7.0 / span.l) if (span.l > 7.0 and inp.partitions) else 1.0
-            sigma_s = fyd * qp_ratio * (As_req / As_prov)
-            F3 = min(310.0 / max(sigma_s, 1.0), 1.5)
-            limiting = basic * F1 * F2 * F3
+            k3, k3_line = flexure.k3_factor(As_prov, As_req)
+            limit, _, sd_lines = flexure.span_depth(fck, rho, 0.0, k1, 1.0, k3, tables.K1_NAMES[span.kind])
+            req_lines = [f"As,req = MEd/(fyd·z) = {kNm(MEd)}×10⁶/({fyd:.1f} × {z:.0f}) = {As_req:.0f} mm²/m; "
+                         f"ρ = As,req/(b·d) = {As_req:.0f}/(1000 × {d:.0f}); ρ′ = 0 (no compression steel)", k3_line]
         else:
             rho = 0.0015
-            basic = flexure.basic_span_depth(K_sys, fck, rho, rho_c=0.0)
-            limiting = basic
+            limit, _, sd_lines = flexure.span_depth(fck, rho, 0.0, k1, 1.0, 1.0, tables.K1_NAMES[span.kind])
+            req_lines = ["No sagging moment in this span: ρ = 0.15 % assumed, K3 = 1.0"]
+        limiting = limit * F2
 
         actual = (span.l * 1000.0) / d
         ok = actual <= limiting
 
-        lines = [
-            f"{span.label()}: l = {_m(span.l)} m, d = {d:.1f} mm, K = {K_sys:g}",
-            f"Basic span-to-depth ratio: (l/d)basic = {basic:.1f}",
-            f"Modification factors: F1 = 1.0 (rectangular); F2 = {F2:.3f}" +
-            (f" (partitions, span > 7 m)" if F2 < 1.0 else "") +
-            (f"; F3 = {F3:.3f} (service steel stress σs = {sigma_s:.1f} MPa)" if MEd > 0 else ""),
-            f"Limiting l/d = {limiting:.1f}; Actual span-to-depth ratio: l/d = {actual:.1f} ({'satisfied' if ok else 'exceeded'})",
-        ]
+        lines = [f"{span.label()}: L = {_m(span.l)} m, d = {d:.1f} mm"] + req_lines + sd_lines
+        if F2 < 1.0:
+            lines.append(f"× 7/leff = 7/{span.l:.2f} = {F2:.2f} for a span over 7 m carrying brittle partitions: "
+                         f"{limit:.1f} × {F2:.2f} = {limiting:.1f}")
+        lines.append(f"Actual L/d = {span.l * 1000:.0f}/{d:.0f} = {actual:.1f} {'≤' if ok else '>'} {limiting:.1f} "
+                     f"({'satisfied' if ok else 'exceeded'}); total deflection limited to L/250")
         res_str = f"{actual:.1f} vs {limiting:.1f}"
         results.append(CheckResult(f"deflection_span_{span.i}", GROUPS[6], f"Deflection ({span.label()})",
                                    PASS if ok else FAIL, result=res_str,
@@ -1091,28 +1091,29 @@ def _check_two_way(inp):
                               utilisation=vEd_mpa / vrd_c, working=shear_lines, target="slab.h",
                               note="" if ok_shear else "Increase the slab thickness (shear reinforcement is not usual in solid slabs)."))
 
-    # Deflection check (on short span lx with d_x):
-    K_sys = 1.0 if num_cont_long == 0 else (1.3 if num_cont_long == 1 else 1.5)
+    # Deflection check (on short span lx with d_x): K1 by the continuous long edges, K3 = As,prov/As,req
+    kind = "simple" if num_cont_long == 0 else ("end" if num_cont_long == 1 else "interior")
+    k1 = tables.K1_FACTORS[kind]
     K_bend = min(msx_mid / (b * d_x**2 * inp.concrete.fck), 0.168)
     z_defl = flexure.lever_arm(K_bend, d_x)
     As_req_defl = msx_mid / (inp.steel.fyd * z_defl)
     rho_defl = As_req_defl / (b * d_x)
-    basic_defl = flexure.basic_span_depth(K_sys, inp.concrete.fck, rho_defl, rho_c=0.0)
-    F1 = 1.0
+    k3, k3_line = flexure.k3_factor(inp.bottom_x.As, As_req_defl)
+    limit_defl, _, sd_lines = flexure.span_depth(inp.concrete.fck, rho_defl, 0.0, k1, 1.0, k3, tables.K1_NAMES[kind])
     F2 = (7.0 / inp.lx) if (inp.lx > 7.0 and inp.partitions) else 1.0
-    psi0, _, psi2 = psi_factors(inp.category)
-    qp_ratio = (inp.gk + sw + psi2 * inp.qk) / max(n, 1e-6)
-    sigma_s = inp.steel.fyd * qp_ratio * (As_req_defl / max(inp.bottom_x.As, 1.0))
-    F3 = min(310.0 / max(sigma_s, 1.0), 1.5)
-    limiting_defl = basic_defl * F1 * F2 * F3
+    limiting_defl = limit_defl * F2
     actual_defl = (inp.lx * 1000.0) / d_x
     ok_defl = actual_defl <= limiting_defl
     defl_lines = [
-        f"Two-way panel short span lx = {_m(inp.lx)} m, d = {d_x:.1f} mm, K = {K_sys:g} ({num_cont_long} continuous long edge{'s' if num_cont_long != 1 else ''})",
-        f"Basic span-to-depth ratio: (l/d)basic = {basic_defl:.1f}",
-        f"Modification factors: F1 = 1.0; F2 = {F2:.3f}; F3 = {F3:.3f} (service steel stress σs = {sigma_s:.1f} MPa)",
-        f"Limiting l/d = {limiting_defl:.1f}; Actual span-to-depth ratio: lx/d = {actual_defl:.1f} ({'satisfied' if ok_defl else 'exceeded'})",
-    ]
+        f"Two-way panel, short span lx = {_m(inp.lx)} m, d = {d_x:.1f} mm; {num_cont_long} continuous long "
+        f"edge{'s' if num_cont_long != 1 else ''}, so K1 is for a {tables.K1_NAMES[kind]}",
+        f"As,req = msx/(fyd·z) = {kNm(msx_mid)}×10⁶/({inp.steel.fyd:.1f} × {z_defl:.0f}) = {As_req_defl:.0f} mm²/m; "
+        f"ρ = As,req/(b·d) = {As_req_defl:.0f}/(1000 × {d_x:.0f}); ρ′ = 0", k3_line] + sd_lines
+    if F2 < 1.0:
+        defl_lines.append(f"× 7/lx = 7/{inp.lx:.2f} = {F2:.2f} for a span over 7 m carrying brittle partitions: "
+                          f"{limit_defl:.1f} × {F2:.2f} = {limiting_defl:.1f}")
+    defl_lines.append(f"Actual lx/d = {inp.lx * 1000:.0f}/{d_x:.0f} = {actual_defl:.1f} {'≤' if ok_defl else '>'} "
+                      f"{limiting_defl:.1f} ({'satisfied' if ok_defl else 'exceeded'}); total deflection limited to L/250")
     checks.append(CheckResult("deflection", GROUPS[6], "Deflection (short span lx)",
                               PASS if ok_defl else FAIL, result=f"{actual_defl:.1f} vs {limiting_defl:.1f}",
                               utilisation=actual_defl / limiting_defl, working=defl_lines, target="slab.h",

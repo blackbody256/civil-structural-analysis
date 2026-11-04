@@ -56,7 +56,7 @@ def test_hand_calculated_simply_supported_beam(beam):
     z = 452 / 2 * (1 + math.sqrt(1 - 3.53 * s["K"]))
     assert s["z"] == pytest.approx(z, rel=1e-6)
     assert s["As_req"] == pytest.approx(d["MEd_sag"] * 1e6 / (500 / 1.15 * z), rel=1e-6)
-    assert d["links"]["near"] == 325                                         # ρw,min and 0.75d govern
+    assert d["links"]["near"] == 300                                         # widest spacing in the Asw/s table
     assert report["summary"]["verdict"] == "pass"
 
 
@@ -212,7 +212,7 @@ def test_direct_actions(beam):
     report = check_beam(beam)
     assert report["derived"]["MEd_sag"] == pytest.approx(150)
     assert by_id(report)["bending_hog"]["status"] == "na"
-    assert any("310" in w for w in by_id(report)["deflection"]["working"])
+    assert any("K3 = As,prov/As,req" in w for w in by_id(report)["deflection"]["working"])
     assert report["plots"]["analysis"] is None
 
 
@@ -295,3 +295,55 @@ def test_analysis_does_not_need_valid_design_inputs():
     res_check = client.post("/api/beam/check", json=bad_design)
     assert res_check.status_code == 400
     assert "reinforcement.bottom_n" in res_check.get_json()["errors"]
+
+
+# ---------------------------------------------------------------- the client's tables (links, deflection, bt)
+
+def test_links_come_from_the_asw_s_table():
+    # the client's case: H10, two legs, Asw/s = 0.201 needed: the widest spacing, 300 mm with 0.523, is provided
+    assert tables.link_from_table(10, 2, 0.201, 411) == (300, 0.523)
+    assert tables.link_from_table(10, 2, 0.80, 411) == (175, 0.897)       # the widest spacing with ≥ 0.80
+    assert tables.link_from_table(10, 2, 0.60, 260) == (250, 0.628)       # never wider than 0.75d
+    assert tables.link_from_table(8, 4, 1.0, 400)[0] == 200                # four legs: twice the two-leg values
+    assert tables.link_from_table(10, 2, 2.0, 411) is None                 # more than H10 @ 85 can give
+
+
+def test_beam_links_are_a_tabulated_spacing(beam):
+    report = check_beam(beam)
+    links = by_id(report)["links"]
+    assert report["derived"]["links"]["near"] in tables.ASW_S_SPACINGS
+    assert any("Table of Asw/s for H8 links, 2 legs" in w for w in links["working"])
+    beam["actions"] = {"mode": "direct", "M_sag": 150, "M_hog": 0, "VEd": 700}         # Asw/s 1.25 > 1.183 (H8 @ 85)
+    beam["section"] = {"shape": "rectangular", "b": 300, "h": 700}
+    failing = by_id(check_beam(beam))["links"]
+    assert failing["status"] == "fail" and "larger link diameter" in failing["note"]
+
+
+def test_k1_k2_k3_and_the_span_depth_equation():
+    assert [tables.K1_FACTORS[k] for k in ("cantilever", "flat", "simple", "end", "interior")] == [0.4, 1.2, 1.0, 1.3, 1.5]
+    assert [tables.k2_flange(r) for r in (1.0, 1.5, 2.0, 2.5, 3.0, 4.0)] == pytest.approx([1.0, 0.95, 0.9, 0.85, 0.8, 0.8])
+    assert flexure.k3_factor(800, 400)[0] == 1.5 and flexure.k3_factor(500, 400)[0] == pytest.approx(1.25)
+    fck, rho = 30.0, 0.004                                                 # ρ ≤ ρ0 = 0.548 %
+    r0, rf = 0.001 * math.sqrt(fck), math.sqrt(fck)
+    bracket = 11 + 1.5 * rf * r0 / rho + 3.2 * rf * (r0 / rho - 1) ** 1.5
+    limit, b, _ = flexure.span_depth(fck, rho, 0.0, 1.3, 0.95, 1.2, "continuous end span", 1.5)
+    assert b == pytest.approx(bracket) and limit == pytest.approx(1.3 * 0.95 * 1.2 * bracket)
+    rho, rho_c = 0.008, 0.001                                              # ρ > ρ0
+    bracket = 11 + 1.5 * rf * r0 / (rho - rho_c) + rf / 12 * math.sqrt(rho_c / r0)
+    assert flexure.span_depth(fck, rho, rho_c, 1.0, 1.0, 1.0, "simply supported")[1] == pytest.approx(bracket)
+
+
+def test_beam_deflection_uses_k1_k2_k3(beam):
+    working = by_id(check_beam(beam))["deflection"]["working"]
+    assert any("K1 = 1.0 (simply supported); K2 = 1.00 (not flanged)" in w for w in working)
+    assert any("K3 = As,prov/As,req" in w for w in working) and not any("F3" in w for w in working)
+
+
+def test_minimum_top_steel_uses_the_web_width():
+    data = copy.deepcopy(CLIENT)
+    data["section"] = {"shape": "flanged", "flange": "T", "b": 200, "h": 600, "hf": 150, "beff_method": "enter", "beff": 1800}
+    report = check_beam(data)
+    for tag in ("bottom", "top"):
+        check = by_id(report).get(f"as_min_{tag}")
+        if check:
+            assert "bt = bw = 200 mm" in check["working"][0]

@@ -267,7 +267,7 @@ def analyse(length, supports, loads, E=33e6, inertia=0.003):
     """
     L = float(length)
     if not supports:
-        raise AnalysisError("Add at least one support.")
+        raise AnalysisError("There are no supports: add at least one (Pin, Roller or Fixed), or pick a support layout.")
     sups = {}
     for sp in supports:
         x = _key(sp["x"])
@@ -339,7 +339,8 @@ def analyse(length, supports, loads, E=33e6, inertia=0.003):
     restrained = a.get_restrained_dofs()
     free = [d for d in range(a.total_dofs) if d not in restrained]
     if free and np.linalg.matrix_rank(a.K_global[np.ix_(free, free)]) < len(free):
-        raise AnalysisError("The beam is unstable with these supports: add a support or make one end fixed.")
+        raise AnalysisError("The member is unstable with these supports (it can move or turn freely): add a support, "
+                            "or make one end fixed.")
     a.apply_boundary_conditions_and_solve()
     a.calculate_member_end_forces()
     return _results(a, L, model_x, sups, segments, E, inertia)

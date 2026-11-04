@@ -171,7 +171,7 @@ def test_unstable_frame_raises_error():
     ]
     loads = [{"node": "B", "fx": 10.0, "fy": 0.0, "mz": 0.0}]
 
-    with pytest.raises(ValueError, match="The frame is unstable: check the supports"):
+    with pytest.raises(ValueError, match="The frame is unstable"):
         solve(nodes, members, supports, loads)
 
 
@@ -181,7 +181,7 @@ def test_invalid_topology_errors():
     supports = [{"node": "A", "dx": True, "dy": True, "rz": True}]
 
     # Zero length member
-    with pytest.raises(ValueError, match="zero length"):
+    with pytest.raises(ValueError, match="has no length"):
         solve(
             [{"id": "A", "x": 0.0, "y": 0.0}, {"id": "B", "x": 0.0, "y": 0.0}],
             [{"id": "E1", "node1": "A", "node2": "B", "E": 2e8, "A": 0.01, "I": 1e-4}],
@@ -190,7 +190,7 @@ def test_invalid_topology_errors():
         )
 
     # Unknown node
-    with pytest.raises(ValueError, match="references unknown node"):
+    with pytest.raises(ValueError, match="which is not in the node table"):
         solve(
             nodes,
             [{"id": "E1", "node1": "A", "node2": "C", "E": 2e8, "A": 0.01, "I": 1e-4}],
@@ -199,7 +199,7 @@ def test_invalid_topology_errors():
         )
 
     # Connect node to itself
-    with pytest.raises(ValueError, match="connects node 'A' to itself"):
+    with pytest.raises(ValueError, match="starts and ends at node A"):
         solve(
             nodes,
             [{"id": "E1", "node1": "A", "node2": "A", "E": 2e8, "A": 0.01, "I": 1e-4}],

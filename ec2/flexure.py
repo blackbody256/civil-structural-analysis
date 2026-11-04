@@ -104,3 +104,27 @@ def vrd_c(fck, d, rho_l):
     vmin = 0.035 * (k ** 1.5) * math.sqrt(fck)
     return max(v, vmin)
 
+
+
+def span_depth(fck, rho, rho_c, k1, k2, k3, kind_name, beff_b=None):
+    """Limiting span/effective depth L/d ≤ K1·K2·K3·[...] (client's sheet F, EC2 Expressions 7.16a and 7.16b),
+    with the working. K1 from the structural system, K2 from beff/b, K3 = As,prov/As,req ≤ 1.5."""
+    rho0 = 0.001 * math.sqrt(fck)
+    bracket = basic_span_depth(1.0, fck, rho, rho_c)
+    limit = k1 * k2 * k3 * bracket
+    lines = [f"ρ0 = 0.001·√fck = 0.001 × √{fck:g} = {100 * rho0:.3f} %; ρ = {100 * rho:.3f} %; ρ′ = {100 * rho_c:.3f} %",
+             (f"ρ ≤ ρ0: L/d ≤ K1·K2·K3·[11 + 1.5·√fck·ρ0/ρ + 3.2·√fck·(ρ0/ρ − 1)^1.5] = K1·K2·K3 × {bracket:.1f}"
+              if rho <= rho0 else
+              f"ρ > ρ0: L/d ≤ K1·K2·K3·[11 + 1.5·√fck·ρ0/(ρ − ρ′) + 0.08333·√fck·(ρ′/ρ0)^½] = K1·K2·K3 × {bracket:.1f}"),
+             f"K1 = {k1:.1f} ({kind_name}); K2 = {k2:.2f}"
+             + (f" (beff/b = {beff_b:.2f})" if beff_b is not None else " (not flanged)") + f"; K3 = {k3:.2f}",
+             f"Limiting L/d = {k1:.1f} × {k2:.2f} × {k3:.2f} × {bracket:.1f} = {limit:.1f}"]
+    return limit, bracket, lines
+
+
+def k3_factor(as_prov, as_req):
+    """K3 = As,prov/As,req ≤ 1.5 (reinforcement service stress factor), with its working."""
+    ratio = as_prov / as_req if as_req > 0 else math.inf
+    k3 = min(ratio, 1.5)
+    return k3, (f"K3 = As,prov/As,req = {as_prov:.0f}/{as_req:.0f} = {ratio:.2f}"
+                + ("" if ratio <= 1.5 else ", limited to 1.5") + " (K3 ≤ 1.5)")

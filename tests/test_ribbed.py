@@ -105,3 +105,15 @@ def test_failing_slab_gives_valid_json(ex3):
     ex3["reinforcement"].update(top_dia="none", mesh="none")
     text = app.test_client().post("/api/slab/check", json=ex3).get_data(as_text=True)
     assert json.loads(text, parse_constant=reject)["summary"]["verdict"] == "fail"
+
+
+def test_rib_links_and_deflection_use_the_client_tables(ex3):
+    ex3["actions"]["qk"] = 10.0
+    ex3["reinforcement"].update(bottom_dia=16, top_dia=16, top_n=2, link_dia=6, legs=2)
+    report = check_ribbed(ex3)
+    shear = by_id(report)["shear"]
+    if shear["status"] == "pass":
+        spacing = int(shear["result"].split("@ ")[1].split(" ")[0])
+        assert spacing in tables.ASW_S_SPACINGS
+    deflection = " ".join(by_id(report)["deflection"]["working"])
+    assert "K1 = 1.3 (continuous end span)" in deflection and "beff/b = " in deflection and "K3 = As,prov/As,req" in deflection

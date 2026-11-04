@@ -302,7 +302,7 @@ def test_two_way_ly_lx_greater_than_2_validation_error():
     with pytest.raises(ValidationError) as exc:
         check_slab(data)
     assert "panel.ly" in exc.value.errors
-    assert "one-way" in exc.value.errors["panel.ly"]
+    assert "One-way solid slab" in exc.value.errors["panel.ly"]
 
 
 def test_two_way_discontinuous_edges_have_na_support_moments():
@@ -330,3 +330,27 @@ def test_two_way_discontinuous_edges_have_na_support_moments():
     assert checks_by_id["bending_bottom_x"].status in ("pass", "fail")
     assert checks_by_id["bending_bottom_y"].status in ("pass", "fail")
 
+
+
+def test_slab_deflection_uses_k1_and_k3():
+    from conftest import by_id
+    from ec2.slab import check_slab
+    data = {
+        "slab": {"type": "one_way", "h": 200},
+        "materials": {"concrete": "C30/37", "fyk": 500, "ductility": "B", "dg": 20},
+        "span": {"l": 10.4, "supports": [{"x": 0, "type": "pin"}, {"x": 5.2, "type": "roller"}, {"x": 10.4, "type": "roller"}]},
+        "reinforcement": {"bottom_x_dia": 12, "bottom_x_s": 175, "bottom_y_dia": 10, "bottom_y_s": 250,
+                          "top_x_dia": 12, "top_x_s": 150, "top_y_dia": "none", "top_y_s": 200, "cover": 30, "delta_c_dev": 10},
+        "actions": {"mode": "analysis", "gk": 2, "qk": 3, "self_weight": True, "category": "B", "loads": [],
+                    "pattern": True, "partitions": True},
+        "durability": {"exposure": "XC1", "cement_group": "All", "fire_period": "R90"},
+    }
+    checks = by_id(check_slab(data))
+    first = " ".join(checks["deflection_span_1"]["working"])
+    assert "K1 = 1.3 (continuous end span); K2 = 1.00 (not flanged)" in first and "K3 = As,prov/As,req" in first
+    assert "F3" not in first and "L/250" in first
+    two = dict(data, slab={"type": "two_way", "h": 190},
+               panel={"lx": 4.8, "ly": 6.0, "edges": {"top": "continuous", "bottom": "discontinuous",
+                                                      "left": "continuous", "right": "discontinuous"}})
+    panel = " ".join(by_id(check_slab(two))["deflection"]["working"])
+    assert "K1 = 1.3 (continuous end span)" in panel and "K3 = " in panel

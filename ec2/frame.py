@@ -83,12 +83,12 @@ def solve(nodes, members, supports, loads):
     for i, n in enumerate(nodes):
         nid = str(n["id"])
         if nid in node_map:
-            raise ValueError(f"Duplicate node id '{nid}'")
+            raise ValueError(f"Two nodes are called {nid}: give each node its own ID.")
         node_map[nid] = i
 
     n_nodes = len(nodes)
     if n_nodes == 0:
-        raise ValueError("The frame has no nodes")
+        raise ValueError("The frame has no nodes: add the nodes of the frame first.")
 
     total_dof = n_nodes * 3
     K = np.zeros((total_dof, total_dof), dtype=float)
@@ -99,15 +99,15 @@ def solve(nodes, members, supports, loads):
     for m in members:
         mid = str(m["id"])
         if mid in member_map:
-            raise ValueError(f"Duplicate member id '{mid}'")
+            raise ValueError(f"Two members are called {mid}: give each member its own ID.")
         n1_id = str(m["node1"])
         n2_id = str(m["node2"])
         if n1_id not in node_map:
-            raise ValueError(f"Member '{mid}' references unknown node '{n1_id}'")
+            raise ValueError(f"Member {mid} starts at node {n1_id}, which is not in the node table: add node {n1_id}, or choose another node for {mid}.")
         if n2_id not in node_map:
-            raise ValueError(f"Member '{mid}' references unknown node '{n2_id}'")
+            raise ValueError(f"Member {mid} ends at node {n2_id}, which is not in the node table: add node {n2_id}, or choose another node for {mid}.")
         if n1_id == n2_id:
-            raise ValueError(f"Member '{mid}' connects node '{n1_id}' to itself")
+            raise ValueError(f"Member {mid} starts and ends at node {n1_id}: choose two different nodes.")
 
         i1 = node_map[n1_id]
         i2 = node_map[n2_id]
@@ -120,7 +120,7 @@ def solve(nodes, members, supports, loads):
         dy = y2 - y1
         L = math.sqrt(dx * dx + dy * dy)
         if L < 1e-9:
-            raise ValueError(f"Member '{mid}' has zero length")
+            raise ValueError(f"Member {mid} has no length because its two nodes are at the same place: move one of the nodes.")
 
         E = float(m["E"])
         A = float(m["A"])
@@ -172,7 +172,7 @@ def solve(nodes, members, supports, loads):
         if "node" in ld:
             nid = str(ld["node"])
             if nid not in node_map:
-                raise ValueError(f"Load references unknown node '{nid}'")
+                raise ValueError(f"A load is on node {nid}, which is not in the node table: choose another node, or add {nid}.")
             ni = node_map[nid]
             F[ni * 3] += float(ld.get("fx", 0.0))
             F[ni * 3 + 1] += float(ld.get("fy", 0.0))
@@ -187,7 +187,7 @@ def solve(nodes, members, supports, loads):
         if target is not None:
             target = str(target)
             if target not in member_map:
-                raise ValueError(f"Load references unknown member '{target}'")
+                raise ValueError(f"A load is on member {target}, which is not in the member table: choose another member, or add {target}.")
             ed = member_map[target]
             L, c, s, dofs, T = ed["L"], ed["c"], ed["s"], ed["dofs"], ed["T"]
             lType = ld.get("load_type", "udl")
@@ -235,7 +235,7 @@ def solve(nodes, members, supports, loads):
             elif lType == "point":
                 a = float(ld["a"]) if "a" in ld else L / 2.0
                 if a < -1e-6 or a > L + 1e-6:
-                    raise ValueError(f"Point load position a={a} is outside member length {L}")
+                    raise ValueError(f"A point load on {target} is at a = {a:g} m, but {target} is only {L:.2f} m long: enter a between 0 and {L:.2f} m.")
                 a = max(0.0, min(L, a))
                 b = L - a
 
@@ -255,7 +255,7 @@ def solve(nodes, members, supports, loads):
                 # Downward gravity point load: P > 0 downwards
                 a = float(ld["a"]) if "a" in ld else L / 2.0
                 if a < -1e-6 or a > L + 1e-6:
-                    raise ValueError(f"Point load position a={a} is outside member length {L}")
+                    raise ValueError(f"A point load on {target} is at a = {a:g} m, but {target} is only {L:.2f} m long: enter a between 0 and {L:.2f} m.")
                 a = max(0.0, min(L, a))
                 b = L - a
 
@@ -279,7 +279,7 @@ def solve(nodes, members, supports, loads):
                 elem_loads[target].append({"type": "point_gravity", "P": P, "a": a, "pa": pa, "pt": pt})
 
             else:
-                raise ValueError(f"Unknown load type '{lType}'")
+                raise ValueError(f"A load has an unknown type '{lType}': choose Uniform load, Point load or Node load.")
 
             fg = T.T @ feq
             for ii, di in enumerate(dofs):
@@ -290,7 +290,7 @@ def solve(nodes, members, supports, loads):
     for sup in supports:
         nid = str(sup["node"])
         if nid not in node_map:
-            raise ValueError(f"Support references unknown node '{nid}'")
+            raise ValueError(f"A support is at node {nid}, which is not in the node table: choose another node, or add {nid}.")
         ni = node_map[nid]
         stype = sup.get("type")
         dx = sup.get("dx") if "dx" in sup else (stype in ("fixed", "pin"))
@@ -311,12 +311,12 @@ def solve(nodes, members, supports, loads):
         Ff = F[free_dofs]
         try:
             if np.linalg.matrix_rank(Kff) < len(free_dofs):
-                raise ValueError("The frame is unstable: check the supports")
+                raise ValueError("The frame is unstable: it can sway, slide or turn without resisting. Add supports or make them stiffer, for example fix the column bases instead of pinning them.")
             Uf = np.linalg.solve(Kff, Ff)
             for idx, d in enumerate(free_dofs):
                 U[d] = Uf[idx]
         except (np.linalg.LinAlgError, ValueError) as err:
-            raise ValueError("The frame is unstable: check the supports") from err
+            raise ValueError("The frame is unstable: it can sway, slide or turn without resisting. Add supports or make them stiffer, for example fix the column bases instead of pinning them.") from err
 
     # Reactions: R = K*U - F
     R_all = K @ U - F
@@ -486,7 +486,7 @@ def analyse_frame(data):
     # Nodes
     raw_nodes = r.raw(f"{prefix}nodes")
     if not isinstance(raw_nodes, list) or len(raw_nodes) == 0:
-        r.errors[f"{prefix}nodes"] = "At least one node is required."
+        r.errors[f"{prefix}nodes"] = "Add the nodes of the frame: at least the two ends of a member."
         nodes = []
     else:
         nodes = []
@@ -494,7 +494,7 @@ def analyse_frame(data):
             p = f"{prefix}nodes.{i}"
             nid = r.text(f"{p}.id")
             if not nid:
-                r.errors[f"{p}.id"] = "Required."
+                r.errors[f"{p}.id"] = "Give this node an ID, for example N1."
             x = r.number(f"{p}.x", lo=-1000.0, hi=1000.0)
             y = r.number(f"{p}.y", lo=-1000.0, hi=1000.0)
             nodes.append({"id": nid, "x": x, "y": y})
@@ -502,7 +502,7 @@ def analyse_frame(data):
     # Members
     raw_members = r.raw(f"{prefix}members")
     if not isinstance(raw_members, list) or len(raw_members) == 0:
-        r.errors[f"{prefix}members"] = "At least one member is required."
+        r.errors[f"{prefix}members"] = "Add at least one member: a column or beam between two nodes."
         members = []
     else:
         members = []
@@ -510,13 +510,13 @@ def analyse_frame(data):
             p = f"{prefix}members.{i}"
             mid = r.text(f"{p}.id")
             if not mid:
-                r.errors[f"{p}.id"] = "Required."
+                r.errors[f"{p}.id"] = "Give this member an ID, for example C1."
             n1 = r.text(f"{p}.node1")
             if not n1:
-                r.errors[f"{p}.node1"] = "Required."
+                r.errors[f"{p}.node1"] = "Choose the node this member starts at."
             n2 = r.text(f"{p}.node2")
             if not n2:
-                r.errors[f"{p}.node2"] = "Required."
+                r.errors[f"{p}.node2"] = "Choose the node this member ends at."
             b = r.number(f"{p}.b", lo=50, hi=5000, default=300)
             h = r.number(f"{p}.h", lo=50, hi=5000, default=300)
             members.append({"id": mid, "node1": n1, "node2": n2, "b": b, "h": h})
@@ -529,7 +529,7 @@ def analyse_frame(data):
             p = f"{prefix}supports.{i}"
             nid = r.text(f"{p}.node")
             if not nid:
-                r.errors[f"{p}.node"] = "Required."
+                r.errors[f"{p}.node"] = "Choose the node this support is at."
             stype = r.choice(f"{p}.type", ("fixed", "pin", "roller"), default=None)
             dx = s.get("dx") if isinstance(s, dict) and "dx" in s else (stype in ("fixed", "pin"))
             dy = s.get("dy") if isinstance(s, dict) and "dy" in s else (stype in ("fixed", "pin", "roller"))
@@ -551,7 +551,7 @@ def analyse_frame(data):
             if ltype == "node":
                 nid = r.text(f"{p}.node")
                 if not nid:
-                    r.errors[f"{p}.node"] = "Required."
+                    r.errors[f"{p}.node"] = "Choose the node this load acts on."
                 fx = r.number(f"{p}.fx", lo=-1e6, hi=1e6, default=0.0)
                 fy = r.number(f"{p}.fy", lo=-1e6, hi=1e6, default=0.0)
                 mz = r.number(f"{p}.mz", lo=-1e6, hi=1e6, default=0.0)
@@ -559,13 +559,13 @@ def analyse_frame(data):
             elif ltype == "udl":
                 mid = r.text(f"{p}.member") or r.text(f"{p}.element")
                 if not mid:
-                    r.errors[f"{p}.member"] = "Required."
+                    r.errors[f"{p}.member"] = "Choose the member this load acts on."
                 w = r.number(f"{p}.w", lo=-1e6, hi=1e6, default=0.0)
                 loads.append({"type": "udl", "member": mid, "w": w, "case": case})
             elif ltype == "point":
                 mid = r.text(f"{p}.member") or r.text(f"{p}.element")
                 if not mid:
-                    r.errors[f"{p}.member"] = "Required."
+                    r.errors[f"{p}.member"] = "Choose the member this load acts on."
                 P = r.number(f"{p}.P", lo=-1e6, hi=1e6, default=0.0)
                 a = r.number(f"{p}.a", lo=0.0, hi=1000.0, optional=True)
                 item = {"type": "point", "member": mid, "P": P, "case": case}
@@ -713,7 +713,7 @@ def column_actions(result, member_id, members, supports):
     m_res = next((m for m in result.get("members", []) if m["id"] == str(member_id)), None)
     m_def = next((m for m in members if str(m["id"]) == str(member_id)), None)
     if not m_res or not m_def:
-        raise ValueError(f"There is no member '{member_id}' in the frame.")
+        raise ValueError(f"There is no member {member_id} in the frame: choose one of the vertical members as the column to design.")
 
     # Get node coordinates
     if "nodes" in result:

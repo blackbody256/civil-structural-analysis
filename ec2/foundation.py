@@ -129,13 +129,17 @@ def parse_foundation(data):
 
     if not r.errors:
         if cx >= L * 1000:
-            r.errors["column.cx"] = "The column must be smaller than the base length L."
+            r.errors["column.cx"] = (f"The column (cx = {cx:g} mm) is not smaller than the base (L = {L * 1000:g} mm): "
+                                     "make the base length L larger, or the column smaller.")
         if cy >= B * 1000:
-            r.errors["column.cy"] = "The column must be smaller than the base width B."
+            r.errors["column.cy"] = (f"The column (cy = {cy:g} mm) is not smaller than the base (B = {B * 1000:g} mm): "
+                                     "make the base width B larger, or the column smaller.")
         if Gk + Qk <= 0:
-            r.errors["actions.Gk"] = "Enter the column load."
+            r.errors["actions.Gk"] = "The pad carries no load: enter the column's permanent load Gk (and the variable load Qk)."
         if cover + x_dia + y_dia >= h:
-            r.errors["reinforcement.cover"] = "The cover and the two layers of bars do not fit in the depth."
+            r.errors["reinforcement.cover"] = (f"The cover ({cover:g} mm) and the two layers of bars ({x_dia:g} + {y_dia:g} mm) "
+                                               f"take up the whole depth h = {h:g} mm: reduce the cover or the bar sizes, "
+                                               "or make the base deeper.")
     if r.errors:
         raise ValidationError(r.errors)
     return FoundationInput(

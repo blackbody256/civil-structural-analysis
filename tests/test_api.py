@@ -238,7 +238,7 @@ def _portal(example, **actions):
 
 @pytest.mark.parametrize("case, message", [
     ("beam", "not vertical"),
-    ("unknown", "no member 'XX'"),
+    ("unknown", "no member XX"),
     ("tension", "in tension"),
     ("unloaded", "no axial load"),
 ])
