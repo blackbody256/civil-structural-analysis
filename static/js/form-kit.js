@@ -52,7 +52,8 @@ export function formErrors(form, message) {
       first ??= input;
     }
     const n = Object.keys(errors || {}).length;
-    message.textContent = n ? `${n} input${n > 1 ? "s" : ""} to fix` : "";
+    message.textContent = !n ? "" : n === 1 ? "1 input needs changing: it is marked in red, with what to do."
+      : `${n} inputs need changing: each is marked in red, with what to do.`;
     if (first) form.dispatchEvent(new CustomEvent("reveal", { detail: first }));
     first?.scrollIntoView({ behavior: "smooth", block: "center" });
   }

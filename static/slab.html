@@ -67,14 +67,14 @@
             <div class="s-body">
               <div class="fields">
                 <div class="field solid-only"><label for="sl-h">Slab thickness h</label>
-                  <div class="control"><input id="sl-h" name="slab.h" type="number" step="5" min="50" max="1000" required><span class="unit">mm</span></div></div>
+                  <div class="control"><input id="sl-h" name="slab.h" type="number" step="5" min="50" max="1000" value="175" required><span class="unit">mm</span></div></div>
                 <div class="field ribbed-only"><label for="rb-pan">Maxpan size</label>
                   <div class="control"><select id="rb-pan" name="slab.maxpan" data-options="maxpans"></select></div>
                   <span class="help" id="rb-pan-help">Clay blocks 300 × 300 mm, 8 per m²</span></div>
                 <div class="field ribbed-only"><label for="rb-bw">Rib width b<sub>w</sub></label>
-                  <div class="control"><input id="rb-bw" name="slab.bw" type="number" step="5" min="75" max="600"><span class="unit">mm</span></div></div>
+                  <div class="control"><input id="rb-bw" name="slab.bw" type="number" step="5" min="75" max="600" value="150"><span class="unit">mm</span></div></div>
                 <div class="field ribbed-only"><label for="rb-hf">Topping thickness h<sub>f</sub></label>
-                  <div class="control"><input id="rb-hf" name="slab.hf" type="number" step="5" min="40" max="200"><span class="unit">mm</span></div></div>
+                  <div class="control"><input id="rb-hf" name="slab.hf" type="number" step="5" min="40" max="200" value="50"><span class="unit">mm</span></div></div>
                 <div class="field ribbed-only" style="grid-column: 1 / -1"><span class="label">Rib geometry and own weight</span>
                   <div class="computed" id="rb-geometry">—</div></div>
               </div>
@@ -325,11 +325,11 @@
             <div class="s-body">
               <div class="fields ribbed-only">
                 <div class="field"><label for="rb-bn">Bottom bars per rib</label>
-                  <div class="control"><input id="rb-bn" name="reinforcement.bottom_n" type="number" step="1" min="1" max="6" aria-label="Number of bottom bars per rib">
+                  <div class="control"><input id="rb-bn" name="reinforcement.bottom_n" type="number" step="1" min="1" max="6" value="2" aria-label="Number of bottom bars per rib">
                     <select name="reinforcement.bottom_dia" data-options="bars" aria-label="Bottom bar size"></select></div>
                   <span class="help" id="rb-bot-help">Sagging steel in each rib</span></div>
                 <div class="field"><label for="rb-tn">Top bars per rib</label>
-                  <div class="control"><input id="rb-tn" name="reinforcement.top_n" type="number" step="1" min="1" max="6" aria-label="Number of top bars per rib">
+                  <div class="control"><input id="rb-tn" name="reinforcement.top_n" type="number" step="1" min="1" max="6" value="2" aria-label="Number of top bars per rib">
                     <select name="reinforcement.top_dia" data-options="bars-or-none" aria-label="Top bar size"></select></div>
                   <span class="help" id="rb-top-help">Over the supports (hogging)</span></div>
                 <div class="field"><label for="rb-link">Links in the ribs</label>

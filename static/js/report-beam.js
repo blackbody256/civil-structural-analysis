@@ -29,7 +29,7 @@ export function figures(state) {
   const sectionBox = el("div", { id: "fig-section" });
   const links = result.derived.links;
   queueMicrotask(() => drawBeamSection(sectionBox, result.plots.section, {
-    status: targetStatus(result.checks), linkLabel: links ? `H${links.dia} @ ${links.near}` : undefined,
+    status: targetStatus(result.checks), linkLabel: links?.near ? `H${links.dia} @ ${links.near}` : undefined,
   }));
   const top = el("div", { class: "figures" },
     figure("Cross-section", sectionBox, "To scale. Parts outlined in red failed a check; point at a row below to find its part."),

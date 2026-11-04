@@ -4,6 +4,8 @@ Each array notes its chapter, table and printed page so it can be checked agains
 the PDF. Categorical tables (Ch 2 Table 8, Ch 5 Table 2) live in durability.py and
 fire.py.
 """
+import math
+
 import numpy as np
 
 # Ch 2, Table 4 (p.11): concrete properties.
@@ -310,3 +312,51 @@ PRESUMED_BEARING_BY_ID = {row["id"]: row for row in PRESUMED_BEARING}
 # EC2 Table 6.1: k for the moment transferred to a rectangular column by unbalanced bending, by c1/c2
 PUNCHING_K_RATIO = np.array([0.5, 1.0, 2.0, 3.0])
 PUNCHING_K = np.array([0.45, 0.60, 0.70, 0.80])
+
+
+# ---------------------------------------------------------------- shear links: Asw/s (client's table I)
+
+# Asw/s in mm²/mm of vertical shear links with two legs, by link diameter (mm) and spacing (mm). A link is
+# chosen from this table: the widest tabulated spacing whose Asw/s is at least the value required, so 300 mm
+# is the widest spacing ever provided.
+ASW_S_SPACINGS = (85, 90, 100, 125, 150, 175, 200, 225, 250, 275, 300)
+ASW_S_TABLE = {
+    8: (1.183, 1.118, 1.006, 0.805, 0.671, 0.575, 0.503, 0.447, 0.402, 0.366, 0.335),
+    10: (1.847, 1.744, 1.57, 1.256, 1.047, 0.897, 0.785, 0.698, 0.628, 0.571, 0.523),
+    12: (2.659, 2.511, 2.26, 1.808, 1.507, 1.291, 1.13, 1.004, 0.904, 0.822, 0.753),
+    16: (4.729, 4.467, 4.02, 3.216, 2.68, 2.297, 2.01, 1.787, 1.608, 1.462, 1.34),
+}
+
+
+def asw_s_row(dia, legs=2):
+    """Asw/s at each tabulated spacing for links of `dia` with `legs` legs: the table's two-leg values, scaled
+    by legs/2 (sizes not in the table are worked out the same way, 2·π·φ²/4/s)."""
+    two = ASW_S_TABLE.get(dia) or tuple(round(2 * math.pi * dia ** 2 / 4 / s, 3) for s in ASW_S_SPACINGS)
+    return tuple(v * legs / 2 for v in two)
+
+
+def link_from_table(dia, legs, need, s_max):
+    """The widest tabulated spacing, no wider than s_max, whose Asw/s ≥ need: (spacing, Asw/s), or None when
+    even the closest tabulated spacing is not enough (or every spacing is wider than s_max)."""
+    for s, v in sorted(zip(ASW_S_SPACINGS, asw_s_row(dia, legs)), reverse=True):
+        if s <= s_max + 1e-9 and v >= need - 1e-9:
+            return s, v
+    return None
+
+
+# ---------------------------------------------------------------- deflection: client's tables F (K1, K2)
+
+# Structural system modification factor K1
+K1_FACTORS = {"cantilever": 0.4, "flat": 1.2, "simple": 1.0, "end": 1.3, "interior": 1.5}
+K1_NAMES = {"cantilever": "cantilever", "flat": "flat slab", "simple": "simply supported",
+            "end": "continuous end span", "interior": "continuous interior span"}
+# Flanged beam modification factor K2 by beff/b (between the rows by straight-line interpolation)
+K2_TABLE = ((1.0, 1.00), (1.5, 0.95), (2.0, 0.90), (2.5, 0.85), (3.0, 0.80))
+
+
+def k2_flange(ratio):
+    if ratio <= K2_TABLE[0][0]:
+        return K2_TABLE[0][1]
+    if ratio >= K2_TABLE[-1][0]:
+        return K2_TABLE[-1][1]
+    return float(np.interp(ratio, [r for r, _ in K2_TABLE], [k for _, k in K2_TABLE]))

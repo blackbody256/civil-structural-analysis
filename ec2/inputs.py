@@ -30,24 +30,26 @@ class Reader:
         raw = self.raw(path)
         if raw is None or raw == "":
             if default is None and not optional:
-                self.errors[path] = "Required."
+                self.errors[path] = "This value is needed: enter a number here."
             return default
         try:
             value = float(raw)
         except (TypeError, ValueError):
-            self.errors[path] = "Must be a number."
+            self.errors[path] = "Enter a number, using digits and a decimal point (for example 4.5)."
             return default
         if not math.isfinite(value):
-            self.errors[path] = "Must be a finite number."
+            self.errors[path] = "Enter an ordinary number (for example 4.5)."
             return default
         if integer:
             if value != int(value):
-                self.errors[path] = "Must be a whole number."
+                self.errors[path] = "Enter a whole number, without decimals (for example 3)."
             value = int(value)
+        allowed = (f"between {lo:g} and {hi:g}" if lo is not None and hi is not None
+                   else f"{lo:g} or more" if lo is not None else f"{hi:g} or less" if hi is not None else "")
         if lo is not None and value < lo:
-            self.errors[path] = f"Must be at least {lo:g}."
+            self.errors[path] = f"{value:g} is too small: enter a value {allowed}."
         elif hi is not None and value > hi:
-            self.errors[path] = f"Must be at most {hi:g}."
+            self.errors[path] = f"{value:g} is too large: enter a value {allowed}."
         return value
 
     def choice(self, path, options, default=None):
@@ -55,7 +57,7 @@ class Reader:
         if (raw is None or raw == "") and default is not None:
             return default
         if raw not in options:
-            self.errors[path] = "Choose one of: " + ", ".join(str(o) for o in options) + "."
+            self.errors[path] = "Pick one of the options in the list (" + ", ".join(str(o) for o in options) + ")."
             return default if default is not None else next(iter(options))
         return raw
 

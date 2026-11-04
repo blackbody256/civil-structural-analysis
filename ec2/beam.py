@@ -40,7 +40,6 @@ GROUPS = (
     "Detailing",
 )
 SPAN_KINDS = {"simple": "simply supported", "end": "end span", "interior": "interior span", "cantilever": "cantilever"}
-DEFLECTION_K = {"simple": 1.0, "end": 1.3, "interior": 1.5, "cantilever": 0.4}
 # distance between points of zero moment as a share of the span (effective flange width)
 L0_FACTOR = {"simple": 1.0, "end": 0.85, "interior": 0.70, "cantilever": 1.0}
 CONCRETE_DENSITY = 25.0  # kN/m³, reinforced concrete
@@ -177,7 +176,7 @@ def _read_loads(r, length):
             item["x1"] = r.number(f"{p}.x1", lo=0, hi=hi)
             item["x2"] = r.number(f"{p}.x2", lo=0, hi=hi)
             if len(r.errors) == before and item["x2"] <= item["x1"]:
-                r.errors[f"{p}.x2"] = "Must be beyond the start of the load."
+                r.errors[f"{p}.x2"] = "The load must end after it starts: make the end x2 larger than the start x1."
             zero = not any(item.get(k) for k in ("w", "w1", "w2"))
         if len(r.errors) == before and not zero:
             loads.append(item)
@@ -194,14 +193,14 @@ def _read_slab(r):
         slab["ly"] = r.number("actions.slab.ly", lo=0.5, hi=50)
         slab["sides"] = r.number("actions.slab.sides", lo=1, hi=2, integer=True, default=1)
         if slab["lx"] and slab["ly"] and slab["lx"] > slab["ly"]:
-            r.errors["actions.slab.lx"] = "Lx is the shorter side of the slab panel."
+            r.errors["actions.slab.lx"] = "Lx is the shorter side of the slab panel: swap Lx and Ly so that Lx ≤ Ly."
     return slab
 
 
 def _read_segments(r, length):
     raw = r.raw("stiffness.segments")
     if not isinstance(raw, list) or not raw:
-        r.errors["stiffness.segments"] = "Enter the second moment of area along the beam."
+        r.errors["stiffness.segments"] = "Enter the second moment of area I along the beam, or choose I of the gross section."
         return []
     segments = []
     for i, _ in enumerate(raw):
@@ -217,7 +216,7 @@ def _read_segments(r, length):
                 break
             reach = max(reach, seg["x2"])
         if reach < length - 1e-6:
-            r.errors["stiffness.segments"] = f"The segments must cover the whole beam, from 0 to {length:g} m."
+            r.errors["stiffness.segments"] = f"The segments must cover the whole beam, from 0 to {length:g} m: edit them so they run end to end with no gaps."
     return segments
 
 
@@ -251,7 +250,8 @@ def parse_input(data):
     supports = []
     raw = r.raw("span.supports")
     if not isinstance(raw, list) or not raw:
-        r.errors["span.supports"] = "Add at least one support."
+        r.errors["span.supports"] = ("The beam has no supports: add at least one (Pin, Roller or Fixed) on the beam "
+                                     "model, or pick a support layout.")
     else:
         for i, _ in enumerate(raw):
             x = r.number(f"span.supports.{i}.x", lo=0, hi=length if length else None)
@@ -283,13 +283,13 @@ def parse_input(data):
         if r.flag("actions.slab.on"):
             slab = _read_slab(r)
         if not (gk or qk or self_weight or slab or loads) and not r.errors:
-            r.errors["actions.gk"] = "The beam carries no load: enter gk, qk or another load."
+            r.errors["actions.gk"] = "The beam carries no load: enter gk or qk, tick the self-weight, or place a load on the beam model."
     else:
         m_sag = r.number("actions.M_sag", lo=0, hi=1e6, default=0.0)
         m_hog = r.number("actions.M_hog", lo=0, hi=1e6, default=0.0)
         v_ed = r.number("actions.VEd", lo=0, hi=1e6, default=0.0)
         if not (m_sag or m_hog) and not r.errors:
-            r.errors["actions.M_sag"] = "Enter a sagging or a hogging moment."
+            r.errors["actions.M_sag"] = "There is nothing to design for: enter a sagging moment M+Ed, a hogging moment M−Ed, or both."
     partitions = r.flag("actions.partitions")
     kprime_limit = r.flag("actions.kprime_limit", default=True)
 
@@ -308,15 +308,16 @@ def parse_input(data):
 
     if not r.errors:
         if shape == "flanged" and hf >= h:
-            r.errors["section.hf"] = "The flange must be thinner than the overall depth."
+            r.errors["section.hf"] = "The flange is not thinner than the beam: make the flange thickness hf less than the overall depth h."
         if beff_input is not None and beff_input < b:
-            r.errors["section.beff"] = "The effective flange width cannot be less than the web width."
+            r.errors["section.beff"] = "The effective flange width is less than the web width: enter a beff of at least bw, or calculate it from the spans."
         room = b - 2 * (cover + link_dia)
         for face, bar in (("bottom", bottom), ("top", top)):
             per_layer = math.ceil(bar.n / bar.layers)
             if per_layer * bar.dia > room:
                 r.errors[f"reinforcement.{face}_n"] = (f"{per_layer} bars of {bar.dia} mm do not fit in one layer "
-                                                       f"({room:.0f} mm between the links).")
+                                                       f"({room:.0f} mm between the links): use fewer or smaller bars, "
+                                                       "two layers, or a wider beam.")
     if r.errors:
         raise ValidationError(r.errors)
 
@@ -885,27 +886,47 @@ def _shear_checks(inp, geo, act, res_sag, res_hog):
     need = v_ed * bw / (fywd * cot)                      # mm²/mm
     rho_min = flexure.rho_w_min(conc.fck, steel.fyk)
     least = rho_min * bw
+    req = max(need, least)
     s_max = 0.75 * d
-    s_calc = min(asw / max(need, least), s_max)
-    s_near = int(s_calc // 25 * 25)
-    s_far = int(min(asw / least, s_max) // 25 * 25)
-    v_rd_far = asw / s_far * z * fywd * 2.5 if s_far > 0 else 0.0
-    links = {"dia": inp.link_dia, "legs": inp.legs, "near": s_near, "far": s_far, "VRd_far": v_rd_far / 1e3,
-             "s_max": s_max}
-    status = INFO if s_near >= 75 else WARN if s_near >= 50 else FAIL
-    out.append(CheckResult(
-        "links", GROUPS[5], "Shear links (calculated)", status,
-        result=f"H{inp.link_dia} ({inp.legs} legs) @ {s_near} mm, {s_far} mm elsewhere",
-        value=s_near, unit="mm",
-        working=[f"Asw/s ≥ vEd·bw/(fywd·cot θ) = {v_ed:.2f} × {bw:g} / ({fywd:.1f} × {cot:.2f}) = {need:.3f} mm²/mm",
-                 f"Minimum Asw/s = ρw,min·bw = 0.08·√fck/fyk·bw = {rho_min * 1000:.3f}×10⁻³ × {bw:g} = {least:.3f} mm²/mm",
-                 f"Asw = {inp.legs} × π × {inp.link_dia}²/4 = {asw:.0f} mm²",
-                 f"s ≤ Asw/(Asw/s) = {asw / max(need, least):.0f} mm and s ≤ sl,max = 0.75·d = {s_max:.0f} mm",
-                 f"Provide H{inp.link_dia} links ({inp.legs} legs) at {s_near} mm where the shear is largest "
-                 f"(multiple of 25 mm)",
-                 f"Elsewhere minimum links at {s_far} mm, enough where VEd ≤ Asw/s·z·fywd·cot θ = {v_rd_far / 1e3:.0f} kN"],
-        note="" if status == INFO else "Links are very close; use more legs or a larger link diameter.",
-        target="links"))
+    # links from the table of Asw/s: the widest tabulated spacing (300 mm at most) that gives enough
+    near = tables.link_from_table(inp.link_dia, inp.legs, req, s_max)
+    far = tables.link_from_table(inp.link_dia, inp.legs, least, s_max)
+    row = tables.asw_s_row(inp.link_dia, inp.legs)
+    row_text = ", ".join(f"{v:.3f} @ {sp}" for sp, v in zip(tables.ASW_S_SPACINGS, row))
+    legs_note = "" if inp.legs == 2 else f" (the two-leg values × {inp.legs}/2)"
+    lines = [f"Asw/s ≥ vEd·bw/(fywd·cot θ) = {v_ed:.2f} × {bw:g} / ({fywd:.1f} × {cot:.2f}) = {need:.3f} mm²/mm",
+             f"Minimum Asw/s = ρw,min·bw = 0.08·√fck/fyk·bw = {rho_min * 1000:.3f}×10⁻³ × {bw:g} = {least:.3f} mm²/mm",
+             f"Required Asw/s = max({need:.3f}, {least:.3f}) = {req:.3f} mm²/mm; s ≤ sl,max = 0.75·d = {s_max:.0f} mm",
+             f"Table of Asw/s for H{inp.link_dia} links, {inp.legs} legs{legs_note} (mm²/mm @ mm): {row_text}"]
+    if near is None:
+        best = max(row)
+        links = {"dia": inp.link_dia, "legs": inp.legs, "near": None, "far": far[0] if far else None, "VRd_far": 0.0,
+                 "s_max": s_max}
+        out.append(CheckResult(
+            "links", GROUPS[5], "Shear links (from the Asw/s table)", FAIL,
+            result=f"Asw/s {req:.3f} > {best:.3f} mm²/mm (H{inp.link_dia} @ 85)", value=req, limit=best, unit="mm²/mm",
+            utilisation=req / best, working=lines + [
+                f"Even the closest tabulated spacing, 85 mm, gives only {best:.3f} mm²/mm"
+                + (f" (and sl,max = {s_max:.0f} mm rules out wider ones)" if s_max < 85 else "")],
+            note=f"H{inp.link_dia} links with {inp.legs} legs cannot carry this shear: choose a larger link diameter "
+                 "(H12 or H16) or more legs, or make the web wider.", target="links"))
+    else:
+        s_near, v_near = near
+        s_far, v_far = far if far else near
+        v_rd_far = v_far * z * fywd * 2.5
+        links = {"dia": inp.link_dia, "legs": inp.legs, "near": s_near, "far": s_far, "VRd_far": v_rd_far / 1e3,
+                 "s_max": s_max}
+        out.append(CheckResult(
+            "links", GROUPS[5], "Shear links (from the Asw/s table)", INFO,
+            result=f"H{inp.link_dia} ({inp.legs} legs) @ {s_near} mm" + ("" if s_far == s_near else f", {s_far} mm elsewhere"),
+            value=s_near, unit="mm",
+            working=lines + [
+                f"Widest tabulated spacing with Asw/s ≥ {req:.3f}: {s_near} mm, Asw/s = {v_near:.3f} mm²/mm, so provide "
+                f"H{inp.link_dia} links ({inp.legs} legs) at {s_near} mm where the shear is largest",
+                (f"Elsewhere the minimum Asw/s {least:.3f} needs the same {s_far} mm" if s_far == s_near else
+                 f"Elsewhere the minimum Asw/s {least:.3f} needs {s_far} mm (Asw/s = {v_far:.3f})")
+                + f", enough where VEd ≤ Asw/s·z·fywd·cot θ = {v_rd_far / 1e3:.0f} kN"],
+            target="links"))
     leg_pitch = (bw - 2 * inp.cover - inp.link_dia) / (inp.legs - 1)
     st_max = min(0.75 * d, 600)
     ok = leg_pitch <= st_max
@@ -999,33 +1020,30 @@ def _deflection_checks(inp, geo, act):
             status.append(NA)
             continue
         conc, d, t = inp.concrete, res["d"], res["t"]
-        area = geo.beff * inp.hf + inp.b * (d - inp.hf) if res["flange"] else inp.b * d
-        rho, rho_c = res["As"] / area, res["As2"] / area
-        K = DEFLECTION_K[span.kind]
-        basic = flexure.basic_span_depth(K, conc.fck, rho, rho_c)
-        rho0 = math.sqrt(conc.fck) / 1000
-        f1 = max(0.8, 1 - 0.1 * (geo.beff / inp.b - 1)) if res["flange"] else 1.0
+        # ρ = As,req/(b·d) and ρ′ = As2/(b·d), b the width the section was designed with (beff when the flange
+        # is in compression); K2 from beff/bw for a flanged section, K3 = As,prov/As,req
+        b = geo.beff if res["flange"] else inp.b
+        rho, rho_c = res["As"] / (b * d), res["As2"] / (b * d)
+        k1 = tables.K1_FACTORS[span.kind]
+        ratio = geo.beff / inp.b if res["flange"] else None
+        k2 = tables.k2_flange(ratio) if ratio else 1.0
+        k3, k3_line = flexure.k3_factor(t.As, res["As"])
+        limit, _, sd_lines = flexure.span_depth(conc.fck, rho, rho_c, k1, k2, k3, tables.K1_NAMES[span.kind], ratio)
         f2 = 7 / span.l if inp.partitions and span.l > 7 and span.kind != "cantilever" else 1.0
-        sigma, sigma_lines = _steel_stress(inp, res, qp)
-        f3 = min(310 / sigma, 1.5)
-        allowed = basic * f1 * f2 * f3
+        allowed = limit * f2
         actual = span.l * 1000 / d
         ok = actual <= allowed
         head = f"{name[0].upper()}{name[1:]}: M = {kNm(M)} kNm, {t.name} bars, d = {d:.0f} mm"
         lines += [head,
-                  f"  ρ = As,req/{'(beff·hf + bw·(d − hf))' if res['flange'] else '(b·d)'} = {100 * rho:.3f} %, "
-                  f"ρ′ = {100 * rho_c:.3f} %, ρ0 = √fck/1000 = {100 * rho0:.3f} %",
-                  (f"  ρ ≤ ρ0: basic l/d = K·[11 + 1.5√fck·ρ0/ρ + 3.2√fck·(ρ0/ρ − 1)^1.5] = {basic:.1f} (K = {K:g})"
-                   if rho <= rho0 else
-                   f"  ρ > ρ0: basic l/d = K·[11 + 1.5√fck·ρ0/(ρ − ρ′) + √fck·√(ρ′/ρ0)/12] = {basic:.1f} (K = {K:g})")]
-        if res["flange"]:
-            lines.append(f"  F1 = 1 − 0.1·(beff/bw − 1) ≥ 0.8 = {f1:.2f}")
+                  f"  ρ = As,req/(b·d) = {res['As']:.0f}/({b:.0f} × {d:.0f}); ρ′ = As2/(b·d) = {res['As2']:.0f}/({b:.0f} × {d:.0f})"
+                  + (" (b = beff, flange in compression)" if res["flange"] else ""),
+                  f"  {k3_line}"]
+        lines += ["  " + x for x in sd_lines]
         if f2 < 1:
-            lines.append(f"  F2 = 7/leff = 7/{span.l:.2f} = {f2:.2f} (span over 7 m carrying brittle partitions)")
-        lines += ["  " + s for s in sigma_lines]
-        lines += [f"  F3 = 310/σs ≤ 1.5 = {f3:.2f}; allowable l/d = {basic:.1f} × {f1:.2f} × {f2:.2f} × {f3:.2f} "
-                  f"= {allowed:.1f}",
-                  f"  Actual l/d = {span.l * 1000:.0f}/{d:.0f} = {actual:.1f} {_cmp(ok)} {allowed:.1f}"]
+            lines.append(f"  × 7/leff = 7/{span.l:.2f} = {f2:.2f} for a span over 7 m carrying brittle partitions: "
+                         f"{limit:.1f} × {f2:.2f} = {allowed:.1f}")
+        lines.append(f"  Actual L/d = {span.l * 1000:.0f}/{d:.0f} = {actual:.1f} {_cmp(ok)} {allowed:.1f}; total deflection "
+                     "limited to L/250")
         status.append(PASS if ok else FAIL)
         util.append(actual / allowed)
         if worst_line is None or actual / allowed >= max(util):
@@ -1061,7 +1079,7 @@ def _detailing_checks(inp, geo, act, res_sag, res_hog):
             continue
         t = res["t"]
         tag = "bottom" if sagging else "top"
-        bt = geo.beff if (inp.shape == "flanged" and not sagging) else inp.b
+        bt = inp.b          # the web width bw, for the top bars as for the bottom ones
         as_min = max(0.26 * conc.fctm / steel.fyk * bt * t.d, 0.0013 * bt * t.d)
         ok = t.As >= as_min
         out.append(CheckResult(
@@ -1070,7 +1088,7 @@ def _detailing_checks(inp, geo, act, res_sag, res_hog):
             utilisation=as_min / t.As,
             working=[f"{tag.capitalize()} bars in tension ({'sagging' if sagging else 'hogging'}): As,min = "
                      f"0.26·fctm·bt·d/fyk ≥ 0.0013·bt·d = max({0.26 * conc.fctm / steel.fyk * bt * t.d:.0f}, "
-                     f"{0.0013 * bt * t.d:.0f}) = {as_min:.0f} mm² (bt = {bt:.0f} mm)"], target="bars"))
+                     f"{0.0013 * bt * t.d:.0f}) = {as_min:.0f} mm² (bt = {'bw' if inp.shape == 'flanged' else 'b'} = {bt:.0f} mm)"], target="bars"))
     as_max = 0.04 * geo.Ac
     total = geo.bottom.As + geo.top.As
     ok = total <= as_max
@@ -1151,9 +1169,12 @@ ASSUMPTIONS = [
     "redistribution (δ = 1.0).",
     "Every critical value from the analysis is designed for: the largest sagging moment with the bottom bars, the "
     "largest hogging moment with the top bars and the largest shear. Zero values are not designed for.",
-    "Shear by the variable strut inclination method with vertical links (cot θ = 2.5 where possible).",
-    "Deflection by span to effective depth ratios for each span; the service steel stress comes from the "
-    "quasi-permanent to design moment ratio of the analysis (310 MPa when only design actions are given).",
+    "Shear by the variable strut inclination method with vertical links (cot θ = 2.5 where possible); links are "
+    "chosen from the table of Asw/s for two-leg links, at the widest tabulated spacing (85 to 300 mm) that is enough.",
+    "Deflection by span to effective depth ratio for each span: L/d ≤ K1·K2·K3·[...] with K1 for the structural "
+    "system, K2 for beff/b and K3 = As,prov/As,req ≤ 1.5; total deflection limited to L/250. The service steel stress "
+    "for crack control comes from the quasi-permanent to design moment ratio of the analysis (310 MPa when only "
+    "design actions are given).",
     "Crack widths limited to 0.3 mm (0.4 mm in exposure XC1) through the bar size or bar spacing.",
     "Durability covers follow BS 8500 for a 50-year working life and 20 mm maximum aggregate.",
     "Fire resistance by the tabulated method of BS EN 1992-1-2 for beams exposed on three sides.",

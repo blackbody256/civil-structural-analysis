@@ -264,8 +264,16 @@ const PRESETS = {
 
 const SUPPORT_LABEL = { pin: "Pinned", roller: "Roller", fixed: "Fixed" };
 const LOAD_LABEL = { point: "Point load", udl: "Uniform", linear: "Varying", moment: "Moment" };
+const VALUE_KEY = { point: "W", udl: "w", linear: "w1", moment: "M" };
+const UNIT = { point: "kN", udl: "kN/m", linear: "kN/m", moment: "kNm" };
+const DEFAULT_LOAD = {
+  point: { W: 10 },
+  udl: { w: 10 },
+  linear: { w1: 10, w2: 0 },
+  moment: { M: 10 },
+};
 const CASES = [["Ed", "Design"], ["G", "gk × 1.35"], ["Q", "qk × 1.5"]];
-const NUMERIC = /^reinforcement\.(bottom_x_dia|bottom_x_s|bottom_y_dia|bottom_y_s|top_x_s|top_y_s|bottom_dia|legs|cover|delta_c_dev)$/;
+const NUMERIC = /^reinforcement\.(bottom_x_dia|bottom_x_s|bottom_y_dia|bottom_y_s|top_x_s|top_y_s|bottom_dia|legs|cover|delta_c_dev|bottom_n|top_n)$|^slab\.(h|bw|hf)$/;
 const OPTIONAL_DIA = /^reinforcement\.(top_x_dia|top_y_dia|top_dia|link_dia)$/;
 
 const form = document.getElementById("slab-form");
@@ -387,53 +395,131 @@ function syncVisibility() {
 // ------------------------------------------------------------------ Tables
 
 function cellInput(path, value, attrs = {}) {
-  const input = el("input", { type: "number", step: "0.1", value: value ?? "", ...attrs });
-  input.addEventListener("input", () => { setPath(model, path, input.value === "" ? null : Number(input.value)); structural(); });
-  return input;
+  return el("div", { class: "control" }, el("input", {
+    type: "number",
+    step: attrs.step || "any",
+    value: value ?? "",
+    "data-path": path,
+    "aria-label": attrs.label || path,
+    ...(attrs.min !== undefined ? { min: attrs.min } : {}),
+    ...(attrs.max !== undefined ? { max: attrs.max } : {}),
+    ...attrs.extra,
+  }), attrs.unit ? el("span", { class: "unit" }, attrs.unit) : null);
 }
 
-function cellSelect(path, current, options, onChange) {
-  const sel = el("select", {}, options.map(([v, l]) => option(v, l)));
-  sel.value = current;
-  sel.addEventListener("change", () => {
-    setPath(model, path, sel.value);
-    if (onChange) onChange(sel.value);
-    structural();
+function cellSelect(path, value, options, label) {
+  const sel = el("select", { "data-path": path, "aria-label": label }, ...options.map(([v, l]) => option(v, l)));
+  sel.value = value;
+  return el("div", { class: "control" }, sel);
+}
+
+function removeButton(onClick, label) {
+  const b = el("button", {
+    type: "button",
+    class: "btn-icon",
+    "aria-label": label,
+    title: label,
+  }, "×");
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
   });
-  return sel;
+  return b;
+}
+
+function renderSupports() {
+  const tbody = $("supports-table")?.tBodies[0];
+  if (!tbody) return;
+  tbody.replaceChildren(...model.supports.map((sp, i) => {
+    const row = el("tr", { class: selected?.kind === "support" && selected.index === i ? "is-selected" : "" },
+      el("td", { class: "idx" }, String(i + 1)),
+      el("td", {}, cellInput(`span.supports.${i}.x`, sp.x, { label: `Support ${i + 1} position`, unit: "m" })),
+      el("td", {}, cellSelect(`span.supports.${i}.type`, sp.type, Object.entries(SUPPORT_LABEL), `Support ${i + 1} type`)),
+      el("td", { class: "row-actions" }, removeButton(() => {
+        model.supports.splice(i, 1);
+        if (selected?.kind === "support") {
+          if (selected.index === i) selected = null;
+          else if (selected.index > i) selected = { kind: "support", index: selected.index - 1 };
+        }
+        markCustom();
+        structural();
+      }, `Remove support ${i + 1}`)));
+    row.addEventListener("click", (e) => {
+      if (!e.target.closest("button, input, select")) pick({ kind: "support", index: i }, true);
+    });
+    return row;
+  }));
+}
+
+function changeLoadType(item, type) {
+  const L = length();
+  const at = item.x ?? item.x1 ?? 0;
+  const value = item[VALUE_KEY[item.type]] ?? DEFAULT_LOAD[type][VALUE_KEY[type]];
+  for (const k of ["W", "w", "w1", "w2", "M", "x", "x1", "x2"]) delete item[k];
+  item.type = type;
+  item[VALUE_KEY[type]] = value;
+  if (type === "point" || type === "moment") {
+    item.x = at;
+  } else {
+    item.x1 = Math.min(at, L * 0.8);
+    item.x2 = r3(Math.min(L, item.x1 + L / 5));
+    if (type === "linear") item.w2 = 0;
+  }
+}
+
+function renderLoads() {
+  const tbody = $("loads-table")?.tBodies[0];
+  if (!tbody) return;
+  tbody.replaceChildren(...model.loads.map((ld, i) => {
+    const p = `actions.loads.${i}`;
+    const span = ld.type === "udl" || ld.type === "linear";
+    const row = el("tr", { class: selected?.kind === "load" && selected.index === i ? "is-selected" : "" },
+      el("td", {}, cellSelect(`${p}.type`, ld.type, Object.entries(LOAD_LABEL), `Load ${i + 1} type`)),
+      el("td", {}, cellInput(`${p}.${VALUE_KEY[ld.type]}`, ld[VALUE_KEY[ld.type]], { label: `Load ${i + 1} value`, unit: UNIT[ld.type] })),
+      el("td", {}, cellSelect(`${p}.case`, ld.case || "Ed", CASES, `Load ${i + 1} case`)),
+      el("td", {}, cellInput(span ? `${p}.x1` : `${p}.x`, span ? ld.x1 : ld.x, { label: `Load ${i + 1} position` })),
+      el("td", {}, span ? cellInput(`${p}.x2`, ld.x2, { label: `Load ${i + 1} end` }) : el("span", { class: "dash" }, "—")),
+      el("td", {}, ld.type === "linear" ? cellInput(`${p}.w2`, ld.w2, { label: `Load ${i + 1} end value`, unit: "kN/m" }) : el("span", { class: "dash" }, "—")),
+      el("td", { class: "row-actions" }, removeButton(() => {
+        model.loads.splice(i, 1);
+        if (selected?.kind === "load") {
+          if (selected.index === i) selected = null;
+          else if (selected.index > i) selected = { kind: "load", index: selected.index - 1 };
+        }
+        structural();
+      }, `Remove load ${i + 1}`)));
+    row.addEventListener("click", (e) => {
+      if (!e.target.closest("button, select, input")) pick({ kind: "load", index: i }, true);
+    });
+    return row;
+  }));
 }
 
 function renderTables() {
-  const st = $("supports-table")?.querySelector("tbody");
-  if (st) {
-    st.replaceChildren(...model.supports.map((sp, i) =>
-      el("tr", { class: selected?.kind === "support" && selected.index === i ? "is-selected" : "" },
-        el("td", {}, String(i + 1)),
-        el("td", {}, cellInput(`supports.${i}.x`, sp.x, { min: 0, max: length(), step: "0.1" })),
-        el("td", {}, cellSelect(`supports.${i}.type`, sp.type, [["pin", "Pinned"], ["roller", "Roller"], ["fixed", "Fixed"]])),
-        el("td", { class: "row-actions" }, el("button", {
-          type: "button", class: "btn-icon", title: "Remove support",
-          onclick: () => { model.supports.splice(i, 1); markCustom(); structural(); },
-        }, "×")))));
-  }
+  renderSupports();
+  renderLoads();
+}
 
-  const lt = $("loads-table")?.querySelector("tbody");
-  if (lt) {
-    lt.replaceChildren(...model.loads.map((ld, i) =>
-      el("tr", { class: selected?.kind === "load" && selected.index === i ? "is-selected" : "" },
-        el("td", {}, LOAD_LABEL[ld.type] || ld.type),
-        el("td", {}, cellInput(`loads.${i}.${ld.type === "point" ? "W" : ld.type === "moment" ? "M" : "w"}`,
-          ld.type === "point" ? ld.W : ld.type === "moment" ? ld.M : ld.type === "linear" ? ld.w1 : ld.w)),
-        el("td", {}, cellSelect(`loads.${i}.case`, ld.case || "Ed", CASES)),
-        el("td", {}, cellInput(`loads.${i}.${ld.type === "point" || ld.type === "moment" ? "x" : "x1"}`,
-          ld.type === "point" || ld.type === "moment" ? ld.x : ld.x1, { min: 0, max: length() })),
-        el("td", {}, ld.type === "udl" || ld.type === "linear" ? cellInput(`loads.${i}.x2`, ld.x2, { min: 0, max: length() }) : "—"),
-        el("td", {}, ld.type === "linear" ? cellInput(`loads.${i}.w2`, ld.w2) : "—"),
-        el("td", { class: "row-actions" }, el("button", {
-          type: "button", class: "btn-icon", title: "Remove load",
-          onclick: () => { model.loads.splice(i, 1); structural(); },
-        }, "×")))));
+/** A value typed or selected in a table cell. */
+function onTableInput(event) {
+  const path = event.target.dataset.path;
+  if (!path) return;
+  const parts = path.split(".");
+  const index = Number(parts[parts.length - 2]);
+  const key = parts[parts.length - 1];
+  const list = path.startsWith("span.supports") ? model.supports : model.loads;
+  const item = list[index];
+  if (!item) return;
+  if (event.target.tagName === "SELECT") {
+    if (key === "type" && list === model.loads) changeLoadType(item, event.target.value);
+    else item[key] = event.target.value;
+    if (list === model.supports) markCustom();
+    structural();
+    return;
   }
+  item[key] = event.target.value === "" ? null : Number(event.target.value);
+  if (list === model.supports) markCustom();
+  refresh();
 }
 
 function markCustom() {
@@ -452,35 +538,38 @@ function structural() {
   markAnalysisDirty();
 }
 
-function pick(sel) {
+function pick(sel, syncCanvas = true) {
   selected = sel;
   $("canvas-delete").disabled = !sel;
   renderTables();
-  if (canvas) canvas.setSelected(sel);
+  if (syncCanvas && canvas) canvas.select(sel);
 }
 
 function editItem(sel, screenPoint) {
-  pick(sel);
+  pick(sel, false);
   if (!editor || !sel) return;
   const item = sel.kind === "support" ? model.supports[sel.index] : model.loads[sel.index];
   if (!item) return;
   editor.open({
-    anchor: screenPoint,
+    selection: sel,
     item,
     length: length(),
-    onChange: () => {
-      if (sel.kind === "support") markCustom();
-      structural();
-    },
-    onDelete: () => {
-      if (sel.kind === "support") {
-        model.supports.splice(sel.index, 1);
+    screenPoint: screenPoint || canvas.getItemScreenPoint(sel),
+    onApply: (selection, updated) => {
+      const l = selection.kind === "load" ? model.loads : model.supports;
+      l[selection.index] = updated;
+      if (selection.kind === "support") {
+        model.supports.sort((a, b) => a.x - b.x);
         markCustom();
-      } else {
-        model.loads.splice(sel.index, 1);
+        selected = { kind: "support", index: model.supports.indexOf(updated) };
       }
-      pick(null);
-      structural();
+      canvas.render();
+      renderTables();
+      refresh();
+    },
+    onDelete: (selection) => {
+      canvas.select(selection);
+      canvas.remove();
     },
   });
 }
@@ -707,13 +796,80 @@ function updateStatsAndPreview() {
   }
 }
 
+function summaries(d) {
+  const f = (n, dp = 2) => (typeof n === "number" && !Number.isNaN(n) ? (Number.isInteger(n) ? String(n) : n.toFixed(dp).replace(/\.?0+$/, "")) : "—");
+  const type = d.slab?.type || "one_way";
+  let geom = "—";
+  if (type === "ribbed") {
+    const pan = meta?.maxpans.find((p) => p.id === d.slab?.maxpan) || { height: 150 };
+    geom = `Maxpan ${d.slab?.maxpan || '6"'} · bw ${f(d.slab?.bw, 0)} mm · hf ${f(d.slab?.hf, 0)} mm (h = ${pan.height + (Number(d.slab?.hf) || 0)} mm)`;
+  } else {
+    geom = `Solid slab · h = ${f(d.slab?.h, 0)} mm`;
+  }
+
+  const sup = (d.span?.supports || []).map((sp) => `${sp.type[0].toUpperCase()}${sp.type.slice(1)} ${f(sp.x)}`).join(", ");
+  const spanSummary = `L = ${f(d.span?.l)} m · ${sup || "no supports"}`;
+  const panelSummary = `${f(d.panel?.lx)} × ${f(d.panel?.ly)} m · edges: ${d.panel?.edges?.top || "continuous"}`;
+
+  const a = d.actions || {};
+  const loadsSummary = a.mode === "direct"
+    ? `M+Ed ${f(a.M_sag)} · M−Ed ${f(a.M_hog)} kNm · VEd ${f(a.VEd)} kN`
+    : `gk ${f(a.gk)}${a.self_weight ? " + sw" : ""} · qk ${f(a.qk)} kN/m²${(a.loads || []).length ? ` · ${a.loads.length} further load${a.loads.length > 1 ? "s" : ""}` : ""}`;
+
+  const mat = d.materials || {};
+  const matSummary = `${mat.concrete || "C30/37"} · fyk ${f(mat.fyk, 0)} MPa`;
+
+  const re = d.reinforcement || {};
+  let reSummary = "—";
+  if (type === "ribbed") {
+    reSummary = `${re.bottom_n || 2}H${re.bottom_dia || 10} bot · ${re.top_dia && re.top_dia !== "none" ? `${re.top_n || 2}H${re.top_dia} top` : "no top bars"} · cover ${f(re.cover, 0)} mm`;
+  } else {
+    reSummary = `H${re.bottom_x_dia || 10}@${re.bottom_x_s || 200} bot x · H${re.bottom_y_dia || 10}@${re.bottom_y_s || 200} bot y · cover ${f(re.cover, 0)} mm`;
+  }
+
+  const du = d.durability || {};
+  const duSummary = `${du.exposure || "XC1"} · ${du.fire_period === "none" ? "no fire period" : `fire ${du.fire_period}`}`;
+
+  const pr = d.project || {};
+  const projSummary = [pr.name, pr.ref].filter(Boolean).join(" · ") || "Optional";
+
+  return {
+    geometry: geom,
+    span: spanSummary,
+    panel: panelSummary,
+    actions: loadsSummary,
+    materials: matSummary,
+    reinforcement: reSummary,
+    durability: duSummary,
+    project: projSummary,
+  };
+}
+
+function updateSummaries() {
+  const d = serialize();
+  const text = summaries(d);
+  for (const node of document.querySelectorAll("[data-sum]")) {
+    node.textContent = text[node.dataset.sum] ?? "";
+  }
+}
+
+let analysisTimer = null;
+
+function scheduleAnalysis() {
+  clearTimeout(analysisTimer);
+  analysisTimer = setTimeout(runLiveAnalysis, 260);
+}
+
 function refresh() {
   syncVisibility();
   drawPanelPlan();
   updateStatsAndPreview();
+  updateSummaries();
   if (canvas && isStrip()) {
+    canvas.selected = selected;
     canvas.setModel({ length: length(), supports: model.supports, loads: model.loads, w: lastAnalysis?.analysis?.w || 0 });
   }
+  scheduleAnalysis();
   model3d?.update();
 }
 
@@ -744,7 +900,7 @@ function serialize() {
     } else if (OPTIONAL_DIA.test(path)) {
       setPath(data, path, input.value === "none" ? "none" : Number(input.value));
     } else if (NUMERIC.test(path)) {
-      setPath(data, path, Number(input.value));
+      setPath(data, path, input.value === "" ? null : Number(input.value));
     } else {
       setPath(data, path, input.value);
     }
@@ -1079,7 +1235,7 @@ function initCanvas() {
         refresh();
       }
     },
-    onSelect: (sel) => pick(sel),
+    onSelect: (sel) => pick(sel, false),
     onEdit: (sel, screenPoint) => editItem(sel, screenPoint),
     onLength: (L, oldL) => {
       // the green grip at the end of the beam was dragged: new length, supports at the end follow it
@@ -1102,14 +1258,9 @@ function initCanvas() {
 
   $("canvas-delete")?.addEventListener("click", () => {
     if (!selected) return;
-    if (selected.kind === "support") {
-      model.supports.splice(selected.index, 1);
-      markCustom();
-    } else {
-      model.loads.splice(selected.index, 1);
-    }
-    pick(null);
-    structural();
+    if (selected.kind === "support") markCustom();
+    canvas.select(selected);
+    canvas.remove();
   });
 }
 
@@ -1146,49 +1297,79 @@ async function init() {
     $(`edge-${side}`)?.addEventListener("change", () => {
       drawPanelPlan();
       markAnalysisDirty();
-      runLiveAnalysis();
+      scheduleAnalysis();
     });
   });
 
   // Slab type radio switch
   form.querySelectorAll('input[name="slab.type"]').forEach((radio) => {
     radio.addEventListener("change", () => {
+      if (radio.checked && radio.value === "ribbed") {
+        if (!form.elements["slab.bw"].value) form.elements["slab.bw"].value = "150";
+        if (!form.elements["slab.hf"].value) form.elements["slab.hf"].value = "50";
+        if (!form.elements["reinforcement.bottom_n"].value) form.elements["reinforcement.bottom_n"].value = "2";
+        if (!form.elements["reinforcement.bottom_dia"].value) form.elements["reinforcement.bottom_dia"].value = "10";
+        if (!form.elements["reinforcement.top_n"].value) form.elements["reinforcement.top_n"].value = "2";
+        if (!form.elements["reinforcement.top_dia"].value) form.elements["reinforcement.top_dia"].value = "10";
+        if (!form.elements["reinforcement.link_dia"].value) form.elements["reinforcement.link_dia"].value = "none";
+        if (!form.elements["reinforcement.mesh"].value) form.elements["reinforcement.mesh"].value = "A98";
+      } else if (radio.checked && (radio.value === "one_way" || radio.value === "two_way")) {
+        if (!form.elements["slab.h"].value) form.elements["slab.h"].value = radio.value === "two_way" ? "200" : "175";
+      }
       syncVisibility();
       drawPanelPlan();
       updateStatsAndPreview();
       markAnalysisDirty();
-      runLiveAnalysis();
+      refresh();
     });
   });
 
-  // Span preset change
-  form.elements["span.preset"]?.addEventListener("change", () => {
-    applyPreset();
-    structural();
-  });
-
-  // Span length change
-  form.elements["span.l"]?.addEventListener("input", () => {
-    if (valueOf("span.preset") !== "custom") applyPreset();
-    else {
-      const L = length();
-      model.supports = model.supports.filter((sp) => sp.x <= L + 1e-9);
+  // Global keydown for Delete / Backspace when a canvas item or table row is selected
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+      if (e.target?.closest?.("input, select, textarea")) return;
+      e.preventDefault();
+      if (selected.kind === "support") markCustom();
+      if (canvas) {
+        canvas.select(selected);
+        canvas.remove();
+      }
     }
-    renderTables();
-    structural();
   });
 
-  // Panel size changes
-  form.elements["panel.lx"]?.addEventListener("input", () => { drawPanelPlan(); markAnalysisDirty(); runLiveAnalysis(); });
-  form.elements["panel.ly"]?.addEventListener("input", () => { drawPanelPlan(); markAnalysisDirty(); runLiveAnalysis(); });
-
-  // Reinforcement and geometry inputs change live preview
+  let inputTimer = null;
   form.addEventListener("input", (e) => {
     updateStatsAndPreview();
-    if (e.target.name && e.target.closest("#panel-analysis")) {
-      markAnalysisDirty();
-      runLiveAnalysis();
+    if (e.target.closest("#panel-analysis") && analysisDone) {
+      analysisDirty = true;
+      if ($("analysis-note")) $("analysis-note").textContent = "Inputs changed since last analysis: click Analyse to refresh";
     }
+    if (e.target.dataset.path) {
+      onTableInput(e);
+      return;
+    }
+    clearTimeout(inputTimer);
+    inputTimer = setTimeout(refresh, 90);
+  });
+
+  form.addEventListener("change", (e) => {
+    if (e.target.closest("#panel-analysis") && analysisDone) {
+      analysisDirty = true;
+      if ($("analysis-note")) $("analysis-note").textContent = "Inputs changed since last analysis: click Analyse to refresh";
+    }
+    if (e.target.dataset.path) {
+      if (e.target.tagName === "SELECT") onTableInput(e);
+      return;
+    }
+    if (e.target.name === "span.preset" || e.target.name === "span.l") {
+      if (valueOf("span.preset") !== "custom") applyPreset();
+      else {
+        const L = length();
+        model.supports = model.supports.filter((sp) => sp.x <= L + 1e-9);
+      }
+      renderTables();
+    }
+    refresh();
   });
 
   $("btn-analyse")?.addEventListener("click", performAnalysis);

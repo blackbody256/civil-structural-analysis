@@ -143,7 +143,8 @@ def parse_input(data):
         else:
             k_top, k_bottom = r.stiffness(f"{base}.k_top"), r.stiffness(f"{base}.k_bottom")
             if not braced and math.isinf(k_top) and math.isinf(k_bottom):
-                r.errors[f"{base}.k_top"] = "An unbraced column pinned at both ends is a mechanism."
+                r.errors[f"{base}.k_top"] = ("An unbraced column pinned at both ends is a mechanism: restrain at least one "
+                                              "end (a k value, or the beams framing in), or choose Braced.")
             restraint[axis] = AxisRestraint("k", k_top, k_bottom, None, None)
 
     n_ed = r.number("actions.NEd", lo=0.001, hi=1e6)
@@ -161,7 +162,7 @@ def parse_input(data):
         moments["z"] = AxisMoments(0.0, 0.0, "single")
     else:
         if not has["y"]:
-            r.errors["actions.My_top"] = "Biaxial bending needs a moment about y–y."
+            r.errors["actions.My_top"] = "Biaxial bending needs a moment about y–y: enter My at the top or bottom, or choose uniaxial bending."
         if not has["z"]:
             r.errors["actions.Mz_top"] = "Enter a moment about z–z, or choose uniaxial bending."
     phi_ef = r.number("actions.phi_ef", lo=0, hi=6, default=1.7)
@@ -180,7 +181,9 @@ def parse_input(data):
     if not r.errors:
         axis_distance = cover + link_dia + bar_dia / 2
         if 2 * axis_distance >= min(b, h):
-            r.errors["reinforcement.cover"] = "Cover, link and bar do not fit within the section."
+            r.errors["reinforcement.cover"] = (f"The cover, link and bar ({axis_distance:.0f} mm from each face) take up the "
+                                               f"whole {min(b, h):g} mm section: reduce the cover or the bar size, or "
+                                               "make b and h larger.")
     if r.errors:
         raise ValidationError(r.errors)
 
