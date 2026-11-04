@@ -34,7 +34,7 @@ a dark 3D view as in analysis software, and the ruled Ref | Calculation | Output
 | Beam | two 7.5 m spans, 350 × 650, C32/40, G + Q and a point load: 17 pass | 300 × 500, C25/30, 3H20: 6 fail |
 | One-way slab | two 5.2 m spans, h 200, C32/40: 16 pass | h 140, C25/30, no top bars: 7 fail |
 | Two-way slab | 4.8 × 6.0 m corner panel, h 190: 16 pass | h 130, H8 @ 300, no top bars: 7 fail |
-| Ribbed slab | 7" Maxpans, 125 mm ribs, two 5.0 m spans: 14 pass | 5" Maxpans, 100 mm ribs, C20/25, cover 15: 5 fail |
+| Ribbed slab | 7" Maxpans, 125 mm ribs, two 5.0 m spans: 14 pass | 5" Maxpans, 100 mm ribs, C20/25, cover 15: 4 fail |
 | Pad foundation | 450 × 450 column, 3.4 × 3.4 × 0.7 m on compact sand: 17 pass | 3.0 × 3.0 × 0.65 m, H16 @ 200, cast on soil: 7 fail |
 
 ## Code
