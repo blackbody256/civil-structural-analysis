@@ -1,5 +1,5 @@
 // Slab form: Analysis, Design and Report tabs for solid one-way and two-way slabs and ribbed slabs.
-import { downloadBlob, el, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
+import { downloadBlob, el, failureText, getJSON, keysFor, postJSON, statusDot, store } from "./common.js";
 import { BeamCanvas, resizeModel } from "./beam-canvas.js";
 import { CanvasEditor } from "./canvas-editor.js";
 import { drawSlabSection, s } from "./drawings.js";
@@ -1005,7 +1005,7 @@ async function performAnalysis() {
     const res = await postJSON("/api/slab/analysis", data);
     if (!res.ok) {
       if (res.status === 400 && res.data?.errors) {
-        errors.apply(res.data.errors);
+        errors.show(res.data.errors);
       } else {
         $("form-message").textContent = `Server error (${res.status})`;
       }
@@ -1029,8 +1029,8 @@ async function performAnalysis() {
       });
       $("analysis-results-area").replaceChildren(view);
     }
-  } catch {
-    $("form-message").textContent = "Could not reach the analysis server.";
+  } catch (err) {
+    $("form-message").textContent = failureText(err, "the analysis");
   } finally {
     btn.disabled = false;
   }
@@ -1048,7 +1048,7 @@ async function performDesignChecks(e) {
     const res = await postJSON("/api/slab/check", data);
     if (!res.ok) {
       if (res.status === 400 && res.data?.errors) {
-        errors.apply(res.data.errors);
+        errors.show(res.data.errors);
         $("form-message").textContent = "Please fix the highlighted errors.";
       } else {
         $("form-message").textContent = `Server error (${res.status})`;
@@ -1097,7 +1097,7 @@ async function performDesignChecks(e) {
     }
   } catch (err) {
     console.error(err);
-    $("form-message").textContent = "Could not reach the server.";
+    $("form-message").textContent = failureText(err, "the design checks");
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -1347,4 +1347,7 @@ async function init() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => init().catch((err) => {
+  $("form-message").textContent = failureText(err, "the page");
+  console.error(err);
+}));

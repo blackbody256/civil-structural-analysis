@@ -1,4 +1,4 @@
-import { currentElement, el, ELEMENT_TITLES, keysFor, postJSON, SEVERITY, STATUS_SVG, store, verdictText } from "./common.js";
+import { currentElement, el, ELEMENT_TITLES, failureText, keysFor, postJSON, SEVERITY, STATUS_SVG, store, verdictText } from "./common.js";
 import { drawBeamSection, drawSection, drawSlabSection } from "./drawings.js";
 import { renderFigure } from "./figure-spec.js";
 
@@ -95,8 +95,8 @@ async function main() {
   let res;
   try {
     res = await postJSON(`/api/${element}/check`, input);
-  } catch {
-    list.replaceChildren(el("li", { class: "empty" }, "Could not reach the calculation server. Is app.py running?"));
+  } catch (err) {
+    list.replaceChildren(el("li", { class: "empty" }, failureText(err, "the checks")));
     return;
   }
   if (res.status === 400 && res.data?.errors) {
